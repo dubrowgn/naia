@@ -1,18 +1,16 @@
-use crate::{MessageContainer, MessageIndex, MessageKinds};
+use crate::{MessageContainer, MessageKinds};
 use crate::messages::fragment::{FragmentId, FragmentedMessage};
 use log::info;
 use naia_serde::BitReader;
 use std::collections::HashMap;
 
 pub struct FragmentReceiver {
-    current_index: MessageIndex,
     map: HashMap<FragmentId, (u32, Vec<Box<[u8]>>)>,
 }
 
 impl FragmentReceiver {
     pub fn new() -> Self {
         Self {
-            current_index: MessageIndex::ZERO,
             map: HashMap::new(),
         }
     }
@@ -21,14 +19,10 @@ impl FragmentReceiver {
         &mut self,
         message_kinds: &MessageKinds,
         message: MessageContainer,
-    ) -> Option<(MessageIndex, MessageContainer)> {
-        // returns a new index, 1 per full message
+    ) -> Option<MessageContainer> {
 
-        // Pass right through if not a fragment
         if !message.is_fragment() {
-            let output = Some((self.current_index, message));
-            self.current_index.incr();
-            return output;
+            panic!("Received non-fragmented message in FragmentReceiver!");
         }
 
         // Message is a fragment, need to process
@@ -61,8 +55,6 @@ impl FragmentReceiver {
             panic!("Cannot read fragmented message!");
         }
         let full_message = full_message_result.unwrap();
-        let output = Some((self.current_index, full_message));
-        self.current_index.incr();
-        output
+        Some(full_message)
     }
 }

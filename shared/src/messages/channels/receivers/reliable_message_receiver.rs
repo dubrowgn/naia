@@ -29,6 +29,7 @@ pub struct ReliableMessageReceiver<A: ReceiverArranger> {
     incoming_messages: Vec<(MessageIndex, MessageContainer)>,
     arranger: A,
     fragment_receiver: FragmentReceiver,
+    current_index: MessageIndex,
 }
 
 impl<A: ReceiverArranger> ReliableMessageReceiver<A> {
@@ -38,6 +39,7 @@ impl<A: ReceiverArranger> ReliableMessageReceiver<A> {
             incoming_messages: Vec::new(),
             arranger,
             fragment_receiver: FragmentReceiver::new(),
+            current_index: MessageIndex::ZERO,
         }
     }
 
@@ -46,12 +48,20 @@ impl<A: ReceiverArranger> ReliableMessageReceiver<A> {
         message_kinds: &MessageKinds,
         message: MessageContainer,
     ) {
-        let Some((first_index, full_message)) =
-            self.fragment_receiver.receive(message_kinds, message) else {
+        let Some(full_message) = ({
+            if message.is_fragment() {
+                self.fragment_receiver.receive(message_kinds, message)
+            } else {
+                Some(message)
+            }
+        }) else {
             return;
         };
 
-		//info!("Received message!");
+        let first_index = self.current_index;
+        self.current_index.incr();
+
+        //info!("Received message!");
 
         self.arranger
             .process(&mut self.incoming_messages, first_index, full_message);

@@ -56,7 +56,7 @@ fn convert_single_fragment() {
     // Receive Fragments
     let mut incoming_message_container_opt = None;
     for fragment in fragments {
-        if let Some((_, reassembled_message)) =
+        if let Some(reassembled_message) =
             receiver.receive(&message_kinds, fragment)
         {
             incoming_message_container_opt = Some(reassembled_message);
@@ -108,7 +108,7 @@ fn convert_multiple_fragments() {
         };
 
         let fragment = &fragments[j];
-        if let Some((_, reassembled_message)) =
+        if let Some(reassembled_message) =
             receiver.receive(&message_kinds, fragment.clone())
         {
             incoming_message_container_opt = Some(reassembled_message);
