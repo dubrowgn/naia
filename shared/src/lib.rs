@@ -16,7 +16,7 @@ cfg_if! {
 }
 
 pub use naia_derive::{
-    Channel, Message, Replicate,
+    Channel, Message,
 };
 pub use naia_serde::{
     BitReader, BitWrite, BitWriter, ConstBitLength, FileBitWriter, OutgoingPacket, OwnedBitReader,

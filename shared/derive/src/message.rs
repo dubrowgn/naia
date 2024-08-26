@@ -94,18 +94,14 @@ fn get_clone_method(fields: &[Field], struct_type: &StructType) -> TokenStream {
 
     for (index, field) in fields.iter().enumerate() {
         let field_name = get_field_name(field, index, struct_type);
-        match field {
-            Field::Normal(_) | Field::EntityProperty(_) => {
-                let new_output_right = quote! {
-                    #field_name: self.#field_name.clone(),
-                };
-                let new_output_result = quote! {
-                    #output
-                    #new_output_right
-                };
-                output = new_output_result;
-            }
-        };
+		let new_output_right = quote! {
+			#field_name: self.#field_name.clone(),
+		};
+		let new_output_result = quote! {
+			#output
+			#new_output_right
+		};
+		output = new_output_result;
     }
 
     quote! {
@@ -125,7 +121,7 @@ pub fn get_read_method(
 ) -> TokenStream {
     let mut field_names = quote! {};
     for field in fields.iter() {
-        let field_name = field.variable_name();
+        let field_name = &field.variable_name;
         let new_output_right = quote! {
             #field_name
         };
@@ -138,21 +134,13 @@ pub fn get_read_method(
 
     let mut field_reads = quote! {};
     for field in fields.iter() {
-        let field_name = field.variable_name();
-        let new_output_right = match field {
-            Field::EntityProperty(_property) => {
-                quote! {
-                    let #field_name = EntityProperty::new_read(reader, converter)?;
-                }
-            }
-            Field::Normal(normal_field) => {
-                let field_name = &normal_field.variable_name;
-                let field_type = &normal_field.field_type;
-                quote! {
-                    let #field_name = <#field_type>::de(reader)?;
-                }
-            }
-        };
+        let new_output_right = {
+			let field_name = &field.variable_name;
+			let field_type = &field.field_type;
+			quote! {
+				let #field_name = <#field_type>::de(reader)?;
+			}
+		};
 
         let new_output_result = quote! {
             #field_reads
@@ -197,18 +185,11 @@ fn get_write_method(fields: &[Field], struct_type: &StructType) -> TokenStream {
 
     for (index, field) in fields.iter().enumerate() {
         let field_name = get_field_name(field, index, struct_type);
-        let new_output_right = match field {
-            Field::Normal(_) => {
-                quote! {
-                    self.#field_name.ser(writer);
-                }
-            }
-            Field::EntityProperty(_) => {
-                quote! {
-                    EntityProperty::write(&self.#field_name, writer, converter);
-                }
-            }
-        };
+        let new_output_right = {
+			quote! {
+				self.#field_name.ser(writer);
+			}
+		};
 
         let new_output_result = quote! {
             #field_writes
@@ -230,18 +211,11 @@ fn get_bit_length_method(fields: &[Field], struct_type: &StructType) -> TokenStr
 
     for (index, field) in fields.iter().enumerate() {
         let field_name = get_field_name(field, index, struct_type);
-        let new_output_right = match field {
-            Field::Normal(_) => {
-                quote! {
-                    output += self.#field_name.bit_length();
-                }
-            }
-            Field::EntityProperty(_) => {
-                quote! {
-                    output += self.#field_name.bit_length(converter);
-                }
-            }
-        };
+        let new_output_right = {
+			quote! {
+				output += self.#field_name.bit_length();
+			}
+		};
 
         let new_output_result = quote! {
             #field_bit_lengths
@@ -278,23 +252,15 @@ fn get_fields(input: &DeriveInput) -> Vec<Field> {
                     if let Some(variable_name) = &field.ident {
                         match &field.ty {
                             Type::Path(type_path) => {
-                                if let Some(property_seg) = type_path.path.segments.first() {
-                                    let property_type = property_seg.ident.clone();
-                                    // EntityProperty
-                                    if property_type == "EntityProperty" {
-                                        fields.push(Field::entity_property(variable_name.clone()));
-                                        continue;
-                                        // Property
-                                    } else {
-                                        fields.push(Field::normal(
-                                            variable_name.clone(),
-                                            field.ty.clone(),
-                                        ));
-                                    }
+                                if let Some(_) = type_path.path.segments.first() {
+									fields.push(Field::new(
+										variable_name.clone(),
+										field.ty.clone(),
+									));
                                 }
                             }
                             _ => {
-                                fields.push(Field::normal(variable_name.clone(), field.ty.clone()));
+                                fields.push(Field::new(variable_name.clone(), field.ty.clone()));
                             }
                         }
                     }
@@ -307,12 +273,7 @@ fn get_fields(input: &DeriveInput) -> Vec<Field> {
                             let property_type = property_seg.ident.clone();
                             let variable_name =
                                 get_variable_name_for_unnamed_field(index, property_type.span());
-                            if property_type == "EntityProperty" {
-                                fields.push(Field::entity_property(variable_name));
-                                continue;
-                            } else {
-                                fields.push(Field::normal(variable_name, field.ty.clone()))
-                            }
+							fields.push(Field::new(variable_name, field.ty.clone()));
                         }
                     }
                 }
@@ -320,7 +281,7 @@ fn get_fields(input: &DeriveInput) -> Vec<Field> {
             Fields::Unit => {}
         }
     } else {
-        panic!("Can only derive Replicate on a struct");
+        panic!("Can only derive Message on a struct");
     }
 
     fields
@@ -329,11 +290,11 @@ fn get_fields(input: &DeriveInput) -> Vec<Field> {
 /// Get the field name as a TokenStream
 fn get_field_name(field: &Field, index: usize, struct_type: &StructType) -> Member {
     match *struct_type {
-        StructType::Struct => Member::from(field.variable_name().clone()),
+        StructType::Struct => Member::from(field.variable_name.clone()),
         StructType::TupleStruct => {
             let index = Index {
                 index: index as u32,
-                span: field.variable_name().span(),
+                span: field.variable_name.span(),
             };
             Member::from(index)
         }
@@ -348,39 +309,16 @@ fn get_variable_name_for_unnamed_field(index: usize, span: Span) -> Ident {
     Ident::new(&format!("{}{}", UNNAMED_FIELD_PREFIX, index), span)
 }
 
-pub struct EntityProperty {
-    pub variable_name: Ident,
-}
-
-pub struct Normal {
+pub struct Field {
     pub variable_name: Ident,
     pub field_type: Type,
 }
 
-#[allow(clippy::large_enum_variant)]
-pub enum Field {
-    EntityProperty(EntityProperty),
-    Normal(Normal),
-}
-
 impl Field {
-    pub fn entity_property(variable_name: Ident) -> Self {
-        Self::EntityProperty(EntityProperty {
-            variable_name: variable_name.clone(),
-        })
-    }
-
-    pub fn normal(variable_name: Ident, field_type: Type) -> Self {
-        Self::Normal(Normal {
+    pub fn new(variable_name: Ident, field_type: Type) -> Self {
+        Self {
             variable_name: variable_name.clone(),
             field_type,
-        })
-    }
-
-    pub fn variable_name(&self) -> &Ident {
-        match self {
-            Self::EntityProperty(property) => &property.variable_name,
-            Self::Normal(field) => &field.variable_name,
         }
     }
 }

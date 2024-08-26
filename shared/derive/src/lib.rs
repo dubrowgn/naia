@@ -7,21 +7,10 @@ use quote::quote;
 
 mod channel;
 mod message;
-mod replicate;
 mod shared;
 
 use channel::channel_impl;
 use message::message_impl;
-use replicate::replicate_impl;
-
-// Replicate
-
-/// Derives the Replicate trait for a given struct
-#[proc_macro_derive(Replicate)]
-pub fn replicate_derive_shared(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let shared_crate_name = quote! { naia_shared };
-    replicate_impl(input, shared_crate_name)
-}
 
 // Channel
 
