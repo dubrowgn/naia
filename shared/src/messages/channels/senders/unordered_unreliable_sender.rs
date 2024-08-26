@@ -10,7 +10,6 @@ use crate::{
         message_kinds::MessageKinds,
     },
     types::MessageIndex,
-    LocalEntityAndGlobalEntityConverterMut,
 };
 
 pub struct UnorderedUnreliableSender {
@@ -27,11 +26,10 @@ impl UnorderedUnreliableSender {
     fn write_message(
         &self,
         message_kinds: &MessageKinds,
-        converter: &mut dyn LocalEntityAndGlobalEntityConverterMut,
         writer: &mut dyn BitWrite,
         message: &MessageContainer,
     ) {
-        message.write(message_kinds, writer, converter);
+        message.write(message_kinds, writer);
     }
 
     fn warn_overflow(&self, message: &MessageContainer, bits_needed: u32, bits_free: u32) {
@@ -64,7 +62,6 @@ impl MessageChannelSender for UnorderedUnreliableSender {
     fn write_messages(
         &mut self,
         message_kinds: &MessageKinds,
-        converter: &mut dyn LocalEntityAndGlobalEntityConverterMut,
         writer: &mut BitWriter,
         has_written: &mut bool,
     ) -> Option<Vec<MessageIndex>> {
@@ -80,7 +77,7 @@ impl MessageChannelSender for UnorderedUnreliableSender {
             // write MessageContinue bit
             true.ser(&mut counter);
             // write data
-            self.write_message(message_kinds, converter, &mut counter, message);
+            self.write_message(message_kinds, &mut counter, message);
             if counter.overflowed() {
                 // if nothing useful has been written in this packet yet,
                 // send warning about size of message being too big
@@ -96,7 +93,7 @@ impl MessageChannelSender for UnorderedUnreliableSender {
             // write MessageContinue bit
             true.ser(writer);
             // write data
-            self.write_message(message_kinds, converter, writer, &message);
+            self.write_message(message_kinds, writer, &message);
 
             // pop message we've written
             self.outgoing_messages.pop_front();

@@ -1,9 +1,9 @@
-use std::{collections::HashMap, hash::Hash, net::SocketAddr};
+use std::{collections::HashMap, net::SocketAddr};
 
 use ring::{hmac, rand};
 
 pub use naia_shared::{
-    BitReader, BitWriter, FakeEntityConverter, MessageContainer,
+    BitReader, BitWriter, MessageContainer,
 	MessageKinds, PacketType, Serde, SerdeErr, StandardHeader,
 };
 
@@ -92,7 +92,7 @@ impl HandshakeManager {
             return HandshakeResult::Success(None);
         }
 
-        let Ok(auth_message) = message_kinds.read(reader, &FakeEntityConverter) else {
+        let Ok(auth_message) = message_kinds.read(reader) else {
             return HandshakeResult::Invalid;
         };
 
@@ -113,9 +113,9 @@ impl HandshakeManager {
         writer
     }
 
-    pub fn verify_disconnect_request<E: Copy + Eq + Hash + Send + Sync>(
+    pub fn verify_disconnect_request(
         &mut self,
-        connection: &Connection<E>,
+        connection: &Connection,
         reader: &mut BitReader,
     ) -> bool {
         // Verify that timestamp hash has been written by this

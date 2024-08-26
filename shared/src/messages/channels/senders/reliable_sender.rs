@@ -13,7 +13,6 @@ use crate::{
         message_kinds::MessageKinds,
     },
     types::MessageIndex,
-    LocalEntityAndGlobalEntityConverterMut,
 };
 
 // Sender
@@ -129,14 +128,12 @@ impl MessageChannelSender for ReliableSender<MessageContainer> {
     fn write_messages(
         &mut self,
         message_kinds: &MessageKinds,
-        converter: &mut dyn LocalEntityAndGlobalEntityConverterMut,
         writer: &mut BitWriter,
         has_written: &mut bool,
     ) -> Option<Vec<MessageIndex>> {
         IndexedMessageWriter::write_messages(
             message_kinds,
             &mut self.outgoing_messages,
-            converter,
             writer,
             has_written,
         )

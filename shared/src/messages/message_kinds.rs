@@ -2,7 +2,7 @@ use std::{any::TypeId, collections::HashMap};
 
 use naia_serde::{BitReader, BitWrite, ConstBitLength, Serde, SerdeErr};
 
-use crate::{LocalEntityAndGlobalEntityConverter, Message, MessageBuilder, MessageContainer};
+use crate::{Message, MessageBuilder, MessageContainer};
 
 type NetId = u16;
 
@@ -11,14 +11,6 @@ type NetId = u16;
 pub struct MessageKind {
     type_id: TypeId,
 }
-
-// impl From<TypeId> for MessageKind {
-//     fn from(type_id: TypeId) -> Self {
-//         Self {
-//             type_id
-//         }
-//     }
-// }
 
 impl MessageKind {
     pub fn of<M: Message>() -> Self {
@@ -70,13 +62,9 @@ impl MessageKinds {
         //TODO: check for current_id overflow?
     }
 
-    pub fn read(
-        &self,
-        reader: &mut BitReader,
-        converter: &dyn LocalEntityAndGlobalEntityConverter,
-    ) -> Result<MessageContainer, SerdeErr> {
+    pub fn read(&self, reader: &mut BitReader) -> Result<MessageContainer, SerdeErr> {
         let message_kind: MessageKind = MessageKind::de(self, reader)?;
-        return self.kind_to_builder(&message_kind).read(reader, converter);
+        return self.kind_to_builder(&message_kind).read(reader);
     }
 
     fn net_id_to_kind(&self, net_id: &NetId) -> MessageKind {

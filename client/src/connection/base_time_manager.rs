@@ -1,7 +1,4 @@
-use std::hash::Hash;
-
 use log::warn;
-
 use naia_shared::{
     sequence_greater_than, BitReader, BitWriter, GameDuration, GameInstant, Instant, PacketType,
     PingIndex, PingStore, Serde, SerdeErr, StandardHeader, UnsignedVariableInteger,
@@ -55,8 +52,8 @@ impl BaseTimeManager {
         Ok(ping_index)
     }
 
-    pub(crate) fn send_pong<E: Copy + Eq + Hash + Send + Sync>(
-        connection: &mut Connection<E>,
+    pub(crate) fn send_pong(
+        connection: &mut Connection,
         io: &mut Io,
         ping_index: PingIndex,
     ) {

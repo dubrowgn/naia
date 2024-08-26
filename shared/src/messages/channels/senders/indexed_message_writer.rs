@@ -5,7 +5,6 @@ use naia_serde::{BitWrite, BitWriter, Serde, UnsignedVariableInteger};
 use crate::{
     messages::{message_container::MessageContainer, message_kinds::MessageKinds},
     types::MessageIndex,
-    world::entity::entity_converters::LocalEntityAndGlobalEntityConverterMut,
     wrapping_diff,
 };
 
@@ -16,7 +15,6 @@ impl IndexedMessageWriter {
     pub fn write_messages(
         message_kinds: &MessageKinds,
         outgoing_messages: &mut VecDeque<(MessageIndex, MessageContainer)>,
-        converter: &mut dyn LocalEntityAndGlobalEntityConverterMut,
         writer: &mut BitWriter,
         has_written: &mut bool,
     ) -> Option<Vec<MessageIndex>> {
@@ -37,7 +35,6 @@ impl IndexedMessageWriter {
             // write data
             Self::write_message(
                 message_kinds,
-                converter,
                 &mut counter,
                 &last_written_id,
                 message_index,
@@ -60,7 +57,6 @@ impl IndexedMessageWriter {
             // write data
             Self::write_message(
                 message_kinds,
-                converter,
                 writer,
                 &last_written_id,
                 message_index,
@@ -97,7 +93,6 @@ impl IndexedMessageWriter {
 
     fn write_message(
         message_kinds: &MessageKinds,
-        converter: &mut dyn LocalEntityAndGlobalEntityConverterMut,
         writer: &mut dyn BitWrite,
         last_written_id: &Option<MessageIndex>,
         message_index: &MessageIndex,
@@ -105,7 +100,7 @@ impl IndexedMessageWriter {
     ) {
         Self::write_message_index(writer, last_written_id, message_index);
 
-        message.write(message_kinds, writer, converter);
+        message.write(message_kinds, writer);
     }
 
     fn warn_overflow(bits_needed: u32, bits_free: u32) {

@@ -3,7 +3,7 @@ use std::time::Duration;
 use log::warn;
 
 use naia_shared::{
-    BitReader, BitWriter, FakeEntityConverter, MessageContainer, MessageKinds, PacketType, Serde,
+    BitReader, BitWriter, MessageContainer, MessageKinds, PacketType, Serde,
     StandardHeader, Timer, Timestamp as stamp_time,
 };
 
@@ -226,7 +226,7 @@ impl HandshakeManager {
             // write that we have auth
             true.ser(&mut writer);
             // write payload
-            auth_message.write(message_kinds, &mut writer, &mut FakeEntityConverter);
+            auth_message.write(message_kinds, &mut writer);
         } else {
             // write that we do not have auth
             false.ser(&mut writer);

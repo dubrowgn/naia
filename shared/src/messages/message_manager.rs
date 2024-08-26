@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::hash::Hash;
 
 use naia_serde::{BitReader, BitWrite, BitWriter, ConstBitLength, Serde, SerdeErr};
 use naia_socket_shared::Instant;
@@ -29,11 +28,7 @@ use crate::{
         message_container::MessageContainer,
     },
     types::{HostType, MessageIndex, PacketIndex},
-    world::{
-        entity::entity_converters::LocalEntityAndGlobalEntityConverterMut,
-        remote::entity_waitlist::EntityWaitlist,
-    },
-    EntityAndGlobalEntityConverter, EntityAndLocalEntityConverter, EntityConverter, MessageKinds,
+    MessageKinds,
     Protocol,
 };
 
@@ -167,7 +162,6 @@ impl MessageManager {
     pub fn send_message(
         &mut self,
         message_kinds: &MessageKinds,
-        converter: &mut dyn LocalEntityAndGlobalEntityConverterMut,
         channel_kind: &ChannelKind,
         message: MessageContainer,
     ) {
@@ -187,7 +181,7 @@ impl MessageManager {
             // Now fragment this message ...
             let messages =
                 self.message_fragmenter
-                    .fragment_message(message_kinds, converter, message);
+                    .fragment_message(message_kinds, message);
             for message_fragment in messages {
                 channel.send_message(message_fragment);
             }
@@ -216,7 +210,6 @@ impl MessageManager {
     pub fn write_messages(
         &mut self,
         protocol: &Protocol,
-        converter: &mut dyn LocalEntityAndGlobalEntityConverterMut,
         writer: &mut BitWriter,
         packet_index: PacketIndex,
         has_written: &mut bool,
@@ -246,7 +239,7 @@ impl MessageManager {
             channel_kind.ser(&protocol.channel_kinds, writer);
             // write Messages
             if let Some(message_indices) =
-                channel.write_messages(&protocol.message_kinds, converter, writer, has_written)
+                channel.write_messages(&protocol.message_kinds, writer, has_written)
             {
                 self.packet_to_message_map
                     .entry(packet_index)
@@ -267,15 +260,11 @@ impl MessageManager {
 
     // Incoming Messages
 
-    pub fn read_messages<E: Copy + Eq + Hash + Send + Sync>(
+    pub fn read_messages(
         &mut self,
         protocol: &Protocol,
-        entity_waitlist: &mut EntityWaitlist,
-        global_converter: &dyn EntityAndGlobalEntityConverter<E>,
-        local_converter: &dyn EntityAndLocalEntityConverter<E>,
         reader: &mut BitReader,
     ) -> Result<(), SerdeErr> {
-        let converter = EntityConverter::new(global_converter, local_converter);
         loop {
             let message_continue = bool::de(reader)?;
             if !message_continue {
@@ -287,25 +276,20 @@ impl MessageManager {
 
             // continue read inside channel
             let channel = self.channel_receivers.get_mut(&channel_kind).unwrap();
-            channel.read_messages(&protocol.message_kinds, entity_waitlist, &converter, reader)?;
+            channel.read_messages(&protocol.message_kinds, reader)?;
         }
 
         Ok(())
     }
 
     /// Retrieve all messages from the channel buffers
-    pub fn receive_messages<E: Eq + Copy + Hash>(
+    pub fn receive_messages(
         &mut self,
-        global_entity_converter: &dyn EntityAndGlobalEntityConverter<E>,
-        local_entity_converter: &dyn EntityAndLocalEntityConverter<E>,
-        entity_waitlist: &mut EntityWaitlist,
     ) -> Vec<(ChannelKind, Vec<MessageContainer>)> {
-        let entity_converter =
-            EntityConverter::new(global_entity_converter, local_entity_converter);
         let mut output = Vec::new();
         // TODO: shouldn't we have a priority mechanisms between channels?
         for (channel_kind, channel) in &mut self.channel_receivers {
-            let messages = channel.receive_messages(entity_waitlist, &entity_converter);
+            let messages = channel.receive_messages();
             output.push((channel_kind.clone(), messages));
         }
         output

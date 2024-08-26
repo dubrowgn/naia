@@ -27,8 +27,6 @@ pub fn message_impl(
 
     // Methods
     let clone_method = get_clone_method(&fields, &struct_type);
-    let relations_waiting_method = get_relations_waiting_method(&fields, &struct_type);
-    let relations_complete_method = get_relations_complete_method(&fields, &struct_type);
     let bit_length_method = get_bit_length_method(&fields, &struct_type);
     let write_method = get_write_method(&fields, &struct_type);
     let create_builder_method = get_create_builder_method(&builder_name);
@@ -40,8 +38,8 @@ pub fn message_impl(
 
             pub use std::{any::Any, collections::HashSet};
             pub use #shared_crate_name::{
-                Named, GlobalEntity, Message, BitWrite, LocalEntityAndGlobalEntityConverter, LocalEntityAndGlobalEntityConverterMut,
-                EntityProperty, MessageKind, MessageKinds, Serde, MessageBuilder, BitReader, SerdeErr, ConstBitLength, MessageContainer, RemoteEntity,
+                Named, Message, BitWrite, MessageKind, MessageKinds, Serde,
+				MessageBuilder, BitReader, SerdeErr, ConstBitLength, MessageContainer,
             };
             use super::*;
 
@@ -60,8 +58,6 @@ pub fn message_impl(
                 #is_fragment_method
                 #bit_length_method
                 #create_builder_method
-                #relations_waiting_method
-                #relations_complete_method
                 #write_method
             }
             impl Named for #struct_name {
@@ -118,61 +114,6 @@ fn get_clone_method(fields: &[Field], struct_type: &StructType) -> TokenStream {
                 #output
             };
             return new_clone;
-        }
-    }
-}
-
-fn get_relations_waiting_method(fields: &[Field], struct_type: &StructType) -> TokenStream {
-    let mut body = quote! {};
-
-    for (index, field) in fields.iter().enumerate() {
-        if let Field::EntityProperty(_) = field {
-            let field_name = get_field_name(field, index, struct_type);
-            let body_add_right = quote! {
-                if let Some(local_entity) = self.#field_name.waiting_local_entity() {
-                    output.insert(local_entity);
-                }
-            };
-            let new_body = quote! {
-                #body
-                #body_add_right
-            };
-            body = new_body;
-        }
-    }
-
-    quote! {
-        fn relations_waiting(&self) -> Option<HashSet<RemoteEntity>> {
-            let mut output = HashSet::new();
-            #body
-            if output.is_empty() {
-                return None;
-            }
-            return Some(output);
-        }
-    }
-}
-
-fn get_relations_complete_method(fields: &[Field], struct_type: &StructType) -> TokenStream {
-    let mut body = quote! {};
-
-    for (index, field) in fields.iter().enumerate() {
-        if let Field::EntityProperty(_) = field {
-            let field_name = get_field_name(field, index, struct_type);
-            let body_add_right = quote! {
-                self.#field_name.waiting_complete(converter);
-            };
-            let new_body = quote! {
-                #body
-                #body_add_right
-            };
-            body = new_body;
-        }
-    }
-
-    quote! {
-        fn relations_complete(&mut self, converter: &dyn LocalEntityAndGlobalEntityConverter) {
-            #body
         }
     }
 }
@@ -243,7 +184,7 @@ pub fn get_read_method(
     };
 
     quote! {
-        fn read(&self, reader: &mut BitReader, converter: &dyn LocalEntityAndGlobalEntityConverter) -> Result<MessageContainer, SerdeErr> {
+        fn read(&self, reader: &mut BitReader) -> Result<MessageContainer, SerdeErr> {
             #field_reads
 
             return Ok(MessageContainer::from_read(Box::new(#struct_build)));
@@ -277,7 +218,7 @@ fn get_write_method(fields: &[Field], struct_type: &StructType) -> TokenStream {
     }
 
     quote! {
-        fn write(&self, message_kinds: &MessageKinds, writer: &mut dyn BitWrite, converter: &mut dyn LocalEntityAndGlobalEntityConverterMut) {
+        fn write(&self, message_kinds: &MessageKinds, writer: &mut dyn BitWrite) {
             self.kind().ser(message_kinds, writer);
             #field_writes
         }
@@ -310,7 +251,7 @@ fn get_bit_length_method(fields: &[Field], struct_type: &StructType) -> TokenStr
     }
 
     quote! {
-        fn bit_length(&self, converter: &mut dyn LocalEntityAndGlobalEntityConverterMut) -> u32 {
+        fn bit_length(&self) -> u32 {
             let mut output = 0;
             output += <MessageKind as ConstBitLength>::const_bit_length();
             #field_bit_lengths

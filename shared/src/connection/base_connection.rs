@@ -1,5 +1,3 @@
-use std::{hash::Hash, net::SocketAddr};
-
 use naia_serde::{BitReader, BitWriter, Serde, SerdeErr};
 use naia_socket_shared::Instant;
 
@@ -7,13 +5,7 @@ use crate::{
     backends::Timer,
     messages::{channels::channel_kinds::ChannelKinds, message_manager::MessageManager},
     types::{HostType, PacketIndex},
-    world::{
-        entity::entity_converters::{EntityConverterMut, GlobalWorldManagerType},
-        host::{host_world_manager::HostWorldEvents, host_world_writer::HostWorldWriter},
-        local_world_manager::LocalWorldManager,
-        remote::remote_world_reader::RemoteWorldReader,
-    },
-    HostWorldManager, Protocol, RemoteWorldManager, Tick, WorldRefType,
+    Protocol,
 };
 
 use super::{
@@ -23,36 +15,25 @@ use super::{
 
 /// Represents a connection to a remote host, and provides functionality to
 /// manage the connection and the communications to it
-pub struct BaseConnection<E: Copy + Eq + Hash + Send + Sync> {
+pub struct BaseConnection {
     pub message_manager: MessageManager,
-    pub host_world_manager: HostWorldManager<E>,
-    pub remote_world_manager: RemoteWorldManager<E>,
-    pub remote_world_reader: RemoteWorldReader<E>,
-    pub local_world_manager: LocalWorldManager<E>,
     heartbeat_timer: Timer,
     timeout_timer: Timer,
     ack_manager: AckManager,
 }
 
-impl<E: Copy + Eq + Hash + Send + Sync> BaseConnection<E> {
+impl BaseConnection {
     /// Create a new BaseConnection, given the appropriate underlying managers
     pub fn new(
-        address: &Option<SocketAddr>,
         host_type: HostType,
-        user_key: u64,
         connection_config: &ConnectionConfig,
         channel_kinds: &ChannelKinds,
-        global_world_manager: &dyn GlobalWorldManagerType<E>,
     ) -> Self {
         BaseConnection {
             heartbeat_timer: Timer::new(connection_config.heartbeat_interval),
             timeout_timer: Timer::new(connection_config.disconnection_timeout_duration),
             ack_manager: AckManager::new(),
             message_manager: MessageManager::new(host_type, channel_kinds),
-            host_world_manager: HostWorldManager::new(address, global_world_manager),
-            remote_world_manager: RemoteWorldManager::new(),
-            remote_world_reader: RemoteWorldReader::new(),
-            local_world_manager: LocalWorldManager::new(user_key),
         }
     }
 
@@ -96,8 +77,6 @@ impl<E: Copy + Eq + Hash + Send + Sync> BaseConnection<E> {
         self.ack_manager.process_incoming_header(
             header,
             &mut self.message_manager,
-            &mut self.host_world_manager,
-            &mut self.local_world_manager,
             packet_notifiables,
         );
     }
@@ -118,100 +97,51 @@ impl<E: Copy + Eq + Hash + Send + Sync> BaseConnection<E> {
     }
 
     pub fn collect_messages(&mut self, now: &Instant, rtt_millis: &f32) {
-        self.host_world_manager.handle_dropped_packets(rtt_millis);
-        self.message_manager
-            .collect_outgoing_messages(now, rtt_millis);
+        self.message_manager.collect_outgoing_messages(now, rtt_millis);
     }
 
     fn write_messages(
         &mut self,
         protocol: &Protocol,
-        global_world_manager: &dyn GlobalWorldManagerType<E>,
         writer: &mut BitWriter,
         packet_index: PacketIndex,
         has_written: &mut bool,
     ) {
-        let mut converter =
-            EntityConverterMut::new(global_world_manager, &mut self.local_world_manager);
         self.message_manager.write_messages(
             protocol,
-            &mut converter,
             writer,
             packet_index,
             has_written,
         );
     }
 
-    pub fn write_packet<W: WorldRefType<E>>(
+    pub fn write_packet(
         &mut self,
         protocol: &Protocol,
-        now: &Instant,
         writer: &mut BitWriter,
         packet_index: PacketIndex,
-        world: &W,
-        global_world_manager: &dyn GlobalWorldManagerType<E>,
         has_written: &mut bool,
-        write_world_events: bool,
-        host_world_events: &mut HostWorldEvents<E>,
     ) {
         // write messages
         self.write_messages(
             &protocol,
-            global_world_manager,
             writer,
             packet_index,
             has_written,
         );
-
-        // write world events
-        if write_world_events {
-            HostWorldWriter::write_into_packet(
-                &protocol.component_kinds,
-                now,
-                writer,
-                &packet_index,
-                world,
-                global_world_manager,
-                &mut self.local_world_manager,
-                has_written,
-                &mut self.host_world_manager,
-                host_world_events,
-            );
-        }
     }
 
     pub fn read_packet(
         &mut self,
         protocol: &Protocol,
-        client_tick: &Tick,
-        global_world_manager: &dyn GlobalWorldManagerType<E>,
-        read_world_events: bool,
         reader: &mut BitReader,
     ) -> Result<(), SerdeErr> {
         // read messages
         self.message_manager.read_messages(
             protocol,
-            &mut self.remote_world_manager.entity_waitlist,
-            global_world_manager.to_global_entity_converter(),
-            &self.local_world_manager,
             reader,
         )?;
 
-        // read world events
-        if read_world_events {
-            self.remote_world_reader.read_world_events(
-                global_world_manager,
-                &mut self.local_world_manager,
-                protocol,
-                client_tick,
-                reader,
-            )?;
-        }
-
         Ok(())
-    }
-
-    pub fn remote_entities(&self) -> Vec<E> {
-        self.local_world_manager.remote_entities()
     }
 }

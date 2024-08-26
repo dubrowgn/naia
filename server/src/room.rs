@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_set::Iter, HashSet, VecDeque},
+    collections::{hash_set::Iter, HashSet},
     hash::Hash,
 };
 
@@ -22,18 +22,14 @@ impl BigMapKey for RoomKey {
 }
 
 // Room
-pub struct Room<E: Copy + Eq + Hash> {
+pub struct Room {
     users: HashSet<UserKey>,
-    entities: HashSet<E>,
-    entity_removal_queue: VecDeque<(UserKey, E)>,
 }
 
-impl<E: Copy + Eq + Hash> Room<E> {
-    pub(crate) fn new() -> Room<E> {
+impl Room {
+    pub(crate) fn new() -> Room {
         Room {
             users: HashSet::new(),
-            entities: HashSet::new(),
-            entity_removal_queue: VecDeque::new(),
         }
     }
 
@@ -49,9 +45,6 @@ impl<E: Copy + Eq + Hash> Room<E> {
 
     pub(crate) fn unsubscribe_user(&mut self, user_key: &UserKey) {
         self.users.remove(user_key);
-        for entity in self.entities.iter() {
-            self.entity_removal_queue.push_back((*user_key, *entity));
-        }
     }
 
     pub(crate) fn user_keys(&self) -> Iter<UserKey> {
@@ -61,37 +54,6 @@ impl<E: Copy + Eq + Hash> Room<E> {
     pub(crate) fn users_count(&self) -> usize {
         self.users.len()
     }
-
-    // Entities
-
-    pub(crate) fn add_entity(&mut self, entity: &E) {
-        self.entities.insert(*entity);
-    }
-
-    pub(crate) fn remove_entity(&mut self, entity: &E, entity_is_despawned: bool) -> bool {
-        if self.entities.remove(entity) {
-            if !entity_is_despawned {
-                for user_key in self.users.iter() {
-                    self.entity_removal_queue.push_back((*user_key, *entity));
-                }
-            }
-            true
-        } else {
-            panic!("Room does not contain Entity");
-        }
-    }
-
-    pub(crate) fn entities(&self) -> Iter<E> {
-        self.entities.iter()
-    }
-
-    pub(crate) fn pop_entity_removal_queue(&mut self) -> Option<(UserKey, E)> {
-        self.entity_removal_queue.pop_front()
-    }
-
-    pub(crate) fn entities_count(&self) -> usize {
-        self.entities.len()
-    }
 }
 
 // room references
@@ -100,13 +62,13 @@ use super::server::Server;
 
 // RoomRef
 
-pub struct RoomRef<'s, E: Copy + Eq + Hash + Send + Sync> {
-    server: &'s Server<E>,
+pub struct RoomRef<'s> {
+    server: &'s Server,
     key: RoomKey,
 }
 
-impl<'s, E: Copy + Eq + Hash + Send + Sync> RoomRef<'s, E> {
-    pub fn new(server: &'s Server<E>, key: &RoomKey) -> Self {
+impl<'s> RoomRef<'s> {
+    pub fn new(server: &'s Server, key: &RoomKey) -> Self {
         RoomRef { server, key: *key }
     }
 
@@ -128,30 +90,16 @@ impl<'s, E: Copy + Eq + Hash + Send + Sync> RoomRef<'s, E> {
     pub fn user_keys(&self) -> impl Iterator<Item = &UserKey> {
         self.server.room_user_keys(&self.key)
     }
-
-    // Entities
-
-    pub fn has_entity(&self, entity: &E) -> bool {
-        self.server.room_has_entity(&self.key, entity)
-    }
-
-    pub fn entities_count(&self) -> usize {
-        self.server.room_entities_count(&self.key)
-    }
-
-    pub fn entities(&self) -> impl Iterator<Item = &E> {
-        self.server.room_entities(&self.key)
-    }
 }
 
 // RoomMut
-pub struct RoomMut<'s, E: Copy + Eq + Hash + Send + Sync> {
-    server: &'s mut Server<E>,
+pub struct RoomMut<'s> {
+    server: &'s mut Server,
     key: RoomKey,
 }
 
-impl<'s, E: Copy + Eq + Hash + Send + Sync> RoomMut<'s, E> {
-    pub fn new(server: &'s mut Server<E>, key: &RoomKey) -> Self {
+impl<'s> RoomMut<'s> {
+    pub fn new(server: &'s mut Server, key: &RoomKey) -> Self {
         RoomMut { server, key: *key }
     }
 
@@ -188,28 +136,6 @@ impl<'s, E: Copy + Eq + Hash + Send + Sync> RoomMut<'s, E> {
     /// Returns an iterator of the [`UserKey`] for Users that belong in the [`Room`]
     pub fn user_keys(&self) -> impl Iterator<Item = &UserKey> {
         self.server.room_user_keys(&self.key)
-    }
-
-    // Entities
-
-    pub fn has_entity(&self, entity: &E) -> bool {
-        self.server.room_has_entity(&self.key, entity)
-    }
-
-    pub fn add_entity(&mut self, entity: &E) -> &mut Self {
-        self.server.room_add_entity(&self.key, entity);
-
-        self
-    }
-
-    pub fn remove_entity(&mut self, entity: &E) -> &mut Self {
-        self.server.room_remove_entity(&self.key, entity);
-
-        self
-    }
-
-    pub fn entities_count(&self) -> usize {
-        self.server.room_entities_count(&self.key)
     }
 
     // Messages

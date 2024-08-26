@@ -6,7 +6,7 @@ use naia_serde::BitReader;
 
 use crate::{
     messages::fragment::{FragmentId, FragmentedMessage},
-    LocalEntityAndGlobalEntityConverter, MessageContainer, MessageIndex, MessageKinds,
+    MessageContainer, MessageIndex, MessageKinds,
 };
 
 pub struct FragmentReceiver {
@@ -25,7 +25,6 @@ impl FragmentReceiver {
     pub(crate) fn receive(
         &mut self,
         message_kinds: &MessageKinds,
-        converter: &dyn LocalEntityAndGlobalEntityConverter,
         message: MessageContainer,
     ) -> Option<(MessageIndex, MessageContainer)> {
         // returns a new index, 1 per full message
@@ -61,7 +60,7 @@ impl FragmentReceiver {
         let (_, fragment_list) = self.map.remove(&fragment_id).unwrap();
         let concat_list = fragment_list.concat();
         let mut reader = BitReader::new(&concat_list);
-        let full_message_result = message_kinds.read(&mut reader, converter);
+        let full_message_result = message_kinds.read(&mut reader);
         if full_message_result.is_err() {
             // TODO: bubble up error instead of panicking here
             panic!("Cannot read fragmented message!");

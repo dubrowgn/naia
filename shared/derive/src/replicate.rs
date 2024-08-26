@@ -89,8 +89,6 @@ pub fn replicate_impl(
         get_read_apply_field_update_method(&properties, &struct_type);
     let write_method = get_write_method(&properties, &struct_type);
     let write_update_method = get_write_update_method(&enum_name, &properties, &struct_type);
-    let relations_waiting_method = get_relations_waiting_method(&properties, &struct_type);
-    let relations_complete_method = get_relations_complete_method(&properties, &struct_type);
     let split_update_method = get_split_update_method(&replica_name, &properties);
 
     let gen = quote! {
@@ -158,8 +156,6 @@ pub fn replicate_impl(
                 #write_update_method
                 #read_apply_update_method
                 #read_apply_field_update_method
-                #relations_waiting_method
-                #relations_complete_method
             }
             impl Clone for #replica_name {
                 #clone_method
@@ -1157,107 +1153,6 @@ fn get_write_update_method(
     quote! {
         fn write_update(&self, diff_mask: &DiffMask, writer: &mut dyn BitWrite, converter: &mut dyn LocalEntityAndGlobalEntityConverterMut) {
             #output
-        }
-    }
-}
-
-// fn get_has_entity_properties_method(properties: &[Property]) -> TokenStream {
-//     for property in properties.iter() {
-//         if let Property::Entity(_) = property {
-//             return quote! {
-//                 fn has_entity_properties(&self) -> bool {
-//                     return true;
-//                 }
-//             };
-//         }
-//     }
-//
-//     quote! {
-//         fn has_entity_properties(&self) -> bool {
-//             return false;
-//         }
-//     }
-// }
-//
-// fn get_entities_method(properties: &[Property], struct_type: &StructType) -> TokenStream {
-//     let mut body = quote! {};
-//
-//     for property in properties.iter() {
-//         if let Property::Entity(_) = property {
-//             let field_name = get_field_name(property, index, struct_type);
-//             let body_add_right = quote! {
-//                 if let Some(global_entity) = self.#field_name.global_entity() {
-//                     output.push(global_entity);
-//                 }
-//             };
-//             let new_body = quote! {
-//                 #body
-//                 #body_add_right
-//             };
-//             body = new_body;
-//         }
-//     }
-//
-//     quote! {
-//         fn entities(&self) -> Vec<GlobalEntity> {
-//             let mut output = Vec::new();
-//             #body
-//             return output;
-//         }
-//     }
-// }
-
-fn get_relations_waiting_method(fields: &[Property], struct_type: &StructType) -> TokenStream {
-    let mut body = quote! {};
-
-    for field in fields.iter() {
-        if let Property::Entity(_) = field {
-            let field_name = get_field_name(field, struct_type);
-            let body_add_right = quote! {
-                if let Some(local_entity) = self.#field_name.waiting_local_entity() {
-                    output.insert(local_entity);
-                }
-            };
-            let new_body = quote! {
-                #body
-                #body_add_right
-            };
-            body = new_body;
-        }
-    }
-
-    quote! {
-        fn relations_waiting(&self) -> Option<HashSet<RemoteEntity>> {
-            let mut output = HashSet::new();
-            #body
-            if output.is_empty() {
-                return None;
-            }
-            return Some(output);
-        }
-    }
-}
-
-fn get_relations_complete_method(fields: &[Property], struct_type: &StructType) -> TokenStream {
-    let mut body = quote! {};
-
-    for field in fields.iter() {
-        if let Property::Entity(_) = field {
-            let field_name = get_field_name(field, struct_type);
-            let body_add_right = quote! {
-                self.#field_name.waiting_complete(converter);
-            };
-            let new_body = quote! {
-                #body
-                #body_add_right
-            };
-            body = new_body;
-        }
-    }
-
-    quote! {
-        fn relations_complete(&mut self, converter: &dyn LocalEntityAndGlobalEntityConverter) {
-            #body
         }
     }
 }

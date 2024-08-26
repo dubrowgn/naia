@@ -4,7 +4,7 @@ use std::{
     net::SocketAddr,
 };
 
-use naia_shared::{BigMapKey, WorldMutType};
+use naia_shared::BigMapKey;
 
 use crate::{RoomKey, Server};
 
@@ -57,13 +57,13 @@ impl User {
 
 // UserRef
 
-pub struct UserRef<'s, E: Copy + Eq + Hash + Send + Sync> {
-    server: &'s Server<E>,
+pub struct UserRef<'s> {
+    server: &'s Server,
     key: UserKey,
 }
 
-impl<'s, E: Copy + Eq + Hash + Send + Sync> UserRef<'s, E> {
-    pub fn new(server: &'s Server<E>, key: &UserKey) -> Self {
+impl<'s> UserRef<'s> {
+    pub fn new(server: &'s Server, key: &UserKey) -> Self {
         UserRef { server, key: *key }
     }
 
@@ -86,13 +86,13 @@ impl<'s, E: Copy + Eq + Hash + Send + Sync> UserRef<'s, E> {
 }
 
 // UserMut
-pub struct UserMut<'s, E: Copy + Eq + Hash + Send + Sync> {
-    server: &'s mut Server<E>,
+pub struct UserMut<'s> {
+    server: &'s mut Server,
     key: UserKey,
 }
 
-impl<'s, E: Copy + Eq + Hash + Send + Sync> UserMut<'s, E> {
-    pub fn new(server: &'s mut Server<E>, key: &UserKey) -> Self {
+impl<'s> UserMut<'s> {
+    pub fn new(server: &'s mut Server, key: &UserKey) -> Self {
         UserMut { server, key: *key }
     }
 
@@ -104,8 +104,8 @@ impl<'s, E: Copy + Eq + Hash + Send + Sync> UserMut<'s, E> {
         self.server.user_address(&self.key).unwrap()
     }
 
-    pub fn disconnect<W: WorldMutType<E>>(&mut self, mut world: W) {
-        self.server.user_disconnect(&self.key, &mut world);
+    pub fn disconnect(&mut self) {
+        self.server.user_disconnect(&self.key);
     }
 
     // Rooms

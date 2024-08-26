@@ -4,7 +4,7 @@ use log::warn;
 
 use naia_shared::{
     sequence_greater_than, sequence_less_than, wrapping_diff, BitWrite, BitWriter,
-    LocalEntityAndGlobalEntityConverterMut, MessageContainer, MessageKinds, Serde,
+    MessageContainer, MessageKinds, Serde,
     ShortMessageIndex, Tick, TickBufferSettings, UnsignedVariableInteger,
 };
 
@@ -60,7 +60,6 @@ impl ChannelTickBufferSender {
     pub fn write_messages(
         &mut self,
         message_kinds: &MessageKinds,
-        converter: &mut dyn LocalEntityAndGlobalEntityConverterMut,
         writer: &mut BitWriter,
         host_tick: &Tick,
         has_written: &mut bool,
@@ -82,7 +81,6 @@ impl ChannelTickBufferSender {
             // write data
             self.write_message(
                 message_kinds,
-                converter,
                 &mut counter,
                 &last_written_tick,
                 message_tick,
@@ -106,7 +104,6 @@ impl ChannelTickBufferSender {
             // write data
             let message_indices = self.write_message(
                 message_kinds,
-                converter,
                 writer,
                 &last_written_tick,
                 &message_tick,
@@ -128,7 +125,6 @@ impl ChannelTickBufferSender {
     fn write_message(
         &self,
         message_kinds: &MessageKinds,
-        converter: &mut dyn LocalEntityAndGlobalEntityConverterMut,
         writer: &mut dyn BitWrite,
         last_written_tick: &Tick,
         message_tick: &Tick,
@@ -154,7 +150,7 @@ impl ChannelTickBufferSender {
             id_diff.ser(writer);
 
             // write payload
-            message.write(message_kinds, writer, converter);
+            message.write(message_kinds, writer);
 
             // record id for output
             message_indices.push(*message_index);

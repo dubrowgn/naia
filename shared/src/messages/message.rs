@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashSet};
+use std::any::Any;
 
 use naia_serde::{BitReader, BitWrite, SerdeErr};
 
@@ -7,8 +7,7 @@ use crate::{
         message_kinds::{MessageKind, MessageKinds},
         named::Named,
     },
-    world::entity::entity_converters::LocalEntityAndGlobalEntityConverterMut,
-    LocalEntityAndGlobalEntityConverter, MessageContainer, RemoteEntity,
+    MessageContainer,
 };
 
 // MessageBuilder
@@ -17,7 +16,6 @@ pub trait MessageBuilder: Send + Sync {
     fn read(
         &self,
         reader: &mut BitReader,
-        converter: &dyn LocalEntityAndGlobalEntityConverter,
     ) -> Result<MessageContainer, SerdeErr>;
 }
 
@@ -29,23 +27,10 @@ pub trait Message: Send + Sync + Named + MessageClone + Any {
     fn create_builder() -> Box<dyn MessageBuilder>
     where
         Self: Sized;
-    fn bit_length(&self, converter: &mut dyn LocalEntityAndGlobalEntityConverterMut) -> u32;
+    fn bit_length(&self) -> u32;
     fn is_fragment(&self) -> bool;
     /// Writes data into an outgoing byte stream
-    fn write(
-        &self,
-        message_kinds: &MessageKinds,
-        writer: &mut dyn BitWrite,
-        converter: &mut dyn LocalEntityAndGlobalEntityConverterMut,
-    );
-    /// Returns a list of LocalEntities contained within the Message's EntityProperty fields, which are waiting to be converted to GlobalEntities
-    fn relations_waiting(&self) -> Option<HashSet<RemoteEntity>>;
-    /// Converts any LocalEntities contained within the Message's EntityProperty fields to GlobalEntities
-    fn relations_complete(&mut self, converter: &dyn LocalEntityAndGlobalEntityConverter);
-    // /// Returns whether has any EntityRelations
-    // fn has_entity_relations(&self) -> bool;
-    // /// Returns a list of Entities contained within the Message's EntityRelation fields
-    // fn entities(&self) -> Vec<GlobalEntity>;
+    fn write(&self, message_kinds: &MessageKinds, writer: &mut dyn BitWrite);
 }
 
 // Named

@@ -34,22 +34,13 @@ mod server;
 mod server_config;
 mod time_manager;
 mod user;
-mod user_scope;
-mod world;
 
 pub use connection::tick_buffer_messages::TickBufferMessages;
 pub use error::NaiaServerError;
 pub use events::{
-    AuthEvent, ConnectEvent, DelegateEntityEvent, DespawnEntityEvent, DisconnectEvent,
-    EntityAuthGrantEvent, EntityAuthResetEvent, ErrorEvent, Events, InsertComponentEvent,
-    MessageEvent, PublishEntityEvent, RemoveComponentEvent, SpawnEntityEvent, TickEvent,
-    UnpublishEntityEvent, UpdateComponentEvent,
+    AuthEvent, ConnectEvent, DisconnectEvent, ErrorEvent, Events, MessageEvent, TickEvent,
 };
 pub use room::{RoomKey, RoomMut, RoomRef};
 pub use server::Server;
 pub use server_config::ServerConfig;
 pub use user::{User, UserKey, UserMut, UserRef};
-pub use user_scope::UserScopeMut;
-pub use world::{
-    entity_mut::EntityMut, entity_owner::EntityOwner, replication_config::ReplicationConfig,
-};

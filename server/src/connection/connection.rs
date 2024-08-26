@@ -1,11 +1,10 @@
-use std::{any::Any, hash::Hash, net::SocketAddr};
+use std::net::SocketAddr;
 
 use log::warn;
 
 use naia_shared::{
-    BaseConnection, BigMapKey, BitReader, BitWriter, ChannelKind, ChannelKinds, ConnectionConfig,
-    EntityEventMessage, EntityResponseEvent, HostType, HostWorldEvents, Instant, PacketType,
-    Protocol, Serde, SerdeErr, StandardHeader, SystemChannel, Tick, WorldMutType, WorldRefType,
+    BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig, HostType,
+	Instant, PacketType, Protocol, Serde, SerdeErr, StandardHeader, Tick,
 };
 
 use crate::{
@@ -16,38 +15,33 @@ use crate::{
     events::Events,
     time_manager::TimeManager,
     user::UserKey,
-    world::global_world_manager::GlobalWorldManager,
 };
 
 use super::ping_manager::PingManager;
 
-pub struct Connection<E: Copy + Eq + Hash + Send + Sync> {
+pub struct Connection {
     pub address: SocketAddr,
     pub user_key: UserKey,
-    pub base: BaseConnection<E>,
+    pub base: BaseConnection,
     pub ping_manager: PingManager,
     tick_buffer: TickBufferReceiver,
 }
 
-impl<E: Copy + Eq + Hash + Send + Sync> Connection<E> {
+impl Connection {
     pub fn new(
         connection_config: &ConnectionConfig,
         ping_config: &PingConfig,
         user_address: &SocketAddr,
         user_key: &UserKey,
         channel_kinds: &ChannelKinds,
-        global_world_manager: &GlobalWorldManager<E>,
     ) -> Self {
         Connection {
             address: *user_address,
             user_key: *user_key,
             base: BaseConnection::new(
-                &Some(*user_address),
                 HostType::Server,
-                user_key.to_u64(),
                 connection_config,
                 channel_kinds,
-                global_world_manager,
             ),
             ping_manager: PingManager::new(ping_config),
             tick_buffer: TickBufferReceiver::new(channel_kinds),
@@ -71,87 +65,31 @@ impl<E: Copy + Eq + Hash + Send + Sync> Connection<E> {
         server_tick: Tick,
         client_tick: Tick,
         reader: &mut BitReader,
-        global_world_manager: &mut GlobalWorldManager<E>,
     ) -> Result<(), SerdeErr> {
         // read tick-buffered messages
         self.tick_buffer.read_messages(
             protocol,
             &server_tick,
             &client_tick,
-            global_world_manager,
-            &self.base.local_world_manager,
             reader,
         )?;
 
         // read common parts of packet (messages & world events)
-        self.base.read_packet(
-            protocol,
-            &client_tick,
-            global_world_manager,
-            protocol.client_authoritative_entities,
-            reader,
-        )?;
+        self.base.read_packet(protocol, reader)?;
 
         return Ok(());
     }
 
     /// Receive & process stored packet data
-    pub fn process_packets<W: WorldMutType<E>>(
-        &mut self,
-        protocol: &Protocol,
-        global_world_manager: &mut GlobalWorldManager<E>,
-        world: &mut W,
-        incoming_events: &mut Events<E>,
-    ) -> Vec<EntityResponseEvent<E>> {
-        let mut response_events = Vec::new();
+    pub fn process_packets(&mut self, incoming_events: &mut Events) {
         // Receive Message Events
-        let messages = self.base.message_manager.receive_messages(
-            global_world_manager,
-            &self.base.local_world_manager,
-            &mut self.base.remote_world_manager.entity_waitlist,
-        );
+        let messages =
+            self.base.message_manager.receive_messages();
         for (channel_kind, messages) in messages {
-            if channel_kind == ChannelKind::of::<SystemChannel>() {
-                for message in messages {
-                    let Some(event_message) = Box::<dyn Any + 'static>::downcast::<EntityEventMessage>(message.to_boxed_any())
-                                .ok()
-                                .map(|boxed_m| *boxed_m) else {
-                        panic!("Received unknown message over SystemChannel!");
-                    };
-                    match event_message.entity.get(global_world_manager) {
-                        Some(entity) => {
-                            response_events.push(event_message.action.to_response_event(&entity));
-                        }
-                        None => {
-                            warn!(
-                                "Received `{:?}` with no Entity over SystemChannel!",
-                                event_message.action
-                            );
-                        }
-                    };
-                }
-            } else {
-                for message in messages {
-                    incoming_events.push_message(&self.user_key, &channel_kind, message);
-                }
-            }
+			for message in messages {
+				incoming_events.push_message(&self.user_key, &channel_kind, message);
+			}
         }
-
-        // Receive World Events
-        if protocol.client_authoritative_entities {
-            let remote_events = self.base.remote_world_reader.take_incoming_events();
-            let world_events = self.base.remote_world_manager.process_world_events(
-                global_world_manager,
-                &mut self.base.local_world_manager,
-                &protocol.component_kinds,
-                world,
-                remote_events,
-            );
-            response_events
-                .extend(incoming_events.receive_entity_events(&self.user_key, world_events));
-        }
-
-        return response_events;
     }
 
     pub fn tick_buffer_messages(&mut self, tick: &Tick, messages: &mut TickBufferMessages) {
@@ -164,34 +102,22 @@ impl<E: Copy + Eq + Hash + Send + Sync> Connection<E> {
     }
 
     // Outgoing data
-    pub fn send_packets<W: WorldRefType<E>>(
+    pub fn send_packets(
         &mut self,
         protocol: &Protocol,
         now: &Instant,
         io: &mut Io,
-        world: &W,
-        global_world_manager: &GlobalWorldManager<E>,
         time_manager: &TimeManager,
     ) {
         let rtt_millis = self.ping_manager.rtt_average;
         self.base.collect_messages(now, &rtt_millis);
-        let mut host_world_events = self.base.host_world_manager.take_outgoing_events(
-            world,
-            global_world_manager,
-            now,
-            &rtt_millis,
-        );
 
         let mut any_sent = false;
         loop {
             if self.send_packet(
                 protocol,
-                now,
                 io,
-                world,
-                global_world_manager,
                 time_manager,
-                &mut host_world_events,
             ) {
                 any_sent = true;
             } else {
@@ -205,24 +131,16 @@ impl<E: Copy + Eq + Hash + Send + Sync> Connection<E> {
 
     /// Send any message, component actions and component updates to the client
     /// Will split the data into multiple packets.
-    fn send_packet<W: WorldRefType<E>>(
+    fn send_packet(
         &mut self,
         protocol: &Protocol,
-        now: &Instant,
         io: &mut Io,
-        world: &W,
-        global_world_manager: &GlobalWorldManager<E>,
         time_manager: &TimeManager,
-        host_world_events: &mut HostWorldEvents<E>,
     ) -> bool {
-        if host_world_events.has_events() || self.base.message_manager.has_outgoing_messages() {
+        if self.base.message_manager.has_outgoing_messages() {
             let writer = self.write_packet(
                 protocol,
-                now,
-                world,
-                global_world_manager,
                 time_manager,
-                host_world_events,
             );
 
             // send packet
@@ -237,14 +155,10 @@ impl<E: Copy + Eq + Hash + Send + Sync> Connection<E> {
         false
     }
 
-    fn write_packet<W: WorldRefType<E>>(
+    fn write_packet(
         &mut self,
         protocol: &Protocol,
-        now: &Instant,
-        world: &W,
-        global_world_manager: &GlobalWorldManager<E>,
         time_manager: &TimeManager,
-        host_world_events: &mut HostWorldEvents<E>,
     ) -> BitWriter {
         let next_packet_index = self.base.next_packet_index();
 
@@ -269,14 +183,9 @@ impl<E: Copy + Eq + Hash + Send + Sync> Connection<E> {
         let mut has_written = false;
         self.base.write_packet(
             &protocol,
-            now,
             &mut writer,
             next_packet_index,
-            world,
-            global_world_manager,
             &mut has_written,
-            true,
-            host_world_events,
         );
 
         writer

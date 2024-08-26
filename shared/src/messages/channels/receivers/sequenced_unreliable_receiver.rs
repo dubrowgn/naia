@@ -12,14 +12,12 @@ use crate::{
     },
     sequence_greater_than,
     types::MessageIndex,
-    world::remote::entity_waitlist::{EntityWaitlist, WaitlistStore},
-    LocalEntityAndGlobalEntityConverter, MessageContainer,
+    MessageContainer,
 };
 
 pub struct SequencedUnreliableReceiver {
     newest_received_message_index: Option<MessageIndex>,
     incoming_messages: Vec<MessageContainer>,
-    waitlist_store: WaitlistStore<(MessageIndex, MessageContainer)>,
 }
 
 impl SequencedUnreliableReceiver {
@@ -27,25 +25,14 @@ impl SequencedUnreliableReceiver {
         Self {
             newest_received_message_index: None,
             incoming_messages: Vec::new(),
-            waitlist_store: WaitlistStore::new(),
         }
     }
 
     pub fn buffer_message(
         &mut self,
-        entity_waitlist: &mut EntityWaitlist,
         message_index: MessageIndex,
         message: MessageContainer,
     ) {
-        if let Some(entity_set) = message.relations_waiting() {
-            entity_waitlist.queue(
-                &entity_set,
-                &mut self.waitlist_store,
-                (message_index, message),
-            );
-            return;
-        }
-
         self.arrange_message(message_index, message);
     }
 
@@ -63,18 +50,7 @@ impl SequencedUnreliableReceiver {
 }
 
 impl ChannelReceiver<MessageContainer> for SequencedUnreliableReceiver {
-    fn receive_messages(
-        &mut self,
-        entity_waitlist: &mut EntityWaitlist,
-        converter: &dyn LocalEntityAndGlobalEntityConverter,
-    ) -> Vec<MessageContainer> {
-        if let Some(list) = entity_waitlist.collect_ready_items(&mut self.waitlist_store) {
-            for (message_index, mut message) in list {
-                message.relations_complete(converter);
-                self.arrange_message(message_index, message);
-            }
-        }
-
+    fn receive_messages(&mut self) -> Vec<MessageContainer> {
         Vec::from(mem::take(&mut self.incoming_messages))
     }
 }
@@ -85,13 +61,11 @@ impl MessageChannelReceiver for SequencedUnreliableReceiver {
     fn read_messages(
         &mut self,
         message_kinds: &MessageKinds,
-        entity_waitlist: &mut EntityWaitlist,
-        converter: &dyn LocalEntityAndGlobalEntityConverter,
         reader: &mut BitReader,
     ) -> Result<(), SerdeErr> {
-        let id_w_msgs = IndexedMessageReader::read_messages(message_kinds, converter, reader)?;
+        let id_w_msgs = IndexedMessageReader::read_messages(message_kinds, reader)?;
         for (id, message) in id_w_msgs {
-            self.buffer_message(entity_waitlist, id, message);
+            self.buffer_message(id, message);
         }
         Ok(())
     }

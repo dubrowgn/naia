@@ -9,14 +9,11 @@ use crate::{
             channel::{Channel, ChannelDirection, ChannelMode, ChannelSettings},
             channel_kinds::ChannelKinds,
             default_channels::DefaultChannelsPlugin,
-            system_channel::SystemChannel,
         },
         fragment::FragmentedMessage,
         message::Message,
         message_kinds::MessageKinds,
     },
-    world::component::{component_kinds::ComponentKinds, replicate::Replicate},
-    EntityEventMessage, ReliableSettings,
 };
 
 // Protocol Plugin
@@ -28,15 +25,12 @@ pub trait ProtocolPlugin {
 pub struct Protocol {
     pub channel_kinds: ChannelKinds,
     pub message_kinds: MessageKinds,
-    pub component_kinds: ComponentKinds,
     /// Used to configure the underlying socket
     pub socket: SocketConfig,
     /// The duration between each tick
     pub tick_interval: Duration,
     /// Configuration used to control compression parameters
     pub compression: Option<CompressionConfig>,
-    /// Whether or not Client Authoritative Entities will be allowed
-    pub client_authoritative_entities: bool,
     locked: bool,
 }
 
@@ -44,22 +38,13 @@ impl Default for Protocol {
     fn default() -> Self {
         let mut message_kinds = MessageKinds::new();
         message_kinds.add_message::<FragmentedMessage>();
-        message_kinds.add_message::<EntityEventMessage>();
-
-        let mut channel_kinds = ChannelKinds::new();
-        channel_kinds.add_channel::<SystemChannel>(ChannelSettings::new(
-            ChannelMode::OrderedReliable(ReliableSettings::default()),
-            ChannelDirection::Bidirectional,
-        ));
 
         Self {
-            channel_kinds,
+            channel_kinds: ChannelKinds::new(),
             message_kinds,
-            component_kinds: ComponentKinds::new(),
             socket: SocketConfig::new(None, None),
             tick_interval: Duration::from_millis(50),
             compression: None,
-            client_authoritative_entities: false,
             locked: false,
         }
     }
@@ -100,12 +85,6 @@ impl Protocol {
         self
     }
 
-    pub fn enable_client_authoritative_entities(&mut self) -> &mut Self {
-        self.check_lock();
-        self.client_authoritative_entities = true;
-        self
-    }
-
     pub fn add_default_channels(&mut self) -> &mut Self {
         self.check_lock();
         let plugin = DefaultChannelsPlugin;
@@ -127,12 +106,6 @@ impl Protocol {
     pub fn add_message<M: Message>(&mut self) -> &mut Self {
         self.check_lock();
         self.message_kinds.add_message::<M>();
-        self
-    }
-
-    pub fn add_component<C: Replicate>(&mut self) -> &mut Self {
-        self.check_lock();
-        self.component_kinds.add_component::<C>();
         self
     }
 
