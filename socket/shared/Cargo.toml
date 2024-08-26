@@ -17,7 +17,6 @@ maintenance = { status = "actively-developed" }
 
 [features]
 wbindgen = [ "wasm-bindgen", "js-sys" ]
-mquad = [ ]
 
 [dependencies]
 cfg-if = { version = "1.0" }

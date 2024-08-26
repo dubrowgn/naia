@@ -31,14 +31,9 @@ pub use packet_sender::PacketSender;
 pub use server_addr::ServerAddr;
 
 cfg_if! {
-    if #[cfg(all(target_arch = "wasm32", feature = "wbindgen", feature = "mquad"))]
-    {
-        // Use both protocols...
-        compile_error!("Naia Client Socket on Wasm requires either the 'wbindgen' OR 'mquad' feature to be enabled, you must pick one.");
-    }
-    else if #[cfg(all(target_arch = "wasm32", not(feature = "wbindgen"), not(feature = "mquad")))]
+    if #[cfg(all(target_arch = "wasm32", not(feature = "wbindgen")))]
     {
         // Use no protocols...
-        compile_error!("Naia Client Socket on Wasm requires either the 'wbindgen' or 'mquad' feature to be enabled, you must pick one.");
+        compile_error!("Naia Client Socket on Wasm requires the 'wbindgen' feature be enabled.");
     }
 }

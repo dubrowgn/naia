@@ -8,15 +8,10 @@ extern crate cfg_if;
 extern crate core;
 
 cfg_if! {
-    if #[cfg(all(target_arch = "wasm32", feature = "wbindgen", feature = "mquad"))]
-    {
-        // Use both protocols...
-        compile_error!("wasm target for 'naia_shared' crate requires either the 'wbindgen' OR 'mquad' feature to be enabled, you must pick one.");
-    }
-    else if #[cfg(all(target_arch = "wasm32", not(feature = "wbindgen"), not(feature = "mquad")))]
+    if #[cfg(all(target_arch = "wasm32", not(feature = "wbindgen")))]
     {
         // Use no protocols...
-        compile_error!("wasm target for 'naia_shared' crate requires either the 'wbindgen' or 'mquad' feature to be enabled, you must pick one.");
+        compile_error!("wasm target for 'naia_shared' crate requires 'wbindgen' feature be enabled.");
     }
 }
 

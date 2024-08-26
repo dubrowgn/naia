@@ -18,7 +18,6 @@ maintenance = { status = "actively-developed" }
 
 [features]
 wbindgen = [ "naia-socket-shared/wbindgen", "js-sys" ]
-mquad = [ "naia-socket-shared/mquad" ]
 bevy_support = [ "bevy_ecs" ]
 zstd_support = [ "zstd" ]
 
