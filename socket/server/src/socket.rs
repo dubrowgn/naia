@@ -13,14 +13,6 @@ use super::{
     server_addrs::ServerAddrs,
 };
 
-/// Used to send packets from the Server Socket
-pub trait SocketTrait {
-    fn listen(
-        server_addrs: &ServerAddrs,
-        config: &SocketConfig,
-    ) -> (Box<dyn PacketSender>, Box<dyn PacketReceiver>);
-}
-
 /// Socket is able to send and receive messages from remote Clients
 pub struct Socket;
 
@@ -85,14 +77,5 @@ impl Socket {
         };
 
         return (packet_sender, packet_receiver);
-    }
-}
-
-impl SocketTrait for Socket {
-    fn listen(
-        server_addrs: &ServerAddrs,
-        config: &SocketConfig,
-    ) -> (Box<dyn PacketSender>, Box<dyn PacketReceiver>) {
-        return Socket::listen(server_addrs, config);
     }
 }

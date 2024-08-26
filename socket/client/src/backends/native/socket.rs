@@ -3,7 +3,7 @@ use naia_socket_shared::{parse_server_url, SocketConfig};
 use webrtc_unreliable_client::Socket as RTCSocket;
 
 use crate::{
-    backends::{native::runtime::get_runtime, socket::SocketTrait},
+    backends::native::runtime::get_runtime,
     conditioned_packet_receiver::ConditionedPacketReceiver,
     packet_receiver::PacketReceiver,
     packet_sender::PacketSender,
@@ -47,15 +47,5 @@ impl Socket {
         };
 
         return (packet_sender, packet_receiver);
-    }
-}
-
-impl SocketTrait for Socket {
-    /// Connects to the given server address
-    fn connect(
-        server_session_url: &str,
-        config: &SocketConfig,
-    ) -> (Box<dyn PacketSender>, Box<dyn PacketReceiver>) {
-        return Socket::connect(server_session_url, config);
     }
 }

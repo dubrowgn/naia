@@ -122,52 +122,6 @@ fn get_clone_method(fields: &[Field], struct_type: &StructType) -> TokenStream {
     }
 }
 
-// fn get_has_entity_propertys_method(fields: &[Field]) -> TokenStream {
-//     for field in fields.iter() {
-//         if let Field::EntityProperty(_) = field {
-//             return quote! {
-//                 fn has_entity_propertys(&self) -> bool {
-//                     return true;
-//                 }
-//             };
-//         }
-//     }
-//
-//     quote! {
-//         fn has_entity_propertys(&self) -> bool {
-//             return false;
-//         }
-//     }
-// }
-
-// fn get_entities_method(fields: &[Field], struct_type: &StructType) -> TokenStream {
-//     let mut body = quote! {};
-//
-//     for (index, field) in fields.iter().enumerate() {
-//         if let Field::EntityProperty(_) = field {
-//             let field_name = get_field_name(field, index, struct_type);
-//             let body_add_right = quote! {
-//                 if let Some(global_entity) = self.#field_name.global_entity() {
-//                     output.push(global_entity);
-//                 }
-//             };
-//             let new_body = quote! {
-//                 #body
-//                 #body_add_right
-//             };
-//             body = new_body;
-//         }
-//     }
-//
-//     quote! {
-//         fn entities(&self) -> Vec<GlobalEntity> {
-//             let mut output = Vec::new();
-//             #body
-//             return output;
-//         }
-//     }
-// }
-
 fn get_relations_waiting_method(fields: &[Field], struct_type: &StructType) -> TokenStream {
     let mut body = quote! {};
 
@@ -455,7 +409,6 @@ fn get_variable_name_for_unnamed_field(index: usize, span: Span) -> Ident {
 
 pub struct EntityProperty {
     pub variable_name: Ident,
-    pub uppercase_variable_name: Ident,
 }
 
 pub struct Normal {
@@ -473,10 +426,6 @@ impl Field {
     pub fn entity_property(variable_name: Ident) -> Self {
         Self::EntityProperty(EntityProperty {
             variable_name: variable_name.clone(),
-            uppercase_variable_name: Ident::new(
-                variable_name.to_string().to_uppercase().as_str(),
-                Span::call_site(),
-            ),
         })
     }
 
