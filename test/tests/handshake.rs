@@ -3,7 +3,7 @@ use std::time::Duration;
 use naia_client::internal::{HandshakeManager as ClientHandshakeManager, HandshakeState};
 use naia_server::internal::{HandshakeManager as ServerHandshakeManager, HandshakeResult};
 use naia_shared::{
-    BitReader, BitWriter, FakeEntityConverter, MessageContainer, PacketType, Protocol, Serde,
+    BitReader, BitWriter, MessageContainer, PacketType, Protocol, Serde,
     StandardHeader,
 };
 use naia_test::Auth;
@@ -25,7 +25,6 @@ fn end_to_end_handshake_w_auth() {
     let password = "1234567";
     client.set_auth_message(MessageContainer::from_write(
         Box::new(Auth::new(username, password)),
-        &FakeEntityConverter,
     ));
 
     // 1. Client send challenge request

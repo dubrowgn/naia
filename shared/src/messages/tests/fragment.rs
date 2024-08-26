@@ -5,7 +5,7 @@ use crate::{
         receivers::fragment_receiver::FragmentReceiver,
         senders::message_fragmenter::MessageFragmenter,
     },
-    FakeEntityConverter, MessageContainer, MessageKinds, Protocol,
+    MessageContainer, MessageKinds, Protocol,
 };
 
 #[derive(MessageInternal)]
@@ -23,7 +23,6 @@ impl StringMessage {
 
 fn setup() -> (
     MessageKinds,
-    FakeEntityConverter,
     MessageFragmenter,
     FragmentReceiver,
 ) {
@@ -31,37 +30,34 @@ fn setup() -> (
     let mut protocol = Protocol::builder();
     protocol.add_message::<StringMessage>();
 
-    // Converter
-    let converter = FakeEntityConverter;
-
     // Fragmenter
     let fragmenter = MessageFragmenter::new();
 
     // Fragment Receiver
     let receiver = FragmentReceiver::new();
 
-    (protocol.message_kinds, converter, fragmenter, receiver)
+    (protocol.message_kinds, fragmenter, receiver)
 }
 
 #[test]
 fn convert_single_fragment() {
-    let (message_kinds, converter, mut fragmenter, mut receiver) = setup();
+    let (message_kinds, mut fragmenter, mut receiver) = setup();
 
     // Message
     let initial_message = StringMessage::new("hello");
     let outgoing_message = initial_message.clone();
 
-    let container = MessageContainer::from_write(Box::new(outgoing_message), &FakeEntityConverter);
+    let container = MessageContainer::from_write(Box::new(outgoing_message));
 
     // Fragment Message
-    let fragments = fragmenter.fragment_message(&message_kinds, &converter, container);
+    let fragments = fragmenter.fragment_message(&message_kinds, container);
     let fragment_count = fragments.len();
 
     // Receive Fragments
     let mut incoming_message_container_opt = None;
     for fragment in fragments {
         if let Some((_, reassembled_message)) =
-            receiver.receive(&message_kinds, &converter, fragment)
+            receiver.receive(&message_kinds, fragment)
         {
             incoming_message_container_opt = Some(reassembled_message);
             break;
@@ -81,7 +77,7 @@ fn convert_single_fragment() {
 
 #[test]
 fn convert_multiple_fragments() {
-    let (message_kinds, converter, mut fragmenter, mut receiver) = setup();
+    let (message_kinds, mut fragmenter, mut receiver) = setup();
 
     // Message
     let initial_message = StringMessage::new("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec sed justo a mi ultricies ultrices. \
@@ -95,10 +91,10 @@ fn convert_multiple_fragments() {
             Donec ut purus venenatis, mollis est ut, sollicitudin egestas.");
     let outgoing_message = initial_message.clone();
 
-    let container = MessageContainer::from_write(Box::new(outgoing_message), &FakeEntityConverter);
+    let container = MessageContainer::from_write(Box::new(outgoing_message));
 
     // Fragment Message
-    let fragments = fragmenter.fragment_message(&message_kinds, &converter, container);
+    let fragments = fragmenter.fragment_message(&message_kinds, container);
     let fragment_count = fragments.len();
 
     // Receive Fragments
@@ -113,7 +109,7 @@ fn convert_multiple_fragments() {
 
         let fragment = &fragments[j];
         if let Some((_, reassembled_message)) =
-            receiver.receive(&message_kinds, &converter, fragment.clone())
+            receiver.receive(&message_kinds, fragment.clone())
         {
             incoming_message_container_opt = Some(reassembled_message);
             break;
