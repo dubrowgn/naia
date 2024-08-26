@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_set::Iter, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     net::SocketAddr,
     panic,
     time::Duration,
@@ -27,7 +27,6 @@ use crate::{
 use super::{
     error::NaiaServerError,
     events::Events,
-    room::{Room, RoomKey, RoomMut, RoomRef},
     server_config::ServerConfig,
     user::{User, UserKey, UserMut, UserRef},
 };
@@ -48,8 +47,6 @@ pub struct Server {
     users: BigMap<UserKey, User>,
     user_connections: HashMap<SocketAddr, Connection>,
     validated_users: HashMap<SocketAddr, UserKey>,
-    // Rooms
-    rooms: BigMap<RoomKey, Room>,
     // Events
     incoming_events: Events,
     // Ticks
@@ -83,8 +80,6 @@ impl Server {
             users: BigMap::new(),
             user_connections: HashMap::new(),
             validated_users: HashMap::new(),
-            // Rooms
-            rooms: BigMap::new(),
             // Events
             incoming_events: Events::new(),
             // Ticks
@@ -298,7 +293,7 @@ impl Server {
 
     // Users
 
-    /// Returns whether or not a User exists for the given RoomKey
+    /// Returns whether or not a User exists for the given UserKey
     pub fn user_exists(&self, user_key: &UserKey) -> bool {
         self.users.contains_key(user_key)
     }
@@ -337,58 +332,6 @@ impl Server {
     /// Get the number of Users currently connected
     pub fn users_count(&self) -> usize {
         self.users.len()
-    }
-
-    // Rooms
-
-    /// Creates a new Room on the Server and returns a corresponding RoomMut,
-    /// which can be used to add users/entities to the room or retrieve its
-    /// key
-    pub fn make_room(&mut self) -> RoomMut {
-        let new_room = Room::new();
-        let room_key = self.rooms.insert(new_room);
-        RoomMut::new(self, &room_key)
-    }
-
-    /// Returns whether or not a Room exists for the given RoomKey
-    pub fn room_exists(&self, room_key: &RoomKey) -> bool {
-        self.rooms.contains_key(room_key)
-    }
-
-    /// Retrieves an RoomMut that exposes read and write operations for the
-    /// Room associated with the given RoomKey.
-    /// Panics if the room does not exist.
-    pub fn room(&self, room_key: &RoomKey) -> RoomRef {
-        if self.rooms.contains_key(room_key) {
-            return RoomRef::new(self, room_key);
-        }
-        panic!("No Room exists for given Key!");
-    }
-
-    /// Retrieves an RoomMut that exposes read and write operations for the
-    /// Room associated with the given RoomKey.
-    /// Panics if the room does not exist.
-    pub fn room_mut(&mut self, room_key: &RoomKey) -> RoomMut {
-        if self.rooms.contains_key(room_key) {
-            return RoomMut::new(self, room_key);
-        }
-        panic!("No Room exists for given Key!");
-    }
-
-    /// Return a list of all the Server's Rooms' keys
-    pub fn room_keys(&self) -> Vec<RoomKey> {
-        let mut output = Vec::new();
-
-        for (key, _) in self.rooms.iter() {
-            output.push(key);
-        }
-
-        output
-    }
-
-    /// Get a count of how many Rooms currently exist
-    pub fn rooms_count(&self) -> usize {
-        self.rooms.len()
     }
 
     // Ticks
@@ -454,22 +397,6 @@ impl Server {
         None
     }
 
-    /// Returns an iterator of all the keys of the [`Room`]s the User belongs to
-    pub(crate) fn user_room_keys(&self, user_key: &UserKey) -> Option<Iter<RoomKey>> {
-        if let Some(user) = self.users.get(user_key) {
-            return Some(user.room_keys());
-        }
-        return None;
-    }
-
-    /// Get an count of how many Rooms the given User is inside
-    pub(crate) fn user_rooms_count(&self, user_key: &UserKey) -> Option<usize> {
-        if let Some(user) = self.users.get(user_key) {
-            return Some(user.room_count());
-        }
-        return None;
-    }
-
     pub(crate) fn user_disconnect(&mut self, user_key: &UserKey) {
         let user = self.user_delete(user_key);
         self.incoming_events.push_disconnection(user_key, user);
@@ -484,14 +411,6 @@ impl Server {
         self.validated_users.remove(&user.address);
         self.handshake_manager.delete_user(&user.address);
 
-        // Clean up all user data
-        for room_key in user.room_keys() {
-            self.rooms
-                .get_mut(room_key)
-                .unwrap()
-                .unsubscribe_user(user_key);
-        }
-
         // remove from bandwidth monitor
         if self.io.bandwidth_monitor_enabled() {
             self.io.deregister_client(&user.address);
@@ -500,91 +419,7 @@ impl Server {
         return user;
     }
 
-    //// Rooms
-
-    /// Deletes the Room associated with a given RoomKey on the Server.
-    /// Returns true if the Room existed.
-    pub(crate) fn room_destroy(&mut self, room_key: &RoomKey) -> bool {
-        if self.rooms.contains_key(room_key) {
-            // TODO: what else kind of cleanup do we need to do here? Scopes?
-
-            // actually remove the room from the collection
-            let room = self.rooms.remove(room_key).unwrap();
-            for user_key in room.user_keys() {
-                self.users.get_mut(user_key).unwrap().uncache_room(room_key);
-            }
-
-            true
-        } else {
-            false
-        }
-    }
-
     //////// users
-
-    /// Returns whether or not an User is currently in a specific Room, given
-    /// their keys.
-    pub(crate) fn room_has_user(&self, room_key: &RoomKey, user_key: &UserKey) -> bool {
-        if let Some(room) = self.rooms.get(room_key) {
-            return room.has_user(user_key);
-        }
-        false
-    }
-
-    /// Add an User to a Room, given the appropriate RoomKey & UserKey
-    /// Entities will only ever be in-scope for Users which are in a
-    /// Room with them
-    pub(crate) fn room_add_user(&mut self, room_key: &RoomKey, user_key: &UserKey) {
-        if let Some(user) = self.users.get_mut(user_key) {
-            if let Some(room) = self.rooms.get_mut(room_key) {
-                room.subscribe_user(user_key);
-                user.cache_room(room_key);
-            }
-        }
-    }
-
-    /// Removes a User from a Room
-    pub(crate) fn room_remove_user(&mut self, room_key: &RoomKey, user_key: &UserKey) {
-        if let Some(user) = self.users.get_mut(user_key) {
-            if let Some(room) = self.rooms.get_mut(room_key) {
-                room.unsubscribe_user(user_key);
-                user.uncache_room(room_key);
-            }
-        }
-    }
-
-    /// Get a count of Users in a given Room
-    pub(crate) fn room_users_count(&self, room_key: &RoomKey) -> usize {
-        if let Some(room) = self.rooms.get(room_key) {
-            return room.users_count();
-        }
-        0
-    }
-
-    /// Returns an iterator of the [`UserKey`] for Users that belong in the Room
-    pub(crate) fn room_user_keys(&self, room_key: &RoomKey) -> impl Iterator<Item = &UserKey> {
-        let iter = if let Some(room) = self.rooms.get(room_key) {
-            Some(room.user_keys())
-        } else {
-            None
-        };
-        iter.into_iter().flatten()
-    }
-
-    /// Sends a message to all connected users in a given Room using a given channel
-    pub(crate) fn room_broadcast_message(
-        &mut self,
-        channel_kind: &ChannelKind,
-        room_key: &RoomKey,
-        message_box: Box<dyn Message>,
-    ) {
-        if let Some(room) = self.rooms.get(room_key) {
-            let user_keys: Vec<UserKey> = room.user_keys().cloned().collect();
-            for user_key in &user_keys {
-                self.send_message_inner(user_key, channel_kind, message_box.clone())
-            }
-        }
-    }
 
     // Private methods
 

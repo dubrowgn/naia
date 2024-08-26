@@ -29,7 +29,6 @@ mod cache_map;
 mod connection;
 mod error;
 mod events;
-mod room;
 mod server;
 mod server_config;
 mod time_manager;
@@ -40,7 +39,6 @@ pub use error::NaiaServerError;
 pub use events::{
     AuthEvent, ConnectEvent, DisconnectEvent, ErrorEvent, Events, MessageEvent, TickEvent,
 };
-pub use room::{RoomKey, RoomMut, RoomRef};
 pub use server::Server;
 pub use server_config::ServerConfig;
 pub use user::{User, UserKey, UserMut, UserRef};
