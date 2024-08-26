@@ -25,8 +25,6 @@ pub mod internal {
     pub use crate::connection::handshake_manager::{HandshakeManager, HandshakeResult};
 }
 
-pub use naia_shared::SerdeBevyServer as SerdeBevy;
-
 mod cache_map;
 mod connection;
 mod error;

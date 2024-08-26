@@ -18,7 +18,6 @@ maintenance = { status = "actively-developed" }
 
 [features]
 wbindgen = [ "naia-shared/wbindgen", "naia-client-socket?/wbindgen" ]
-bevy_support = ["naia-shared/bevy_support", "bevy_ecs"]
 zstd_support = ["naia-shared/zstd_support"]
 transport_webrtc = [ "naia-client-socket" ]
 transport_udp = [ "local_ipaddress" ]
@@ -26,7 +25,6 @@ transport_udp = [ "local_ipaddress" ]
 [dependencies]
 naia-shared = { version = "0.22", path = "../shared" }
 naia-client-socket = { version = "0.22", path = "../socket/client", optional = true }
-bevy_ecs = { version = "0.12.1", default-features = false, optional = true }
 local_ipaddress = { version = "0.1", optional = true }
 cfg-if = { version = "1.0" }
 log = { version = "0.4" }

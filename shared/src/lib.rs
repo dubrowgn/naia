@@ -16,11 +16,11 @@ cfg_if! {
 }
 
 pub use naia_derive::{
-    Channel, Message, MessageBevy, Replicate, ReplicateBevy,
+    Channel, Message, Replicate,
 };
 pub use naia_serde::{
     BitReader, BitWrite, BitWriter, ConstBitLength, FileBitWriter, OutgoingPacket, OwnedBitReader,
-    Serde, SerdeBevyClient, SerdeBevyServer, SerdeBevyShared, SerdeErr,
+    Serde, SerdeErr,
     SerdeIntegerConversion, SerdeInternal, SignedInteger, SignedVariableInteger, UnsignedInteger,
     UnsignedVariableInteger, MTU_SIZE_BITS, MTU_SIZE_BYTES,
 };
@@ -70,7 +70,7 @@ pub use messages::{
         },
         system_channel::SystemChannel,
     },
-    message::{Message, Message as MessageBevy, MessageBuilder},
+    message::{Message, MessageBuilder},
     message_container::MessageContainer,
     message_kinds::{MessageKind, MessageKinds},
     message_manager::MessageManager,
@@ -90,7 +90,7 @@ pub use world::{
             ReplicaRefTrait, ReplicaRefWrapper,
         },
         replicate::{
-            Replicate, Replicate as ReplicateBevy, ReplicateBuilder,
+            Replicate, ReplicateBuilder,
         },
     },
     delegation::{

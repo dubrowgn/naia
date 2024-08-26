@@ -115,24 +115,8 @@ pub trait Replicate: ReplicateInner + Named + Any {
     fn localize(&mut self);
 }
 
-cfg_if! {
-    if #[cfg(feature = "bevy_support")]
-    {
-        // Require that Bevy Component to be implemented
-        use bevy_ecs::component::{TableStorage, Component};
+pub trait ReplicateInner: Sync + Send + 'static {}
 
-        pub trait ReplicateInner: Component<Storage = TableStorage> + Sync + Send + 'static {}
-
-        impl<T> ReplicateInner for T
-        where T: Component<Storage = TableStorage> + Sync + Send + 'static {
-        }
-    }
-    else
-    {
-        pub trait ReplicateInner: Sync + Send + 'static {}
-
-        impl<T> ReplicateInner for T
-        where T: Sync + Send + 'static {
-        }
-    }
+impl<T> ReplicateInner for T
+where T: Sync + Send + 'static {
 }
