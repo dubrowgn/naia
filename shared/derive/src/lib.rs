@@ -30,13 +30,6 @@ pub fn replicate_derive_bevy(input: proc_macro::TokenStream) -> proc_macro::Toke
     replicate_impl(input, shared_crate_name)
 }
 
-/// Derives the Replicate trait for a given struct, for the Bevy adapter
-#[proc_macro_derive(ReplicateHecs)]
-pub fn replicate_derive_hecs(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let shared_crate_name = quote! { naia_hecs_shared };
-    replicate_impl(input, shared_crate_name)
-}
-
 // Channel
 
 /// Derives the Channel trait for a given struct
@@ -72,12 +65,5 @@ pub fn message_derive_shared(input: proc_macro::TokenStream) -> proc_macro::Toke
 #[proc_macro_derive(MessageBevy)]
 pub fn message_derive_bevy(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let shared_crate_name = quote! { naia_bevy_shared };
-    message_impl(input, shared_crate_name, false)
-}
-
-/// Derives the Message trait for a given struct, for the Hecs adapter
-#[proc_macro_derive(MessageHecs)]
-pub fn message_derive_hecs(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let shared_crate_name = quote! { naia_hecs_shared };
     message_impl(input, shared_crate_name, false)
 }
