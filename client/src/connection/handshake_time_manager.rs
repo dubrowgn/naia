@@ -101,37 +101,14 @@ impl HandshakeTimeManager {
         let offset_stdv = offset_diff_mean.sqrt();
         let rtt_stdv = rtt_diff_mean.sqrt();
 
-        // Prune out any pong values outside the standard deviation (mitigation)
-        let mut pruned_pongs = Vec::new();
-        for (time_offset_millis, rtt_millis) in pongs {
-            let offset_diff = (time_offset_millis - offset_mean).abs();
-            let rtt_diff = (rtt_millis - rtt_mean).abs();
-            if offset_diff < offset_stdv && rtt_diff < rtt_stdv {
-                pruned_pongs.push((time_offset_millis, rtt_millis));
-            }
-        }
-
-        // Find the mean of the pruned pongs
-        let pruned_sample_count = pruned_pongs.len() as f32;
-        let mut pruned_offset_mean = 0.0;
-        let mut pruned_rtt_mean = 0.0;
-
-        for (time_offset_millis, rtt_millis) in pruned_pongs {
-            pruned_offset_mean += time_offset_millis;
-            pruned_rtt_mean += rtt_millis;
-        }
-
-        pruned_offset_mean /= pruned_sample_count;
-        pruned_rtt_mean /= pruned_sample_count;
-
         // Get values we were looking for
 
         // Set internal time to match offset
-        if pruned_offset_mean < 0.0 {
-            let offset_ms = (pruned_offset_mean * -1.0) as u32;
+        if offset_mean < 0.0 {
+            let offset_ms = (offset_mean * -1.0) as u32;
             self.base.start_instant.subtract_millis(offset_ms);
         } else {
-            let offset_ms = pruned_offset_mean as u32;
+            let offset_ms = offset_mean as u32;
             // start_instant should only be able to go BACK in time, otherwise `.elapsed()` might not work
             self.base
                 .start_instant
@@ -148,7 +125,7 @@ impl HandshakeTimeManager {
             self.server_tick_instant,
             self.server_tick_duration_avg,
             self.server_speedup_potential,
-            pruned_rtt_mean,
+            rtt_mean,
             rtt_stdv,
             offset_stdv,
         )
