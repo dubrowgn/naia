@@ -15,12 +15,8 @@ impl IndexedMessageReader {
         let mut last_read_id: Option<MessageIndex> = None;
         let mut output = Vec::new();
 
-        loop {
-            let channel_continue = bool::de(reader)?;
-            if !channel_continue {
-                break;
-            }
-
+		// while read continuation bit
+		while bool::de(reader)? {
             let id_w_msg = Self::read_message(message_kinds, reader, &last_read_id)?;
             last_read_id = Some(id_w_msg.0);
             output.push(id_w_msg);

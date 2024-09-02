@@ -43,12 +43,8 @@ impl ChannelReceiver for UnorderedUnreliableReceiver {
         message_kinds: &MessageKinds,
         reader: &mut BitReader,
     ) -> Result<(), SerdeErr> {
-        loop {
-            let channel_continue = bool::de(reader)?;
-            if !channel_continue {
-                break;
-            }
-
+		// while read continuation bit
+		while bool::de(reader)? {
             let message = self.read_message(message_kinds, reader)?;
             self.recv_message(message);
         }
