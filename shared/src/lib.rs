@@ -62,10 +62,7 @@ pub use messages::{
             channel_receiver::ChannelReceiver, ordered_reliable_receiver::OrderedReliableReceiver,
             unordered_reliable_receiver::UnorderedReliableReceiver,
         },
-        senders::{
-            channel_sender::{ChannelSender, MessageChannelSender},
-            reliable_sender::ReliableSender,
-        },
+        senders::{channel_sender::ChannelSender, reliable_sender::ReliableSender},
     },
     message::{Message, MessageBuilder},
     message_container::MessageContainer,

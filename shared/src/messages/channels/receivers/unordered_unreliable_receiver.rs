@@ -1,14 +1,12 @@
-use std::{collections::VecDeque, mem};
-
-use naia_serde::{BitReader, Serde, SerdeErr};
-
 use crate::{
     messages::{
-        channels::receivers::channel_receiver::{ChannelReceiver, MessageChannelReceiver},
+        channels::receivers::channel_receiver::ChannelReceiver,
         message_kinds::MessageKinds,
     },
     MessageContainer,
 };
+use naia_serde::{BitReader, Serde, SerdeErr};
+use std::{collections::VecDeque, mem};
 
 pub struct UnorderedUnreliableReceiver {
     incoming_messages: VecDeque<MessageContainer>,
@@ -35,13 +33,11 @@ impl UnorderedUnreliableReceiver {
     }
 }
 
-impl ChannelReceiver<MessageContainer> for UnorderedUnreliableReceiver {
+impl ChannelReceiver for UnorderedUnreliableReceiver {
     fn receive_messages(&mut self) -> Vec<MessageContainer> {
         Vec::from(mem::take(&mut self.incoming_messages))
     }
-}
 
-impl MessageChannelReceiver for UnorderedUnreliableReceiver {
     fn read_messages(
         &mut self,
         message_kinds: &MessageKinds,

@@ -1,11 +1,7 @@
-use std::mem;
-
-use naia_serde::{BitReader, SerdeErr};
-
 use crate::{
     messages::{
         channels::receivers::{
-            channel_receiver::{ChannelReceiver, MessageChannelReceiver},
+            channel_receiver::ChannelReceiver,
             indexed_message_reader::IndexedMessageReader,
         },
         message_kinds::MessageKinds,
@@ -14,6 +10,8 @@ use crate::{
     types::MessageIndex,
     MessageContainer,
 };
+use naia_serde::{BitReader, SerdeErr};
+use std::mem;
 
 pub struct SequencedUnreliableReceiver {
     newest_received_message_index: Option<MessageIndex>,
@@ -49,13 +47,11 @@ impl SequencedUnreliableReceiver {
     }
 }
 
-impl ChannelReceiver<MessageContainer> for SequencedUnreliableReceiver {
+impl ChannelReceiver for SequencedUnreliableReceiver {
     fn receive_messages(&mut self) -> Vec<MessageContainer> {
         Vec::from(mem::take(&mut self.incoming_messages))
     }
-}
 
-impl MessageChannelReceiver for SequencedUnreliableReceiver {
     /// Read messages and add them to the buffer, discard messages that are older
     /// than the most recent received message
     fn read_messages(

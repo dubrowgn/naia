@@ -11,7 +11,7 @@ use crate::{
             channel::ChannelSettings,
             channel_kinds::{ChannelKind, ChannelKinds},
             receivers::{
-                channel_receiver::MessageChannelReceiver,
+                channel_receiver::ChannelReceiver,
                 ordered_reliable_receiver::OrderedReliableReceiver,
                 sequenced_reliable_receiver::SequencedReliableReceiver,
                 sequenced_unreliable_receiver::SequencedUnreliableReceiver,
@@ -19,7 +19,7 @@ use crate::{
                 unordered_unreliable_receiver::UnorderedUnreliableReceiver,
             },
             senders::{
-                channel_sender::MessageChannelSender, message_fragmenter::MessageFragmenter,
+                channel_sender::ChannelSender, message_fragmenter::MessageFragmenter,
                 reliable_sender::ReliableSender,
                 sequenced_unreliable_sender::SequencedUnreliableSender,
                 unordered_unreliable_sender::UnorderedUnreliableSender,
@@ -35,8 +35,8 @@ use crate::{
 /// Handles incoming/outgoing messages, tracks the delivery status of Messages
 /// so that guaranteed Messages can be re-transmitted to the remote host
 pub struct MessageManager {
-    channel_senders: HashMap<ChannelKind, Box<dyn MessageChannelSender>>,
-    channel_receivers: HashMap<ChannelKind, Box<dyn MessageChannelReceiver>>,
+    channel_senders: HashMap<ChannelKind, Box<dyn ChannelSender>>,
+    channel_receivers: HashMap<ChannelKind, Box<dyn ChannelReceiver>>,
     channel_settings: HashMap<ChannelKind, ChannelSettings>,
     packet_to_message_map: HashMap<PacketIndex, Vec<(ChannelKind, Vec<MessageIndex>)>>,
     message_fragmenter: MessageFragmenter,
@@ -48,7 +48,7 @@ impl MessageManager {
         // initialize all reliable channels
 
         // initialize senders
-        let mut channel_senders = HashMap::<ChannelKind, Box<dyn MessageChannelSender>>::new();
+        let mut channel_senders = HashMap::<ChannelKind, Box<dyn ChannelSender>>::new();
         for (channel_kind, channel_settings) in channel_kinds.channels() {
             match &host_type {
                 HostType::Server => {
@@ -77,7 +77,7 @@ impl MessageManager {
                 | ChannelMode::OrderedReliable(settings) => {
                     channel_senders.insert(
                         channel_kind,
-                        Box::new(ReliableSender::<MessageContainer>::new(
+                        Box::new(ReliableSender::new(
                             settings.rtt_resend_factor,
                         )),
                     );
@@ -89,7 +89,7 @@ impl MessageManager {
         }
 
         // initialize receivers
-        let mut channel_receivers = HashMap::<ChannelKind, Box<dyn MessageChannelReceiver>>::new();
+        let mut channel_receivers = HashMap::<ChannelKind, Box<dyn ChannelReceiver>>::new();
         for (channel_kind, channel_settings) in channel_kinds.channels() {
             match &host_type {
                 HostType::Server => {

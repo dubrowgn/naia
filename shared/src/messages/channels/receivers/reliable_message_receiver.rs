@@ -1,9 +1,7 @@
-use naia_serde::{BitReader, SerdeErr};
-
 use crate::{
     messages::{
         channels::receivers::{
-            channel_receiver::{ChannelReceiver, MessageChannelReceiver},
+            channel_receiver::ChannelReceiver,
             fragment_receiver::FragmentReceiver,
             indexed_message_reader::IndexedMessageReader,
             reliable_receiver::ReliableReceiver,
@@ -13,6 +11,7 @@ use crate::{
     types::MessageIndex,
     MessageContainer,
 };
+use naia_serde::{BitReader, SerdeErr};
 
 // Receiver Arranger Trait
 pub trait ReceiverArranger: Send + Sync {
@@ -77,16 +76,14 @@ impl<A: ReceiverArranger> ReliableMessageReceiver<A> {
     }
 }
 
-impl<A: ReceiverArranger> ChannelReceiver<MessageContainer> for ReliableMessageReceiver<A> {
+impl<A: ReceiverArranger> ChannelReceiver for ReliableMessageReceiver<A> {
     fn receive_messages(&mut self) -> Vec<MessageContainer> {
         self.receive_messages()
             .drain(..)
             .map(|(_, message)| message)
             .collect()
     }
-}
 
-impl<A: ReceiverArranger> MessageChannelReceiver for ReliableMessageReceiver<A> {
     fn read_messages(
         &mut self,
         message_kinds: &MessageKinds,

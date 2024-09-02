@@ -1,12 +1,7 @@
-use std::collections::VecDeque;
-
-use naia_serde::BitWriter;
-use naia_socket_shared::Instant;
-
 use crate::{
     messages::{
         channels::senders::{
-            channel_sender::{ChannelSender, MessageChannelSender},
+            channel_sender::ChannelSender,
             indexed_message_writer::IndexedMessageWriter,
         },
         message_container::MessageContainer,
@@ -14,6 +9,9 @@ use crate::{
     },
     types::MessageIndex,
 };
+use naia_serde::BitWriter;
+use naia_socket_shared::Instant;
+use std::collections::VecDeque;
 
 pub struct SequencedUnreliableSender {
     /// Buffer of the next messages to send along with their MessageKind
@@ -31,7 +29,7 @@ impl SequencedUnreliableSender {
     }
 }
 
-impl ChannelSender<MessageContainer> for SequencedUnreliableSender {
+impl ChannelSender for SequencedUnreliableSender {
     fn send(&mut self, message: MessageContainer) {
         self.outgoing_messages
             .push_back((self.next_send_message_index, message));
@@ -49,9 +47,7 @@ impl ChannelSender<MessageContainer> for SequencedUnreliableSender {
     fn ack(&mut self, _: &MessageIndex) {
         // not necessary for an unreliable channel
     }
-}
 
-impl MessageChannelSender for SequencedUnreliableSender {
     /// Write messages from the buffer into the channel
     /// Include a wrapped message id for sequencing purposes
     fn write_messages(

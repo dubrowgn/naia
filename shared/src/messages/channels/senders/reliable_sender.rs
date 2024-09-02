@@ -1,12 +1,7 @@
-use std::{collections::VecDeque, time::Duration};
-
-use naia_serde::BitWriter;
-use naia_socket_shared::Instant;
-
 use crate::{
     messages::{
         channels::senders::{
-            channel_sender::{ChannelSender, MessageChannelSender},
+            channel_sender::ChannelSender,
             indexed_message_writer::IndexedMessageWriter,
         },
         message_container::MessageContainer,
@@ -14,16 +9,18 @@ use crate::{
     },
     types::MessageIndex,
 };
+use naia_serde::BitWriter;
+use naia_socket_shared::Instant;
+use std::{collections::VecDeque, time::Duration};
 
-// Sender
-pub struct ReliableSender<P: Send + Sync> {
+pub struct ReliableSender {
     rtt_resend_factor: f32,
-    sending_messages: VecDeque<Option<(MessageIndex, Option<Instant>, P)>>,
+    sending_messages: VecDeque<Option<(MessageIndex, Option<Instant>, MessageContainer)>>,
     next_send_message_index: MessageIndex,
-    outgoing_messages: VecDeque<(MessageIndex, P)>,
+    outgoing_messages: VecDeque<(MessageIndex, MessageContainer)>,
 }
 
-impl<P: Send + Sync> ReliableSender<P> {
+impl ReliableSender {
     pub fn new(rtt_resend_factor: f32) -> Self {
         Self {
             rtt_resend_factor,
@@ -40,8 +37,8 @@ impl<P: Send + Sync> ReliableSender<P> {
 	}
 }
 
-impl<M: Send + Sync + Clone> ChannelSender<M> for ReliableSender<M> {
-    fn send(&mut self, message: M) {
+impl ChannelSender for ReliableSender {
+    fn send(&mut self, message: MessageContainer) {
         self.sending_messages
             .push_back(Some((self.next_send_message_index, None, message)));
         self.next_send_message_index = self.next_send_message_index.wrapping_add(1);
@@ -87,9 +84,7 @@ impl<M: Send + Sync + Clone> ChannelSender<M> for ReliableSender<M> {
 			self.sending_messages.pop_front();
 		}
     }
-}
 
-impl MessageChannelSender for ReliableSender<MessageContainer> {
     fn write_messages(
         &mut self,
         kinds: &MessageKinds,

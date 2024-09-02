@@ -2,12 +2,10 @@ use naia_serde::{BitReader, SerdeErr};
 
 use crate::messages::{message_container::MessageContainer, message_kinds::MessageKinds};
 
-pub trait ChannelReceiver<P>: Send + Sync {
+pub trait ChannelReceiver: Send + Sync {
     /// Read messages from an internal buffer and return their content
-    fn receive_messages(&mut self) -> Vec<P>;
-}
+    fn receive_messages(&mut self) -> Vec<MessageContainer>;
 
-pub trait MessageChannelReceiver: ChannelReceiver<MessageContainer> {
     /// Read messages from raw bits, parse them and store then into an internal buffer
     fn read_messages(
         &mut self,
