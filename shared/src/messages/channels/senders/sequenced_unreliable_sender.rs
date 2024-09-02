@@ -32,7 +32,7 @@ impl SequencedUnreliableSender {
 }
 
 impl ChannelSender<MessageContainer> for SequencedUnreliableSender {
-    fn send_message(&mut self, message: MessageContainer) {
+    fn send(&mut self, message: MessageContainer) {
         self.outgoing_messages
             .push_back((self.next_send_message_index, message));
         self.next_send_message_index = self.next_send_message_index.wrapping_add(1);
@@ -46,7 +46,7 @@ impl ChannelSender<MessageContainer> for SequencedUnreliableSender {
         !self.outgoing_messages.is_empty()
     }
 
-    fn notify_message_delivered(&mut self, _: &MessageIndex) {
+    fn ack(&mut self, _: &MessageIndex) {
         // not necessary for an unreliable channel
     }
 }
@@ -56,12 +56,12 @@ impl MessageChannelSender for SequencedUnreliableSender {
     /// Include a wrapped message id for sequencing purposes
     fn write_messages(
         &mut self,
-        message_kinds: &MessageKinds,
+        kinds: &MessageKinds,
         writer: &mut BitWriter,
         has_written: &mut bool,
     ) -> Option<Vec<MessageIndex>> {
         IndexedMessageWriter::write_messages(
-            message_kinds,
+            kinds,
             &mut self.outgoing_messages,
             writer,
             has_written,

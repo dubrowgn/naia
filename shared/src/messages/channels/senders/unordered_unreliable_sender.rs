@@ -41,7 +41,7 @@ impl UnorderedUnreliableSender {
 }
 
 impl ChannelSender<MessageContainer> for UnorderedUnreliableSender {
-    fn send_message(&mut self, message: MessageContainer) {
+    fn send(&mut self, message: MessageContainer) {
         self.outgoing_messages.push_back(message);
     }
 
@@ -53,7 +53,7 @@ impl ChannelSender<MessageContainer> for UnorderedUnreliableSender {
         !self.outgoing_messages.is_empty()
     }
 
-    fn notify_message_delivered(&mut self, _: &MessageIndex) {
+    fn ack(&mut self, _: &MessageIndex) {
         // not necessary for an unreliable channel
     }
 }
@@ -61,7 +61,7 @@ impl ChannelSender<MessageContainer> for UnorderedUnreliableSender {
 impl MessageChannelSender for UnorderedUnreliableSender {
     fn write_messages(
         &mut self,
-        message_kinds: &MessageKinds,
+        kinds: &MessageKinds,
         writer: &mut BitWriter,
         has_written: &mut bool,
     ) -> Option<Vec<MessageIndex>> {
@@ -77,7 +77,7 @@ impl MessageChannelSender for UnorderedUnreliableSender {
             // write MessageContinue bit
             true.ser(&mut counter);
             // write data
-            self.write_message(message_kinds, &mut counter, message);
+            self.write_message(kinds, &mut counter, message);
             if counter.overflowed() {
                 // if nothing useful has been written in this packet yet,
                 // send warning about size of message being too big
@@ -93,7 +93,7 @@ impl MessageChannelSender for UnorderedUnreliableSender {
             // write MessageContinue bit
             true.ser(writer);
             // write data
-            self.write_message(message_kinds, writer, &message);
+            self.write_message(kinds, writer, &message);
 
             // pop message we've written
             self.outgoing_messages.pop_front();

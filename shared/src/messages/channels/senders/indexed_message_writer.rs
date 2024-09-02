@@ -13,7 +13,7 @@ pub struct IndexedMessageWriter;
 
 impl IndexedMessageWriter {
     pub fn write_messages(
-        message_kinds: &MessageKinds,
+        kinds: &MessageKinds,
         outgoing_messages: &mut VecDeque<(MessageIndex, MessageContainer)>,
         writer: &mut BitWriter,
         has_written: &mut bool,
@@ -34,7 +34,7 @@ impl IndexedMessageWriter {
             true.ser(&mut counter);
             // write data
             Self::write_message(
-                message_kinds,
+                kinds,
                 &mut counter,
                 &last_written_id,
                 message_index,
@@ -56,7 +56,7 @@ impl IndexedMessageWriter {
             true.ser(writer);
             // write data
             Self::write_message(
-                message_kinds,
+                kinds,
                 writer,
                 &last_written_id,
                 message_index,
@@ -92,7 +92,7 @@ impl IndexedMessageWriter {
     }
 
     fn write_message(
-        message_kinds: &MessageKinds,
+        kinds: &MessageKinds,
         writer: &mut dyn BitWrite,
         last_written_id: &Option<MessageIndex>,
         message_index: &MessageIndex,
@@ -100,7 +100,7 @@ impl IndexedMessageWriter {
     ) {
         Self::write_message_index(writer, last_written_id, message_index);
 
-        message.write(message_kinds, writer);
+        message.write(kinds, writer);
     }
 
     fn warn_overflow(bits_needed: u32, bits_free: u32) {

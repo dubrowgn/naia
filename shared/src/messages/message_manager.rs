@@ -183,10 +183,10 @@ impl MessageManager {
                 self.message_fragmenter
                     .fragment_message(message_kinds, message);
             for message_fragment in messages {
-                channel.send_message(message_fragment);
+                channel.send(message_fragment);
             }
         } else {
-            channel.send_message(message);
+            channel.send(message);
         }
     }
 
@@ -304,7 +304,7 @@ impl MessageManager {
             for (channel_kind, message_indices) in channel_list {
                 if let Some(channel) = self.channel_senders.get_mut(channel_kind) {
                     for message_index in message_indices {
-                        channel.notify_message_delivered(message_index);
+                        channel.ack(message_index);
                     }
                 }
             }

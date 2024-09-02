@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, mem, time::Duration};
+use std::{collections::VecDeque, time::Duration};
 
 use naia_serde::BitWriter;
 use naia_socket_shared::Instant;
@@ -33,63 +33,15 @@ impl<P: Send + Sync> ReliableSender<P> {
         }
     }
 
-    fn cleanup_sent_messages(&mut self) {
-        // keep popping off Nones from the front of the Vec
-        loop {
-            let mut pop = false;
-            if let Some(message_opt) = self.sending_messages.front() {
-                if message_opt.is_none() {
-                    pop = true;
-                }
-            }
-            if pop {
-                self.sending_messages.pop_front();
-            } else {
-                break;
-            }
-        }
-    }
-
-    pub fn take_next_messages(&mut self) -> VecDeque<(MessageIndex, P)> {
-        mem::take(&mut self.outgoing_messages)
-    }
-
-    // Called when a message has been delivered
-    // If this message has never been delivered before, will clear from the outgoing
-    // buffer and return the message previously there
-    pub fn deliver_message(&mut self, message_index: &MessageIndex) -> Option<P> {
-        let mut index = 0;
-        let mut found = false;
-
-        loop {
-            if index == self.sending_messages.len() {
-                return None;
-            }
-
-            if let Some(Some((old_message_index, _, _))) = self.sending_messages.get(index) {
-                if *message_index == *old_message_index {
-                    found = true;
-                }
-            }
-
-            if found {
-                // replace found message with nothing
-                let container = self.sending_messages.get_mut(index).unwrap();
-                let output = container.take();
-
-                self.cleanup_sent_messages();
-
-                // stop loop
-                return output.map(|(_, _, message)| message);
-            }
-
-            index += 1;
-        }
-    }
+	fn find_msg_idx(&self, index: &MessageIndex) -> Option<usize> {
+		self.sending_messages.iter().position(|opt|
+			if let Some((idx, _, _)) = opt { idx == index } else { false }
+		)
+	}
 }
 
-impl<P: Send + Sync + Clone> ChannelSender<P> for ReliableSender<P> {
-    fn send_message(&mut self, message: P) {
+impl<M: Send + Sync + Clone> ChannelSender<M> for ReliableSender<M> {
+    fn send(&mut self, message: M) {
         self.sending_messages
             .push_back(Some((self.next_send_message_index, None, message)));
         self.next_send_message_index = self.next_send_message_index.wrapping_add(1);
@@ -119,20 +71,33 @@ impl<P: Send + Sync + Clone> ChannelSender<P> for ReliableSender<P> {
         !self.outgoing_messages.is_empty()
     }
 
-    fn notify_message_delivered(&mut self, message_index: &MessageIndex) {
-        self.deliver_message(message_index);
+    fn ack(&mut self, index: &MessageIndex) {
+		let Some(i) = self.find_msg_idx(index) else {
+			return;
+		};
+
+		// replace message tuple with None
+		self.sending_messages
+			.get_mut(i)
+			.unwrap()
+			.take();
+
+		// prune None's from front of list
+		while let Some(None) = self.sending_messages.front() {
+			self.sending_messages.pop_front();
+		}
     }
 }
 
 impl MessageChannelSender for ReliableSender<MessageContainer> {
     fn write_messages(
         &mut self,
-        message_kinds: &MessageKinds,
+        kinds: &MessageKinds,
         writer: &mut BitWriter,
         has_written: &mut bool,
     ) -> Option<Vec<MessageIndex>> {
         IndexedMessageWriter::write_messages(
-            message_kinds,
+            kinds,
             &mut self.outgoing_messages,
             writer,
             has_written,

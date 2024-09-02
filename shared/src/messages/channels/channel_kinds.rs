@@ -12,14 +12,6 @@ pub struct ChannelKind {
     type_id: TypeId,
 }
 
-// impl From<TypeId> for ChannelKind {
-//     fn from(type_id: TypeId) -> Self {
-//         Self {
-//             type_id
-//         }
-//     }
-// }
-
 impl ChannelKind {
     pub fn of<C: Channel>() -> Self {
         Self {
