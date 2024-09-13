@@ -1,10 +1,10 @@
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use log::warn;
 
 use naia_shared::{
     BitReader, BitWriter, MessageContainer, MessageKinds, PacketType, Serde,
-    StandardHeader, Timer, Timestamp as stamp_time,
+    StandardHeader, Timer,
 };
 
 use super::io::Io;
@@ -60,7 +60,10 @@ impl HandshakeManager {
         let mut handshake_timer = Timer::new(send_interval);
         handshake_timer.ring_manual();
 
-        let pre_connection_timestamp = stamp_time::now();
+        let pre_connection_timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("timing error!")
+            .as_secs();
 
         Self {
             handshake_timer,

@@ -1,5 +1,5 @@
 use naia_serde::{BitReader, BitWrite, ConstBitLength, Serde, SerdeErr, UnsignedInteger};
-use naia_socket_shared::Instant;
+use std::time::Instant;
 
 const GAME_INSANT_BITS: u8 = 22;
 pub const GAME_TIME_LIMIT: u32 = 4194304; // 2^22

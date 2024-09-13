@@ -1,7 +1,7 @@
 use log::warn;
 use naia_shared::{
     BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig, HostType,
-    Instant, OwnedBitReader, PacketType, Protocol, Serde, SerdeErr, StandardHeader, Tick,
+    OwnedBitReader, PacketType, Protocol, Serde, SerdeErr, StandardHeader, Tick,
 };
 
 use crate::{
@@ -11,6 +11,7 @@ use crate::{
     },
     events::Events,
 };
+use std::time::Instant;
 
 pub struct Connection {
     pub base: BaseConnection,

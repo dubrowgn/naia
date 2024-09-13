@@ -1,6 +1,4 @@
-use std::{cmp::Ordering, collections::BinaryHeap};
-
-use super::Instant;
+use std::{cmp::Ordering, collections::BinaryHeap, time::Instant};
 
 /// A queue for items marked by time, will only ever pop items from the queue if
 /// the time

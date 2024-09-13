@@ -1,7 +1,7 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use naia_shared::{
-    BitReader, BitWriter, GameDuration, GameInstant, Instant, PacketType, PingIndex, Serde,
+    BitReader, BitWriter, GameDuration, GameInstant, PacketType, PingIndex, Serde,
     SerdeErr, StandardHeader, Tick, UnsignedVariableInteger,
 };
 

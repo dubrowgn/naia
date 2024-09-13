@@ -10,8 +10,8 @@ use crate::{
     types::MessageIndex,
 };
 use naia_serde::BitWriter;
-use naia_socket_shared::Instant;
 use std::collections::VecDeque;
+use std::time::Instant;
 
 pub struct SequencedUnreliableSender {
     /// Buffer of the next messages to send along with their MessageKind

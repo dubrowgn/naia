@@ -17,10 +17,9 @@ pub use naia_serde::{
     UnsignedVariableInteger, MTU_SIZE_BITS, MTU_SIZE_BYTES,
 };
 pub use naia_socket_shared::{
-    link_condition_logic, Instant, LinkConditionerConfig, Random, SocketConfig, TimeQueue,
+    link_condition_logic, LinkConditionerConfig, SocketConfig, TimeQueue,
 };
 
-mod backends;
 mod bigmap;
 mod connection;
 mod constants;
@@ -28,10 +27,10 @@ mod game_time;
 mod key_generator;
 mod messages;
 mod protocol;
+mod timer;
 mod types;
 mod wrapping_number;
 
-pub use backends::{Timer, Timestamp};
 pub use connection::{
     ack_manager::AckManager,
     bandwidth_monitor::BandwidthMonitor,
@@ -67,5 +66,6 @@ pub use bigmap::{BigMap, BigMapKey};
 pub use game_time::{GameDuration, GameInstant, GAME_TIME_LIMIT};
 pub use key_generator::KeyGenerator;
 pub use protocol::{Protocol, ProtocolPlugin};
+pub use timer::Timer;
 pub use types::{HostType, MessageIndex, PacketIndex, ShortMessageIndex, Tick};
 pub use wrapping_number::{sequence_greater_than, sequence_less_than, wrapping_diff};

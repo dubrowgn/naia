@@ -1,8 +1,6 @@
-extern crate log;
-// use log::info;
-
-use super::{link_conditioner_config::LinkConditionerConfig, time_queue::TimeQueue, Instant};
-use crate::Random;
+use rand::Rng;
+use std::time::{Duration, Instant};
+use super::{link_conditioner_config::LinkConditionerConfig, time_queue::TimeQueue};
 
 /// Given a config object which describes the network conditions to be
 /// simulated, process an incoming packet, adding it to a TimeQueue at the
@@ -12,19 +10,15 @@ pub fn process_packet<T: Eq>(
     time_queue: &mut TimeQueue<T>,
     packet: T,
 ) {
-    if Random::gen_range_f32(0.0, 1.0) <= config.incoming_loss {
+    if rand::thread_rng().gen_range(0.0..=1.0) < config.incoming_loss {
         // drop the packet
         return;
     }
-    let mut latency: u32 = config.incoming_latency;
-    if config.incoming_jitter > 0 {
-        if Random::gen_bool() {
-            latency += Random::gen_range_u32(0, config.incoming_jitter);
-        } else {
-            latency -= Random::gen_range_u32(0, config.incoming_jitter);
-        }
-    }
-    let mut packet_timestamp = Instant::now();
-    packet_timestamp.add_millis(latency);
-    time_queue.add_item(packet_timestamp, packet);
+
+	let min = config.incoming_latency.saturating_sub(config.incoming_jitter);
+	let max = config.incoming_latency.saturating_add(config.incoming_jitter);
+	let latency_ms = rand::thread_rng().gen_range(min..=max);
+    let timestamp = Instant::now() + Duration::from_millis(latency_ms.into());
+
+    time_queue.add_item(timestamp, packet);
 }

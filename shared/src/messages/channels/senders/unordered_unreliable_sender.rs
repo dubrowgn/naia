@@ -7,8 +7,8 @@ use crate::{
     types::MessageIndex,
 };
 use naia_serde::{BitWrite, BitWriter, Serde};
-use naia_socket_shared::Instant;
 use std::collections::VecDeque;
+use std::time::Instant;
 
 pub struct UnorderedUnreliableSender {
     outgoing_messages: VecDeque<MessageContainer>,

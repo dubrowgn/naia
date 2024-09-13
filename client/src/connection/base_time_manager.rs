@@ -1,10 +1,11 @@
 use log::warn;
 use naia_shared::{
-    sequence_greater_than, BitReader, BitWriter, GameDuration, GameInstant, Instant, PacketType,
+    sequence_greater_than, BitReader, BitWriter, GameDuration, GameInstant, PacketType,
     PingIndex, PingStore, Serde, SerdeErr, StandardHeader, UnsignedVariableInteger,
 };
 
 use crate::connection::{connection::Connection, io::Io};
+use std::time::Instant;
 
 /// Responsible for keeping track of internal time, as well as sending and receiving Ping/Pong messages
 pub struct BaseTimeManager {

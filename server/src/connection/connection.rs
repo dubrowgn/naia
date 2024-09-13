@@ -3,8 +3,8 @@ use std::net::SocketAddr;
 use log::warn;
 
 use naia_shared::{
-    BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig, HostType,
-	Instant, PacketType, Protocol, Serde, SerdeErr, StandardHeader, Tick,
+    BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig,
+	HostType, PacketType, Protocol, Serde, SerdeErr, StandardHeader, Tick,
 };
 
 use crate::{
@@ -17,6 +17,7 @@ use crate::{
     user::UserKey,
 };
 
+use std::time::Instant;
 use super::ping_manager::PingManager;
 
 pub struct Connection {

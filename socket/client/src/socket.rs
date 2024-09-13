@@ -3,13 +3,11 @@ use naia_socket_shared::{parse_server_url, SocketConfig};
 use webrtc_unreliable_client::Socket as RTCSocket;
 
 use crate::{
-    backends::native::runtime::get_runtime,
     conditioned_packet_receiver::ConditionedPacketReceiver,
-    packet_receiver::PacketReceiver,
-    packet_sender::PacketSender,
+    packet_receiver::{PacketReceiver, PacketReceiverImpl},
+    packet_sender::{PacketSender, PacketSenderImpl},
+    runtime::get_runtime,
 };
-
-use super::{packet_receiver::PacketReceiverImpl, packet_sender::PacketSenderImpl};
 
 /// A client-side socket which communicates with an underlying unordered &
 /// unreliable protocol

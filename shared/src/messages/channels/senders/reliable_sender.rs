@@ -10,8 +10,7 @@ use crate::{
     types::MessageIndex,
 };
 use naia_serde::BitWriter;
-use naia_socket_shared::Instant;
-use std::{collections::VecDeque, time::Duration};
+use std::{collections::VecDeque, time::{Duration, Instant}};
 
 pub struct ReliableSender {
     rtt_resend_factor: f32,

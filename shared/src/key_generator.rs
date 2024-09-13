@@ -1,6 +1,4 @@
-use std::{collections::VecDeque, marker::PhantomData, time::Duration};
-
-use naia_socket_shared::Instant;
+use std::{collections::VecDeque, marker::PhantomData, time::{Duration, Instant}};
 
 /// Simple implementation of a store that manages a recycling pool of u16 keys
 pub struct KeyGenerator<K: From<u16> + Into<u16> + Copy> {

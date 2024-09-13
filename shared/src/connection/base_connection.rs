@@ -1,17 +1,17 @@
 use naia_serde::{BitReader, BitWriter, Serde, SerdeErr};
-use naia_socket_shared::Instant;
 
 use crate::{
-    backends::Timer,
     messages::{channels::channel_kinds::ChannelKinds, message_manager::MessageManager},
     types::{HostType, PacketIndex},
     Protocol,
+    Timer,
 };
 
 use super::{
     ack_manager::AckManager, connection_config::ConnectionConfig,
     packet_notifiable::PacketNotifiable, packet_type::PacketType, standard_header::StandardHeader,
 };
+use std::time::Instant;
 
 /// Represents a connection to a remote host, and provides functionality to
 /// manage the connection and the communications to it

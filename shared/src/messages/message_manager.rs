@@ -1,7 +1,6 @@
-use std::collections::HashMap;
-
 use naia_serde::{BitReader, BitWrite, BitWriter, ConstBitLength, Serde, SerdeErr};
-use naia_socket_shared::Instant;
+use std::collections::HashMap;
+use std::time::Instant;
 
 use crate::{
     constants::FRAGMENTATION_LIMIT_BITS,

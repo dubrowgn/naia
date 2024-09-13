@@ -2,15 +2,14 @@ use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
     panic,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use log::warn;
 
 use naia_shared::{
-    BigMap, BitReader, BitWriter, Channel, ChannelKind, Instant, Message,
-	MessageContainer, PacketType, Protocol, Serde, SerdeErr, SocketConfig,
-    StandardHeader, Tick, Timer,
+    BigMap, BitReader, BitWriter, Channel, ChannelKind, Message, MessageContainer,
+	PacketType, Protocol, Serde, SerdeErr, SocketConfig, StandardHeader, Tick, Timer,
 };
 
 use crate::{

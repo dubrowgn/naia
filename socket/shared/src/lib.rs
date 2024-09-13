@@ -13,13 +13,11 @@
 /// conditions
 pub mod link_condition_logic;
 
-mod backends;
 mod link_conditioner_config;
 mod socket_config;
 mod time_queue;
 mod url_parse;
 
-pub use backends::{Instant, Random};
 pub use link_conditioner_config::LinkConditionerConfig;
 pub use socket_config::SocketConfig;
 pub use time_queue::TimeQueue;

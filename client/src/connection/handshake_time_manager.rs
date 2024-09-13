@@ -106,13 +106,12 @@ impl HandshakeTimeManager {
         // Set internal time to match offset
         if offset_mean < 0.0 {
             let offset_ms = (offset_mean * -1.0) as u32;
-            self.base.start_instant.subtract_millis(offset_ms);
+            self.base.start_instant -= Duration::from_millis(offset_ms.into());
         } else {
             let offset_ms = offset_mean as u32;
             // start_instant should only be able to go BACK in time, otherwise `.elapsed()` might not work
-            self.base
-                .start_instant
-                .subtract_millis(GAME_TIME_LIMIT - offset_ms);
+            self.base.start_instant -=
+				Duration::from_millis((GAME_TIME_LIMIT - offset_ms).into());
         }
 
         // Clear out outstanding pings

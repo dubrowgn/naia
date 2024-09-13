@@ -38,8 +38,7 @@ impl BandwidthMonitor {
 ////
 
 use std::{cmp::Ordering, collections::BinaryHeap};
-
-use naia_socket_shared::Instant;
+use std::time::Instant;
 
 #[derive(Clone)]
 pub struct TimeQueue<T: Eq + PartialEq> {

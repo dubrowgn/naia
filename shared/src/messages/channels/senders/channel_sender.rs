@@ -1,6 +1,6 @@
 use crate::{MessageContainer, messages::message_kinds::MessageKinds, types::MessageIndex};
 use naia_serde::BitWriter;
-use naia_socket_shared::Instant;
+use std::time::Instant;
 
 pub trait ChannelSender: Send + Sync {
     /// Queues a Message to be transmitted to the remote host into an internal buffer
