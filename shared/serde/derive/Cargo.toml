@@ -8,7 +8,7 @@ documentation = "https://docs.rs/naia-serde-derive"
 homepage = "https://github.com/naia-lib/naia"
 repository = "https://github.com/naia-lib/naia"
 keywords = ["serialization", "bit", "binary", "networking", "gamedev"]
-categories = ["network-programming", "game-development", "wasm", "web-programming"]
+categories = ["network-programming", "game-development", "web-programming"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 

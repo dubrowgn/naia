@@ -8,22 +8,16 @@ documentation = "https://docs.rs/naia-socket-shared"
 homepage = "https://github.com/naia-lib/naia"
 repository = "https://github.com/naia-lib/naia"
 keywords = ["webrtc", "udp", "server", "gamedev", "networking"]
-categories = ["network-programming", "game-development", "wasm", "web-programming"]
+categories = ["network-programming", "game-development", "web-programming"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
 [badges]
 maintenance = { status = "actively-developed" }
 
-[features]
-wbindgen = [ "wasm-bindgen", "js-sys" ]
-
 [dependencies]
 cfg-if = { version = "1.0" }
 log = { version = "0.4" }
 url = { version = "2.2.2" }
-wasm-bindgen = { version = "0.2.84", optional = true }
 js-sys = { version = "0.3", optional = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rand = { version = "0.8" }

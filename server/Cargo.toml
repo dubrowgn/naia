@@ -9,7 +9,7 @@ homepage = "https://github.com/naia-lib/naia"
 repository = "https://github.com/naia-lib/naia"
 readme = "../README.md"
 keywords = ["webrtc", "udp", "server", "networking", "gamedev"]
-categories = ["network-programming", "game-development", "wasm", "web-programming"]
+categories = ["network-programming", "game-development", "web-programming"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 

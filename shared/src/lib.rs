@@ -7,14 +7,6 @@
 extern crate cfg_if;
 extern crate core;
 
-cfg_if! {
-    if #[cfg(all(target_arch = "wasm32", not(feature = "wbindgen")))]
-    {
-        // Use no protocols...
-        compile_error!("wasm target for 'naia_shared' crate requires 'wbindgen' feature be enabled.");
-    }
-}
-
 pub use naia_derive::{
     Channel, Message,
 };

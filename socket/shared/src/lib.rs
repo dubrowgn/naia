@@ -9,9 +9,6 @@
     unused_qualifications
 )]
 
-#[macro_use]
-extern crate cfg_if;
-
 /// Logic shared between client & server sockets related to simulating network
 /// conditions
 pub mod link_condition_logic;
@@ -36,13 +33,5 @@ impl<T: std::fmt::Debug> std::error::Error for ChannelClosedError<T> {}
 impl<T> std::fmt::Display for ChannelClosedError<T> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(fmt, "channel closed")
-    }
-}
-
-cfg_if! {
-    if #[cfg(all(target_arch = "wasm32", not(feature = "wbindgen")))]
-    {
-        // Use no protocols...
-        compile_error!("wasm target for 'naia_socket_shared' crate requires the 'wbindgen' feature be enabled.");
     }
 }

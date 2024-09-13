@@ -8,8 +8,8 @@ documentation = "https://docs.rs/naia-shared"
 homepage = "https://github.com/naia-lib/naia"
 repository = "https://github.com/naia-lib/naia"
 readme = "../README.md"
-keywords = ["webrtc", "udp", "wasm", "networking", "gamedev"]
-categories = ["network-programming", "game-development", "wasm", "web-programming"]
+keywords = ["webrtc", "udp", "networking", "gamedev"]
+categories = ["network-programming", "game-development", "web-programming"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
@@ -17,7 +17,6 @@ edition = "2021"
 maintenance = { status = "actively-developed" }
 
 [features]
-wbindgen = [ "naia-socket-shared/wbindgen", "js-sys" ]
 zstd_support = [ "zstd" ]
 
 [dependencies]

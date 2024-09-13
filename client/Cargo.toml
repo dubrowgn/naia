@@ -8,8 +8,8 @@ documentation = "https://docs.rs/naia-client"
 homepage = "https://github.com/naia-lib/naia"
 repository = "https://github.com/naia-lib/naia"
 readme = "../README.md"
-keywords = ["wasm", "webrtc", "udp", "networking", "gamedev"]
-categories = ["network-programming", "game-development", "wasm", "web-programming"]
+keywords = ["webrtc", "udp", "networking", "gamedev"]
+categories = ["network-programming", "game-development", "web-programming"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
@@ -17,7 +17,6 @@ edition = "2021"
 maintenance = { status = "actively-developed" }
 
 [features]
-wbindgen = [ "naia-shared/wbindgen", "naia-client-socket?/wbindgen" ]
 zstd_support = ["naia-shared/zstd_support"]
 transport_webrtc = [ "naia-client-socket" ]
 transport_udp = [ "local_ipaddress" ]

@@ -4,17 +4,6 @@
 
 #![deny(unstable_features, unused_import_braces, unused_qualifications)]
 
-extern crate log;
-
-#[macro_use]
-extern crate cfg_if;
-
-cfg_if! {
-    if #[cfg(target_arch = "wasm32")] {
-        mod wasm_utils;
-    } else {}
-}
-
 mod backends;
 mod conditioned_packet_receiver;
 mod error;
@@ -29,11 +18,3 @@ pub use error::NaiaClientSocketError;
 pub use packet_receiver::PacketReceiver;
 pub use packet_sender::PacketSender;
 pub use server_addr::ServerAddr;
-
-cfg_if! {
-    if #[cfg(all(target_arch = "wasm32", not(feature = "wbindgen")))]
-    {
-        // Use no protocols...
-        compile_error!("Naia Client Socket on Wasm requires the 'wbindgen' feature be enabled.");
-    }
-}
