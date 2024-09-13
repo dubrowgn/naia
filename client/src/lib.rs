@@ -25,14 +25,12 @@ pub mod internal {
 
 mod client;
 mod client_config;
-mod command_history;
 mod connection;
 mod error;
 mod events;
 
 pub use client::Client;
 pub use client_config::ClientConfig;
-pub use command_history::CommandHistory;
 pub use error::NaiaClientError;
 pub use events::{
     ClientTickEvent, ConnectEvent, DisconnectEvent,ErrorEvent, Events,
