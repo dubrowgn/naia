@@ -112,7 +112,7 @@ impl Server {
         self.maintain_socket();
 
         // tick event
-        if self.time_manager.recv_server_tick() {
+        while self.time_manager.recv_server_tick() {
             self.incoming_events
                 .push_tick(self.time_manager.current_tick());
         }

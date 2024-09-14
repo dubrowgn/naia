@@ -11,7 +11,7 @@ pub struct TimeManager {
     current_tick: Tick,
     last_tick_game_instant: GameInstant,
     last_tick_instant: Instant,
-    tick_interval_millis: f32,
+    tick_interval: Duration,
     tick_duration_avg: f32,
     tick_duration_avg_min: f32,
     tick_duration_avg_max: f32,
@@ -24,15 +24,14 @@ impl TimeManager {
         let start_instant = Instant::now();
         let last_tick_instant = start_instant.clone();
         let last_tick_game_instant = GameInstant::new(&start_instant);
-        let tick_interval_millis = tick_interval.as_secs_f32() * 1000.0;
-        let tick_duration_avg = tick_interval_millis;
+        let tick_duration_avg = tick_interval.as_secs_f32() * 1000.0;
 
         Self {
             start_instant,
             current_tick: 0,
             last_tick_game_instant,
             last_tick_instant,
-            tick_interval_millis,
+            tick_interval,
             tick_duration_avg,
             tick_duration_avg_min: tick_duration_avg,
             tick_duration_avg_max: tick_duration_avg,
@@ -48,16 +47,17 @@ impl TimeManager {
 
     /// Whether or not we should emit a tick event
     pub fn recv_server_tick(&mut self) -> bool {
-        let time_since_tick_ms = self.last_tick_instant.elapsed().as_secs_f32() * 1000.0;
+		let elapsed = self.last_tick_instant.elapsed();
+		if elapsed < self.tick_interval {
+			return false;
+		}
 
-        if time_since_tick_ms >= self.tick_interval_millis {
-            self.record_tick_duration(time_since_tick_ms);
-            self.last_tick_instant = Instant::now();
-            self.last_tick_game_instant = self.game_time_now();
-            self.current_tick = self.current_tick.wrapping_add(1);
-            return true;
-        }
-        return false;
+		self.record_tick_duration(self.tick_interval.as_secs_f32() * 1_000.0);
+		self.last_tick_instant += self.tick_interval;
+		self.last_tick_game_instant = self.game_time_now();
+		self.current_tick = self.current_tick.wrapping_add(1);
+
+		return true;
     }
 
     /// Gets the current tick of the Server
