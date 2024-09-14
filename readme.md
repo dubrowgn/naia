@@ -5,17 +5,21 @@ use specifically with deterministic lockstep applications.
 
 ## Major changes/improvements
 
-* Code base reduced from ~39k lines of rust to ~16k (as of 2024-08-31)
+* Code base reduced from ~39k lines of rust to ~14.7k (as of 2024-09-13)
 * Removed bevy, hecs, and miniquad from naia core (no more naia changes necessary
   after new bevy/hecs/miniquad releases)
 * Removed entity replication; Entity replication is a huge chunk of the naia
   implementation. Deterministic applications don't benefit from these features.
   (removed ~14,500 LoC)
+* Removed WASM
 * Full support for client and server being in the same process.
 
 ## Other improvements
 
 * Removed user rooms
+* Removed command history
+* Various bug fixes
+    * Division by zero during connection when RTT ~0ms
 
 ## Why fork naia?
 
@@ -33,7 +37,6 @@ and improvements require changes to the naia API means we need to fork it.
     * Reduce wait time between initial heartbeats (removes ~2.5s durting
       connect)
 * Various bug fixes
-    * Division by zero during connection when RTT ~0ms
     * Fully expose server configuration
     * Don't discard messages for the current tick (client)
     * Actually apply link conditioning
