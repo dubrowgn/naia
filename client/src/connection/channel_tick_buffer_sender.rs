@@ -12,7 +12,7 @@ pub struct ChannelTickBufferSender {
     sending_messages: OutgoingMessages,
     outgoing_messages: VecDeque<(Tick, Vec<(ShortMessageIndex, MessageContainer)>)>,
     last_sent: Tick,
-    never_sent: bool,
+    new_msg_queued: bool,
 }
 
 impl ChannelTickBufferSender {
@@ -21,18 +21,18 @@ impl ChannelTickBufferSender {
             sending_messages: OutgoingMessages::new(settings.message_capacity),
             outgoing_messages: VecDeque::new(),
             last_sent: 0,
-            never_sent: true,
+            new_msg_queued: false,
         }
     }
 
     pub fn collect_messages(&mut self, client_sending_tick: &Tick, server_receivable_tick: &Tick) {
-        if sequence_greater_than(*client_sending_tick, self.last_sent) || self.never_sent {
+        if sequence_greater_than(*client_sending_tick, self.last_sent) || self.new_msg_queued {
             // Remove messages that would never be able to reach the Server
             self.sending_messages
                 .pop_back_until_excluding(server_receivable_tick);
 
             self.last_sent = *client_sending_tick;
-            self.never_sent = true;
+            self.new_msg_queued = false;
 
             // Loop through outstanding messages and add them to the outgoing list
             for (message_tick, message_map) in self.sending_messages.iter() {
@@ -49,6 +49,7 @@ impl ChannelTickBufferSender {
 
     pub fn send_message(&mut self, host_tick: &Tick, message: MessageContainer) {
         self.sending_messages.push(*host_tick, message);
+		self.new_msg_queued = true;
     }
 
     pub fn has_messages(&self) -> bool {

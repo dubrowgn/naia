@@ -94,12 +94,8 @@ impl Connection {
         );
 
         let mut any_sent = false;
-        loop {
-            if self.send_packet(protocol, io) {
-                any_sent = true;
-            } else {
-                break;
-            }
+        while self.send_packet(protocol, io) {
+			any_sent = true;
         }
         if any_sent {
             self.base.mark_sent();

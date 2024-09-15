@@ -164,12 +164,6 @@ impl Client {
             }
 
             if let Some((prev_sending_tick, current_sending_tick)) = sending_tick_happened {
-                // send outgoing packets
-                let now = Instant::now();
-
-                // send packets
-                connection.send_packets(&self.protocol, &now, &mut self.io);
-
                 // insert tick events in total range
                 let mut index_tick = prev_sending_tick.wrapping_add(1);
                 loop {
@@ -188,6 +182,12 @@ impl Client {
 
         std::mem::take(&mut self.incoming_events)
     }
+
+	pub fn send(&mut self) {
+		if let Some(conn) = &mut self.server_connection {
+			conn.send_packets(&self.protocol, &Instant::now(), &mut self.io);
+		};
+	}
 
     // Messages
 
