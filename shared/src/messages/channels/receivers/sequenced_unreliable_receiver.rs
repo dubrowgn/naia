@@ -6,7 +6,6 @@ use crate::{
         },
         message_kinds::MessageKinds,
     },
-    sequence_greater_than,
     types::MessageIndex,
     MessageContainer,
 };
@@ -36,7 +35,7 @@ impl SequencedUnreliableReceiver {
 
     pub fn arrange_message(&mut self, message_index: MessageIndex, message: MessageContainer) {
         if let Some(most_recent_id) = self.newest_received_message_index {
-            if sequence_greater_than(message_index, most_recent_id) {
+            if message_index > most_recent_id {
                 self.incoming_messages.push(message);
                 self.newest_received_message_index = Some(message_index);
             }

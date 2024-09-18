@@ -1,9 +1,9 @@
 use naia_serde::Serde;
-use std::{cmp::Ordering, ops::{Add, AddAssign, Sub, SubAssign}};
+use std::{cmp::Ordering, fmt::Display, ops::{Add, AddAssign, Sub, SubAssign}};
 
+pub type MessageIndex = SeqNum;
 pub type PacketIndex = SeqNum;
 pub type Tick = u16;
-pub type MessageIndex = u16;
 pub type ShortMessageIndex = u8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -15,8 +15,12 @@ pub enum HostType {
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct SeqNum(pub u16);
 
+impl Display for SeqNum {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { self.0.fmt(f) }
+}
+
 impl From<u16> for SeqNum {
-	fn from(value: u16) -> Self { SeqNum(value) }
+	fn from(value: u16) -> Self { Self(value) }
 }
 
 impl Into<u16> for SeqNum {

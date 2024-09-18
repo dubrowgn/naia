@@ -23,7 +23,7 @@ impl ReliableSender {
     pub fn new(rtt_resend_factor: f32) -> Self {
         Self {
             rtt_resend_factor,
-            next_send_message_index: 0,
+            next_send_message_index: MessageIndex::ZERO,
             sending_messages: VecDeque::new(),
             outgoing_messages: VecDeque::new(),
         }
@@ -40,7 +40,7 @@ impl ChannelSender for ReliableSender {
     fn send(&mut self, message: MessageContainer) {
         self.sending_messages
             .push_back(Some((self.next_send_message_index, None, message)));
-        self.next_send_message_index = self.next_send_message_index.wrapping_add(1);
+        self.next_send_message_index.incr();
     }
 
     fn collect_messages(&mut self, now: &Instant, rtt_millis: &f32) {

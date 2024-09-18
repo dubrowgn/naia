@@ -24,7 +24,7 @@ impl SequencedUnreliableSender {
     pub fn new() -> Self {
         Self {
             outgoing_messages: VecDeque::new(),
-            next_send_message_index: 0,
+            next_send_message_index: MessageIndex::ZERO,
         }
     }
 }
@@ -33,7 +33,7 @@ impl ChannelSender for SequencedUnreliableSender {
     fn send(&mut self, message: MessageContainer) {
         self.outgoing_messages
             .push_back((self.next_send_message_index, message));
-        self.next_send_message_index = self.next_send_message_index.wrapping_add(1);
+        self.next_send_message_index.incr();
     }
 
     fn collect_messages(&mut self, _: &Instant, _: &f32) {

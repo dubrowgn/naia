@@ -14,7 +14,7 @@ pub type OrderedReliableReceiver = ReliableMessageReceiver<OrderedArranger>;
 impl OrderedReliableReceiver {
     pub fn new() -> Self {
         Self::with_arranger(OrderedArranger {
-            oldest_received_message_index: 0,
+            oldest_received_message_index: MessageIndex::ZERO,
             buffer: VecDeque::new(),
         })
     }
@@ -48,8 +48,7 @@ impl ReceiverArranger for OrderedArranger {
                 }
             } else {
                 let next_message_index = self
-                    .oldest_received_message_index
-                    .wrapping_add(current_index as u16);
+                    .oldest_received_message_index + current_index as u16;
 
                 if next_message_index == message_index {
                     self.buffer.push_back((next_message_index, Some(message)));
@@ -74,7 +73,7 @@ impl ReceiverArranger for OrderedArranger {
             };
 
             incoming_messages.push((index, message));
-            self.oldest_received_message_index = self.oldest_received_message_index.wrapping_add(1);
+            self.oldest_received_message_index.incr();
         }
     }
 }

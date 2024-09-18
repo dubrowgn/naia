@@ -5,7 +5,6 @@ use naia_serde::{BitWrite, BitWriter, Serde, UnsignedVariableInteger};
 use crate::{
     messages::{message_container::MessageContainer, message_kinds::MessageKinds},
     types::MessageIndex,
-    wrapping_diff,
 };
 
 // Sender
@@ -73,7 +72,7 @@ impl IndexedMessageWriter {
     ) {
         if let Some(last_id) = last_written_id {
             // write message id diff
-            let id_diff = wrapping_diff(*last_id, *message_index);
+            let id_diff = message_index.diff(*last_id);
             if id_diff < 0 {
                 panic!("Packet Write Error: Message Index diff is negative in subsequent message.. Previous: {}, Current: {}, Diff: {}", last_id, message_index, id_diff);
             }

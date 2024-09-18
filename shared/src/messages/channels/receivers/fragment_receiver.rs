@@ -17,7 +17,7 @@ pub struct FragmentReceiver {
 impl FragmentReceiver {
     pub fn new() -> Self {
         Self {
-            current_index: 0,
+            current_index: MessageIndex::ZERO,
             map: HashMap::new(),
         }
     }
@@ -32,7 +32,7 @@ impl FragmentReceiver {
         // Pass right through if not a fragment
         if !message.is_fragment() {
             let output = Some((self.current_index, message));
-            self.current_index = self.current_index.wrapping_add(1);
+            self.current_index.incr();
             return output;
         }
 
@@ -67,7 +67,7 @@ impl FragmentReceiver {
         }
         let full_message = full_message_result.unwrap();
         let output = Some((self.current_index, full_message));
-        self.current_index = self.current_index.wrapping_add(1);
+        self.current_index.incr();
         output
     }
 }

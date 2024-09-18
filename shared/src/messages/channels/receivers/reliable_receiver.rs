@@ -1,6 +1,5 @@
+use crate::MessageIndex;
 use std::collections::VecDeque;
-
-use crate::{sequence_less_than, MessageIndex};
 
 pub struct ReliableReceiver<M> {
     oldest_received_message_index: MessageIndex,
@@ -11,7 +10,7 @@ pub struct ReliableReceiver<M> {
 impl<M> ReliableReceiver<M> {
     pub fn new() -> Self {
         Self {
-            oldest_received_message_index: 0,
+            oldest_received_message_index: MessageIndex::ZERO,
             record: VecDeque::default(),
             incoming_messages: Vec::default(),
         }
@@ -25,7 +24,7 @@ impl<M> ReliableReceiver<M> {
         // then add new empty slots at the end until getting to the incoming message id
         // then, once you're there, put the new message in
 
-        if sequence_less_than(message_index, self.oldest_received_message_index) {
+        if message_index < self.oldest_received_message_index {
             // already moved sliding window past this message id
             return;
         }
@@ -48,8 +47,7 @@ impl<M> ReliableReceiver<M> {
                 }
             } else {
                 let next_message_index = self
-                    .oldest_received_message_index
-                    .wrapping_add(current_index as u16);
+                    .oldest_received_message_index + current_index as u16;
 
                 if next_message_index == message_index {
                     self.record.push_back((next_message_index, true));
@@ -79,8 +77,7 @@ impl<M> ReliableReceiver<M> {
             }
             if has_message {
                 self.record.pop_front();
-                self.oldest_received_message_index =
-                    self.oldest_received_message_index.wrapping_add(1);
+                self.oldest_received_message_index.incr();
             } else {
                 break;
             }
