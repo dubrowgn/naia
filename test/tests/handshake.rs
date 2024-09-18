@@ -89,7 +89,7 @@ fn end_to_end_handshake_w_auth() {
 
     // 7. Server send connect response
     {
-        let header = StandardHeader::new(PacketType::ServerValidateResponse, 0, 0, 0);
+        let header = StandardHeader::of_type(PacketType::ServerValidateResponse);
         writer = BitWriter::new();
         header.ser(&mut writer);
         bytes = writer.to_bytes();

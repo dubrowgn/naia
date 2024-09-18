@@ -1,10 +1,5 @@
+use crate::{messages::message_manager::MessageManager, types::PacketIndex};
 use std::collections::HashMap;
-
-use crate::{
-    messages::message_manager::MessageManager, types::PacketIndex,
-    wrapping_number::sequence_greater_than,
-};
-
 use super::{
     packet_notifiable::PacketNotifiable, packet_type::PacketType, sequence_buffer::SequenceBuffer,
     standard_header::StandardHeader,
@@ -31,8 +26,8 @@ pub struct AckManager {
 impl AckManager {
     pub fn new() -> Self {
         Self {
-            next_packet_index: 0,
-            last_recv_packet_index: u16::MAX,
+            next_packet_index: PacketIndex::ZERO,
+            last_recv_packet_index: PacketIndex::MAX,
             sent_packets: HashMap::with_capacity(DEFAULT_SEND_PACKETS_SIZE),
             received_packets: SequenceBuffer::with_capacity(REDUNDANT_PACKET_ACKS_SIZE + 1),
         }
@@ -56,11 +51,10 @@ impl AckManager {
         let mut sender_ack_bitfield = header.sender_ack_bitfield;
 
         self.received_packets
-            .insert(sender_packet_index, ReceivedPacket {});
+            .insert(sender_packet_index.into(), ReceivedPacket {});
 
-        // ensure that `self.sender_ack_index` is always increasing (with
-        // wrapping)
-        if sequence_greater_than(sender_ack_index, self.last_recv_packet_index) {
+        // ensure that `self.sender_ack_index` is always increasing (with wrapping)
+        if sender_ack_index > self.last_recv_packet_index {
             self.last_recv_packet_index = sender_ack_index;
         }
 
@@ -81,7 +75,7 @@ impl AckManager {
         // packets have been received successfully.
         // If so, we have no need to resend old packets.
         for i in 1..=REDUNDANT_PACKET_ACKS_SIZE {
-            let sent_packet_index = sender_ack_index.wrapping_sub(i);
+            let sent_packet_index = sender_ack_index - i;
             if let Some(sent_packet) = self.sent_packets.get(&sent_packet_index) {
                 if sender_ack_bitfield & 1 == 1 {
                     if sent_packet.packet_type == PacketType::Data {
@@ -110,7 +104,7 @@ impl AckManager {
 
     /// Bumps the local packet index
     fn increment_local_packet_index(&mut self) {
-        self.next_packet_index = self.next_packet_index.wrapping_add(1);
+        self.next_packet_index.incr();
     }
 
     pub fn next_outgoing_packet_header(&mut self, packet_type: PacketType) -> StandardHeader {
@@ -142,7 +136,7 @@ impl AckManager {
     }
 
     fn last_received_packet_index(&self) -> PacketIndex {
-        self.received_packets.sequence_num().wrapping_sub(1)
+        self.received_packets.sequence_num().wrapping_sub(1).into()
     }
 
     fn ack_bitfield(&self) -> u32 {
@@ -153,8 +147,8 @@ impl AckManager {
         // iterate the past `REDUNDANT_PACKET_ACKS_SIZE` received packets and set the
         // corresponding bit for each packet which exists in the buffer.
         for i in 1..=REDUNDANT_PACKET_ACKS_SIZE {
-            let received_packet_index = last_received_remote_packet_index.wrapping_sub(i);
-            if self.received_packets.exists(received_packet_index) {
+            let received_packet_index = last_received_remote_packet_index - i;
+            if self.received_packets.exists(received_packet_index.into()) {
                 ack_bitfield |= mask;
             }
             mask <<= 1;

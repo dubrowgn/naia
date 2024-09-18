@@ -186,7 +186,7 @@ impl HandshakeManager {
     // Step 1 of Handshake
     pub fn write_challenge_request(&self) -> BitWriter {
         let mut writer = BitWriter::new();
-        StandardHeader::new(PacketType::ClientChallengeRequest, 0, 0, 0).ser(&mut writer);
+        StandardHeader::of_type(PacketType::ClientChallengeRequest).ser(&mut writer);
 
         self.pre_connection_timestamp.ser(&mut writer);
 
@@ -219,7 +219,7 @@ impl HandshakeManager {
     pub fn write_validate_request(&self, message_kinds: &MessageKinds) -> BitWriter {
         let mut writer = BitWriter::new();
 
-        StandardHeader::new(PacketType::ClientValidateRequest, 0, 0, 0).ser(&mut writer);
+        StandardHeader::of_type(PacketType::ClientValidateRequest).ser(&mut writer);
 
         // write timestamp & digest into payload
         self.write_signed_timestamp(&mut writer);
@@ -249,7 +249,7 @@ impl HandshakeManager {
     // Step 5 of Handshake
     pub fn write_connect_request(&self) -> BitWriter {
         let mut writer = BitWriter::new();
-        StandardHeader::new(PacketType::ClientConnectRequest, 0, 0, 0).ser(&mut writer);
+        StandardHeader::of_type(PacketType::ClientConnectRequest).ser(&mut writer);
 
         writer
     }
@@ -266,7 +266,7 @@ impl HandshakeManager {
     // Send 10 disconnect packets
     pub fn write_disconnect(&self) -> BitWriter {
         let mut writer = BitWriter::new();
-        StandardHeader::new(PacketType::Disconnect, 0, 0, 0).ser(&mut writer);
+        StandardHeader::of_type(PacketType::Disconnect).ser(&mut writer);
         self.write_signed_timestamp(&mut writer);
         writer
     }

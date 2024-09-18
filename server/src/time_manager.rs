@@ -115,7 +115,7 @@ impl TimeManager {
         let mut writer = BitWriter::new();
 
         // write pong payload
-        StandardHeader::new(PacketType::Pong, 0, 0, 0).ser(&mut writer);
+        StandardHeader::of_type(PacketType::Pong).ser(&mut writer);
 
         // write server tick
         self.current_tick.ser(&mut writer);

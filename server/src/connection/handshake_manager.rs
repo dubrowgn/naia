@@ -49,7 +49,7 @@ impl HandshakeManager {
     // Step 2 of Handshake
     pub fn write_challenge_response(&mut self, timestamp: &Timestamp) -> BitWriter {
         let mut writer = BitWriter::new();
-        StandardHeader::new(PacketType::ServerChallengeResponse, 0, 0, 0).ser(&mut writer);
+        StandardHeader::of_type(PacketType::ServerChallengeResponse).ser(&mut writer);
         timestamp.ser(&mut writer);
 
         if !self.timestamp_digest_map.contains_key(timestamp) {
@@ -102,14 +102,14 @@ impl HandshakeManager {
     // Step 4 of Handshake
     pub fn write_validate_response(&self) -> BitWriter {
         let mut writer = BitWriter::new();
-        StandardHeader::new(PacketType::ServerValidateResponse, 0, 0, 0).ser(&mut writer);
+        StandardHeader::of_type(PacketType::ServerValidateResponse).ser(&mut writer);
         writer
     }
 
     // Step 5 of Handshake
     pub(crate) fn write_connect_response(&self) -> BitWriter {
         let mut writer = BitWriter::new();
-        StandardHeader::new(PacketType::ServerConnectResponse, 0, 0, 0).ser(&mut writer);
+        StandardHeader::of_type(PacketType::ServerConnectResponse).ser(&mut writer);
         writer
     }
 
@@ -133,7 +133,7 @@ impl HandshakeManager {
 
     pub fn write_reject_response(&self) -> BitWriter {
         let mut writer = BitWriter::new();
-        StandardHeader::new(PacketType::ServerRejectResponse, 0, 0, 0).ser(&mut writer);
+        StandardHeader::of_type(PacketType::ServerRejectResponse).ser(&mut writer);
         writer
     }
 

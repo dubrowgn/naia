@@ -34,4 +34,8 @@ impl StandardHeader {
             sender_ack_bitfield,
         }
     }
+
+	pub fn of_type(packet_type: PacketType) -> StandardHeader {
+		Self::new(packet_type, PacketIndex::ZERO, PacketIndex::ZERO, 0)
+	}
 }

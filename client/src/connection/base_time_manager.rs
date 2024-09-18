@@ -32,7 +32,7 @@ impl BaseTimeManager {
         let mut writer = BitWriter::new();
 
         // write header
-        StandardHeader::new(PacketType::Ping, 0, 0, 0).ser(&mut writer);
+        StandardHeader::of_type(PacketType::Ping).ser(&mut writer);
 
         // Record ping
         let ping_index = self.sent_pings.push_new(self.game_time_now());

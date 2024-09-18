@@ -65,5 +65,5 @@ pub use game_time::{GameDuration, GameInstant, GAME_TIME_LIMIT};
 pub use key_generator::KeyGenerator;
 pub use protocol::{Protocol, ProtocolPlugin};
 pub use timer::Timer;
-pub use types::{HostType, MessageIndex, PacketIndex, ShortMessageIndex, Tick};
+pub use types::*;
 pub use wrapping_number::{sequence_greater_than, sequence_less_than, wrapping_diff};
