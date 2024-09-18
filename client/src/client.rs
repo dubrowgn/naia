@@ -152,27 +152,27 @@ impl Client {
                 // receive packets, process into events
                 connection.process_packets(&mut self.incoming_events);
 
-                let mut index_tick = prev_receiving_tick.wrapping_add(1);
+                let mut index_tick = prev_receiving_tick + 1;
                 loop {
                     self.incoming_events.push_server_tick(index_tick);
 
                     if index_tick == current_receiving_tick {
                         break;
                     }
-                    index_tick = index_tick.wrapping_add(1);
+                    index_tick.incr();
                 }
             }
 
             if let Some((prev_sending_tick, current_sending_tick)) = sending_tick_happened {
                 // insert tick events in total range
-                let mut index_tick = prev_sending_tick.wrapping_add(1);
+                let mut index_tick = prev_sending_tick + 1;
                 loop {
                     self.incoming_events.push_client_tick(index_tick);
 
                     if index_tick == current_sending_tick {
                         break;
                     }
-                    index_tick = index_tick.wrapping_add(1);
+                    index_tick.incr();
                 }
             }
         } else {

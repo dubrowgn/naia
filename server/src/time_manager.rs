@@ -28,7 +28,7 @@ impl TimeManager {
 
         Self {
             start_instant,
-            current_tick: 0,
+            current_tick: Tick::ZERO,
             last_tick_game_instant,
             last_tick_instant,
             tick_interval,
@@ -55,7 +55,7 @@ impl TimeManager {
 		self.record_tick_duration(self.tick_interval.as_secs_f32() * 1_000.0);
 		self.last_tick_instant += self.tick_interval;
 		self.last_tick_game_instant = self.game_time_now();
-		self.current_tick = self.current_tick.wrapping_add(1);
+		self.current_tick.incr();
 
 		return true;
     }

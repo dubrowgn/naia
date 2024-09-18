@@ -24,7 +24,7 @@ impl HandshakeTimeManager {
             ping_interval,
             handshake_pings,
             pong_stats: Vec::new(),
-            server_tick: 0,
+            server_tick: Tick::ZERO,
             server_tick_instant,
             server_tick_duration_avg: 0.0,
             server_speedup_potential: 0.0,

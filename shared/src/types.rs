@@ -3,8 +3,8 @@ use std::{cmp::Ordering, fmt::Display, ops::{Add, AddAssign, Sub, SubAssign}};
 
 pub type MessageIndex = SeqNum;
 pub type PacketIndex = SeqNum;
-pub type Tick = u16;
 pub type ShortMessageIndex = u8;
+pub type Tick = SeqNum;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HostType {
@@ -12,7 +12,7 @@ pub enum HostType {
     Client,
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq)]
 pub struct SeqNum(pub u16);
 
 impl Display for SeqNum {
@@ -31,6 +31,10 @@ impl SeqNum {
 	pub const MIN: Self = Self(u16::MIN);
 	pub const MAX: Self = Self(u16::MAX);
 	pub const ZERO: Self = Self(0);
+
+	pub fn add_diff(&self, rhs: i16) -> Self {
+		Self(self.0.wrapping_add_signed(rhs))
+	}
 
 	pub fn diff(&self, rhs: Self) -> i16 {
 		Self::seq_diff(self.0, rhs.0)

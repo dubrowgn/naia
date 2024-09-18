@@ -1,11 +1,6 @@
-use std::time::{Duration, Instant};
-
-use naia_shared::{
-    sequence_greater_than, sequence_less_than, wrapping_diff, BitReader, GameDuration,
-	GameInstant, SerdeErr, Tick, Timer,
-};
-
 use crate::connection::{base_time_manager::BaseTimeManager, io::Io};
+use naia_shared::{BitReader, GameDuration, GameInstant, SerdeErr, Tick, Timer};
+use std::time::{Duration, Instant};
 
 pub struct TimeManager {
     base: BaseTimeManager,
@@ -173,7 +168,7 @@ impl TimeManager {
         server_tick_instant: &GameInstant,
     ) {
         // only continue if this tick is the most recent
-        if !sequence_greater_than(*server_tick, self.server_tick) {
+        if *server_tick <= self.server_tick {
             // We've already received the most recent tick
             return;
         }
@@ -344,7 +339,7 @@ impl TimeManager {
     }
 
     pub(crate) fn tick_to_instant(&self, tick: Tick) -> GameInstant {
-        let tick_diff = wrapping_diff(self.server_tick, tick);
+        let tick_diff = tick.diff(self.server_tick);
         let tick_diff_duration =
             ((tick_diff as f32) * self.server_tick_duration_avg).round() as i32;
         return self
@@ -387,7 +382,7 @@ fn adjust_time(
         server_tick_duration_avg,
         tick_instant,
     );
-    if sequence_less_than(new_tick, *tick) {
+    if new_tick < *tick {
         // warn!("Attempted to Tick Backwards");
     } else {
         *tick = new_tick;
@@ -402,9 +397,7 @@ fn instant_to_tick(
 ) -> Tick {
     let offset_ms = server_tick_instant.offset_from(instant);
     let offset_ticks_f32 = (offset_ms as f32) / server_tick_duration_avg;
-    return server_tick
-        .clone()
-        .wrapping_add_signed(offset_ticks_f32 as i16);
+    return server_tick.add_diff(offset_ticks_f32 as i16);
 }
 
 fn get_client_receiving_target(

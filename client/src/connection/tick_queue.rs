@@ -1,6 +1,5 @@
+use naia_shared::Tick;
 use std::{cmp::Ordering, collections::BinaryHeap};
-
-use naia_shared::{sequence_greater_than, Tick};
 
 /// A queue for items marked by tick, will only ever pop items from the queue if
 /// the tick has elapsed
@@ -27,7 +26,7 @@ impl<T> TickQueue<T> {
             return false;
         }
         if let Some(item) = self.queue.peek() {
-            return current_tick == item.tick || sequence_greater_than(current_tick, item.tick);
+            return current_tick >= item.tick;
         }
         false
     }
@@ -58,19 +57,12 @@ impl<T> Eq for ItemContainer<T> {}
 
 impl<T> Ord for ItemContainer<T> {
     fn cmp(&self, other: &ItemContainer<T>) -> Ordering {
-        if self.tick == other.tick {
-            return Ordering::Equal;
-        }
-        if sequence_greater_than(other.tick, self.tick) {
-            Ordering::Greater
-        } else {
-            Ordering::Less
-        }
+		self.tick.cmp(&other.tick)
     }
 }
 
 impl<T> PartialOrd for ItemContainer<T> {
     fn partial_cmp(&self, other: &ItemContainer<T>) -> Option<Ordering> {
-        Some(self.cmp(other))
+		self.tick.partial_cmp(&other.tick)
     }
 }

@@ -1,7 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use naia_shared::{
-    sequence_greater_than, BitReader, MessageContainer, MessageKinds, Serde, SerdeErr,
+    BitReader, MessageContainer, MessageKinds, Serde, SerdeErr,
 	ShortMessageIndex, Tick, TickBufferSettings, UnsignedVariableInteger,
 };
 
@@ -61,8 +61,8 @@ impl TickBufferReceiverChannel {
         reader: &mut BitReader,
     ) -> Result<(), SerdeErr> {
         // read remote tick
-        let remote_tick_diff = UnsignedVariableInteger::<3>::de(reader)?.get() as Tick;
-        *last_read_tick = last_read_tick.wrapping_sub(remote_tick_diff);
+        let remote_tick_diff = UnsignedVariableInteger::<3>::de(reader)?.get() as u16;
+        *last_read_tick -= remote_tick_diff;
         let remote_tick = *last_read_tick;
 
         // read message count
@@ -120,7 +120,7 @@ impl IncomingMessages {
         //  * add unit test?
         //  * should there be a maximum buffer size?
 
-        if sequence_greater_than(*message_tick, *host_tick) {
+        if *message_tick > *host_tick {
             let mut index = self.buffer.len();
 
             //in the case of empty vec
@@ -150,7 +150,7 @@ impl IncomingMessages {
                             // TODO: log hash collisions?
                             return false;
                         }
-                    } else if sequence_greater_than(*message_tick, *existing_tick) {
+                    } else if *message_tick > *existing_tick {
                         // incoming client tick is larger (more in the future) than found tick
                         insert = true;
                     }
@@ -183,7 +183,7 @@ impl IncomingMessages {
         loop {
             let mut pop = false;
             if let Some((front_tick, _)) = self.buffer.front() {
-                if sequence_greater_than(*host_tick, *front_tick) {
+                if *host_tick > *front_tick {
                     pop = true;
                 }
             }

@@ -1,12 +1,9 @@
-use std::collections::VecDeque;
-
 use log::warn;
-
 use naia_shared::{
-    sequence_greater_than, sequence_less_than, wrapping_diff, BitWrite, BitWriter,
-    MessageContainer, MessageKinds, Serde,
+    BitWrite, BitWriter, MessageContainer, MessageKinds, Serde,
     ShortMessageIndex, Tick, TickBufferSettings, UnsignedVariableInteger,
 };
+use std::collections::VecDeque;
 
 pub struct ChannelTickBufferSender {
     sending_messages: OutgoingMessages,
@@ -20,13 +17,13 @@ impl ChannelTickBufferSender {
         Self {
             sending_messages: OutgoingMessages::new(settings.message_capacity),
             outgoing_messages: VecDeque::new(),
-            last_sent: 0,
+            last_sent: Tick::ZERO,
             new_msg_queued: false,
         }
     }
 
     pub fn collect_messages(&mut self, client_sending_tick: &Tick, server_receivable_tick: &Tick) {
-        if sequence_greater_than(*client_sending_tick, self.last_sent) || self.new_msg_queued {
+        if *client_sending_tick > self.last_sent || self.new_msg_queued {
             // Remove messages that would never be able to reach the Server
             self.sending_messages
                 .pop_back_until_excluding(server_receivable_tick);
@@ -36,7 +33,7 @@ impl ChannelTickBufferSender {
 
             // Loop through outstanding messages and add them to the outgoing list
             for (message_tick, message_map) in self.sending_messages.iter() {
-                if sequence_greater_than(*message_tick, *client_sending_tick) {
+                if *message_tick > *client_sending_tick {
                     warn!("Sending message that is more recent than client sending tick! This shouldn't be possible.");
                     break;
                 }
@@ -136,7 +133,7 @@ impl ChannelTickBufferSender {
         // write message tick diff
         // this is reversed (diff is always negative, but it's encoded as positive)
         // because packet tick is always larger than past ticks
-        let message_tick_diff = wrapping_diff(*message_tick, *last_written_tick);
+        let message_tick_diff = last_written_tick.diff(*message_tick);
         let message_tick_diff_encoded = UnsignedVariableInteger::<3>::new(message_tick_diff);
         message_tick_diff_encoded.ser(writer);
 
@@ -249,7 +246,7 @@ impl OutgoingMessages {
                 return;
             }
 
-            if sequence_less_than(message_tick, *front_tick) {
+            if message_tick < *front_tick {
                 warn!("This method should always receive increasing or equal Ticks! \
                 Received Tick: {message_tick} after receiving {front_tick}. \
                 Possibly try ensuring that Client.send_message() is only called on this channel once per Tick?");
@@ -272,7 +269,7 @@ impl OutgoingMessages {
     pub fn pop_back_until_excluding(&mut self, until_tick: &Tick) {
         loop {
             if let Some((old_tick, _)) = self.buffer.back() {
-                if sequence_less_than(*until_tick, *old_tick) {
+                if *until_tick < *old_tick {
                     return;
                 }
             } else {
@@ -306,7 +303,7 @@ impl OutgoingMessages {
                 } else {
                     // if tick is less than old tick, no sense continuing, only going to get bigger
                     // as we go
-                    if sequence_greater_than(*old_tick, *tick) {
+                    if *old_tick > *tick {
                         return;
                     }
                 }
