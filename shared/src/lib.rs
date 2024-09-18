@@ -20,7 +20,6 @@ pub use naia_socket_shared::{
     link_condition_logic, LinkConditionerConfig, SocketConfig, TimeQueue,
 };
 
-mod bigmap;
 mod connection;
 mod constants;
 mod game_time;
@@ -62,7 +61,6 @@ pub use messages::{
     named::Named,
 };
 
-pub use bigmap::{BigMap, BigMapKey};
 pub use game_time::{GameDuration, GameInstant, GAME_TIME_LIMIT};
 pub use key_generator::KeyGenerator;
 pub use protocol::{Protocol, ProtocolPlugin};

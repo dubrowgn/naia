@@ -8,7 +8,7 @@ use std::{
 use log::warn;
 
 use naia_shared::{
-    BigMap, BitReader, BitWriter, Channel, ChannelKind, Message, MessageContainer,
+    BitReader, BitWriter, Channel, ChannelKind, Message, MessageContainer,
 	PacketType, Protocol, Serde, SerdeErr, SocketConfig, StandardHeader, Tick, Timer,
 };
 
@@ -43,7 +43,8 @@ pub struct Server {
     ping_timer: Timer,
     handshake_manager: HandshakeManager,
     // Users
-    users: BigMap<UserKey, User>,
+    users: HashMap<UserKey, User>,
+	next_user_id: UserKey,
     user_connections: HashMap<SocketAddr, Connection>,
     validated_users: HashMap<SocketAddr, UserKey>,
     // Events
@@ -76,7 +77,8 @@ impl Server {
             ping_timer: Timer::new(server_config.ping.ping_interval),
             handshake_manager: HandshakeManager::new(server_config.require_auth),
             // Users
-            users: BigMap::new(),
+            users: HashMap::new(),
+			next_user_id: UserKey(0),
             user_connections: HashMap::new(),
             validated_users: HashMap::new(),
             // Events
@@ -322,7 +324,7 @@ impl Server {
         let mut output = Vec::new();
 
         for (user_key, _) in self.users.iter() {
-            output.push(user_key);
+            output.push(*user_key);
         }
 
         output
@@ -511,8 +513,11 @@ impl Server {
                                 warn!("Server Error: Cannot send validate success response packet to {}", &address);
                             };
                         } else {
+							let user_key = self.next_user_id;
+							self.next_user_id = UserKey(user_key.0.wrapping_add(1));
+
                             let user = User::new(*address);
-                            let user_key = self.users.insert(user);
+                            self.users.insert(user_key, user);
 
                             if let Some(auth_message) = auth_message_opt {
                                 self.incoming_events.push_auth(&user_key, auth_message);

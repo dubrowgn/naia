@@ -1,20 +1,9 @@
 use crate::Server;
-use naia_shared::BigMapKey;
 use std::{hash::Hash, net::SocketAddr};
 
 // UserKey
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct UserKey(u64);
-
-impl BigMapKey for UserKey {
-    fn to_u64(&self) -> u64 {
-        self.0
-    }
-
-    fn from_u64(value: u64) -> Self {
-        UserKey(value)
-    }
-}
+pub struct UserKey(pub u64);
 
 // User
 
