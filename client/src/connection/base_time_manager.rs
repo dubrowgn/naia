@@ -1,6 +1,6 @@
 use log::warn;
 use naia_shared::{
-    sequence_greater_than, BitReader, BitWriter, GameDuration, GameInstant, PacketType,
+    BitReader, BitWriter, GameDuration, GameInstant, PacketType,
     PingIndex, PingStore, Serde, SerdeErr, StandardHeader, UnsignedVariableInteger,
 };
 
@@ -21,7 +21,7 @@ impl BaseTimeManager {
         Self {
             start_instant: now,
             sent_pings: PingStore::new(),
-            most_recent_ping: 0,
+            most_recent_ping: PingIndex::ZERO,
             never_been_pinged: true,
         }
     }
@@ -107,7 +107,7 @@ impl BaseTimeManager {
         let server_sent_time = GameInstant::de(reader)?;
 
         // if this is the most recent Ping or the 1st ping, apply values
-        if sequence_greater_than(ping_index, self.most_recent_ping) || self.never_been_pinged {
+        if ping_index > self.most_recent_ping || self.never_been_pinged {
             self.never_been_pinged = false;
             self.most_recent_ping = ping_index;
 

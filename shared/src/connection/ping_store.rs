@@ -1,8 +1,7 @@
+use crate::{GameInstant, SeqNum};
 use std::collections::VecDeque;
 
-use crate::{sequence_greater_than, GameInstant};
-
-pub type PingIndex = u16;
+pub type PingIndex = SeqNum;
 
 const SENT_PINGS_HISTORY_SIZE: u16 = 32;
 
@@ -16,7 +15,7 @@ pub struct PingStore {
 impl PingStore {
     pub fn new() -> Self {
         PingStore {
-            ping_index: 0,
+            ping_index: PingIndex::ZERO,
             buffer: VecDeque::new(),
         }
     }
@@ -24,7 +23,7 @@ impl PingStore {
     pub fn push_new(&mut self, now: GameInstant) -> PingIndex {
         // save current ping index and add a new ping instant associated with it
         let ping_index = self.ping_index;
-        self.ping_index = self.ping_index.wrapping_add(1);
+        self.ping_index.incr();
         self.buffer.push_front((ping_index, now));
 
         // a good time to prune down the size of this buffer
@@ -54,7 +53,7 @@ impl PingStore {
                 } else {
                     // if old_index is bigger than ping_index, give up, it's only getting
                     // bigger
-                    if sequence_greater_than(*old_index, ping_index) {
+                    if *old_index > ping_index {
                         return None;
                     }
                 }
