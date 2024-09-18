@@ -63,17 +63,11 @@ impl Connection {
     pub fn read_packet(
         &mut self,
         protocol: &Protocol,
-        server_tick: Tick,
         client_tick: Tick,
         reader: &mut BitReader,
     ) -> Result<(), SerdeErr> {
         // read tick-buffered messages
-        self.tick_buffer.read_messages(
-            protocol,
-            &server_tick,
-            &client_tick,
-            reader,
-        )?;
+        self.tick_buffer.read_messages(protocol, &client_tick, reader)?;
 
         // read common parts of packet (messages & world events)
         self.base.read_packet(protocol, reader)?;

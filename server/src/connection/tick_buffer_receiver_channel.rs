@@ -1,7 +1,7 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{hash_map::Entry, HashMap};
 
 use naia_shared::{
-    BitReader, MessageContainer, MessageKinds, Serde, SerdeErr,
+	BitReader, IndexBuffer, MessageContainer, MessageKinds, Serde, SerdeErr,
 	ShortMessageIndex, Tick, TickBufferSettings, UnsignedVariableInteger,
 };
 
@@ -28,7 +28,6 @@ impl TickBufferReceiverChannel {
     pub fn read_messages(
         &mut self,
         message_kinds: &MessageKinds,
-        host_tick: &Tick,
         remote_tick: &Tick,
         reader: &mut BitReader,
     ) -> Result<(), SerdeErr> {
@@ -40,12 +39,7 @@ impl TickBufferReceiverChannel {
                 break;
             }
 
-            self.read_message(
-                message_kinds,
-                host_tick,
-                &mut last_read_tick,
-                reader,
-            )?;
+            self.read_message(message_kinds, &mut last_read_tick, reader)?;
         }
 
         Ok(())
@@ -56,7 +50,6 @@ impl TickBufferReceiverChannel {
     fn read_message(
         &mut self,
         message_kinds: &MessageKinds,
-        host_tick: &Tick,
         last_read_tick: &mut Tick,
         reader: &mut BitReader,
     ) -> Result<(), SerdeErr> {
@@ -80,7 +73,7 @@ impl TickBufferReceiverChannel {
 
             if !self
                 .incoming_messages
-                .insert(host_tick, &remote_tick, message_index, new_message)
+                .insert(&remote_tick, message_index, new_message)
             {
                 // Failed to Insert Command
             }
@@ -97,13 +90,13 @@ struct IncomingMessages {
     // front is present, back is future
     /// Buffer containing messages from the client, along with the corresponding tick
     /// We do not store anything for empty ticks
-    buffer: VecDeque<(Tick, HashMap<ShortMessageIndex, MessageContainer>)>,
+    buffer: IndexBuffer<HashMap<ShortMessageIndex, MessageContainer>>,
 }
 
 impl IncomingMessages {
     pub fn new() -> Self {
         IncomingMessages {
-            buffer: VecDeque::new(),
+            buffer: IndexBuffer::default(),
         }
     }
 
@@ -111,110 +104,38 @@ impl IncomingMessages {
     /// Will only insert messages that are from future ticks compared to the current server tick
     pub fn insert(
         &mut self,
-        host_tick: &Tick,
         message_tick: &Tick,
         message_index: ShortMessageIndex,
         new_message: MessageContainer,
     ) -> bool {
-        // TODO:
-        //  * add unit test?
-        //  * should there be a maximum buffer size?
+		if let Some(msg_map) = self.buffer.get_mut(*message_tick) {
+			if let Entry::Vacant(entry) = msg_map.entry(message_index) {
+				entry.insert(new_message);
+				return true;
+			} else {
+				// duplicate message part; drop
+				return false;
+			}
+		}
 
-        if *message_tick > *host_tick {
-            let mut index = self.buffer.len();
-
-            //in the case of empty vec
-            if index == 0 {
-                let mut map = HashMap::new();
-                map.insert(message_index, new_message);
-                self.buffer.push_back((*message_tick, map));
-                return true;
-            }
-
-            let mut insert = false;
-
-            // loop from back to front (future to present)
-            loop {
-                index -= 1;
-
-                if let Some((existing_tick, existing_messages)) = self.buffer.get_mut(index) {
-                    if *existing_tick == *message_tick {
-                        // should almost never collide
-                        if let std::collections::hash_map::Entry::Vacant(e) =
-                            existing_messages.entry(message_index)
-                        {
-                            e.insert(new_message);
-
-                            return true;
-                        } else {
-                            // TODO: log hash collisions?
-                            return false;
-                        }
-                    } else if *message_tick > *existing_tick {
-                        // incoming client tick is larger (more in the future) than found tick
-                        insert = true;
-                    }
-                }
-
-                if insert {
-                    // found correct position to insert node
-                    let mut new_messages = HashMap::new();
-                    new_messages.insert(message_index, new_message);
-                    self.buffer.insert(index + 1, (*message_tick, new_messages));
-                    return true;
-                }
-
-                if index == 0 {
-                    //traversed the whole vec, push front
-                    let mut new_messages = HashMap::new();
-                    new_messages.insert(message_index, new_message);
-                    self.buffer.push_front((*message_tick, new_messages));
-                    return true;
-                }
-            }
-        } else {
-            // command is too late to insert in incoming message queue
-            false
-        }
+		let msg_map = HashMap::from([(message_index, new_message)]);
+		return self.buffer.insert(*message_tick, msg_map);
     }
 
     /// Delete from the buffer all data that is older than the provided [`Tick`]
     fn prune_outdated_commands(&mut self, host_tick: &Tick) {
-        loop {
-            let mut pop = false;
-            if let Some((front_tick, _)) = self.buffer.front() {
-                if *host_tick > *front_tick {
-                    pop = true;
-                }
-            }
-            if pop {
-                self.buffer.pop_front();
-            } else {
-                break;
-            }
-        }
+		while self.buffer.start_index() < *host_tick {
+			self.buffer.pop_front();
+		}
     }
 
     /// Retrieve from the buffer data corresponding to the provided [`Tick`]
     pub fn collect(&mut self, host_tick: &Tick) -> Vec<MessageContainer> {
         self.prune_outdated_commands(host_tick);
 
-        // now get the newest applicable command
-        let mut output = Vec::new();
-        let mut pop = false;
-        if let Some((front_tick, _)) = self.buffer.front_mut() {
-            if *front_tick == *host_tick {
-                pop = true;
-            }
-        }
-        if pop {
-            if let Some((_, mut command_map)) = self.buffer.pop_front() {
-                for (_, message) in command_map.drain() {
-                    output.push(message);
-                }
-            }
-        }
-
-        output
+		return match self.buffer.try_pop_front(*host_tick) {
+			Some(msg_map) => msg_map.into_values().collect(),
+			None => Vec::new(),
+		};
     }
 }

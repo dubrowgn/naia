@@ -33,7 +33,6 @@ impl TickBufferReceiver {
     pub fn read_messages(
         &mut self,
         protocol: &Protocol,
-        host_tick: &Tick,
         remote_tick: &Tick,
         reader: &mut BitReader,
     ) -> Result<(), SerdeErr> {
@@ -48,12 +47,7 @@ impl TickBufferReceiver {
 
             // continue read inside channel
             let channel = self.channel_receivers.get_mut(&channel_kind).unwrap();
-            channel.read_messages(
-                &protocol.message_kinds,
-                host_tick,
-                remote_tick,
-                reader,
-            )?;
+            channel.read_messages(&protocol.message_kinds, remote_tick, reader)?;
         }
 
         Ok(())

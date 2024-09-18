@@ -593,15 +593,8 @@ impl Server {
                 // read client tick
                 let client_tick = Tick::de(reader)?;
 
-                let server_tick = self.time_manager.current_tick();
-
                 // process data
-                connection.read_packet(
-                    &self.protocol,
-                    server_tick,
-                    client_tick,
-                    reader,
-                )?;
+                connection.read_packet(&self.protocol, client_tick, reader)?;
             }
             PacketType::Disconnect => {
                 if self
