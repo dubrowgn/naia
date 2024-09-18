@@ -20,7 +20,7 @@ pub struct AckManager {
     sent_packets: HashMap<PacketIndex, SentPacket>,
     // However, we can only reasonably ack up to `REDUNDANT_PACKET_ACKS_SIZE + 1` packets on each
     // message we send so this should be that large.
-    received_packets: SequenceBuffer<ReceivedPacket>,
+    received_packets: SequenceBuffer,
 }
 
 impl AckManager {
@@ -51,7 +51,7 @@ impl AckManager {
         let mut sender_ack_bitfield = header.sender_ack_bitfield;
 
         self.received_packets
-            .insert(sender_packet_index.into(), ReceivedPacket {});
+            .set(sender_packet_index.into());
 
         // ensure that `self.sender_ack_index` is always increasing (with wrapping)
         if sender_ack_index > self.last_recv_packet_index {
@@ -136,7 +136,7 @@ impl AckManager {
     }
 
     fn last_received_packet_index(&self) -> PacketIndex {
-        self.received_packets.sequence_num().wrapping_sub(1).into()
+        self.received_packets.sequence_num() - 1
     }
 
     fn ack_bitfield(&self) -> u32 {
@@ -148,7 +148,7 @@ impl AckManager {
         // corresponding bit for each packet which exists in the buffer.
         for i in 1..=REDUNDANT_PACKET_ACKS_SIZE {
             let received_packet_index = last_received_remote_packet_index - i;
-            if self.received_packets.exists(received_packet_index.into()) {
+            if self.received_packets.is_set(received_packet_index.into()) {
                 ack_bitfield |= mask;
             }
             mask <<= 1;
@@ -162,6 +162,3 @@ impl AckManager {
 pub struct SentPacket {
     pub packet_type: PacketType,
 }
-
-#[derive(Clone, Debug, Default)]
-pub struct ReceivedPacket;
