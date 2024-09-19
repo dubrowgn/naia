@@ -46,7 +46,6 @@ pub use messages::{
     channels::{
         channel::{Channel, ChannelDirection, ChannelMode, ReliableSettings, TickBufferSettings},
         channel_kinds::{ChannelKind, ChannelKinds},
-        default_channels,
         receivers::{
             channel_receiver::ChannelReceiver, ordered_reliable_receiver::OrderedReliableReceiver,
             unordered_reliable_receiver::UnorderedReliableReceiver,
@@ -62,6 +61,6 @@ pub use messages::{
 
 pub use game_time::{GameDuration, GameInstant, GAME_TIME_LIMIT};
 pub use index_buffer::*;
-pub use protocol::{Protocol, ProtocolPlugin};
+pub use protocol::Protocol;
 pub use timer::Timer;
 pub use types::*;

@@ -8,18 +8,12 @@ use crate::{
         channels::{
             channel::{Channel, ChannelDirection, ChannelMode, ChannelSettings},
             channel_kinds::ChannelKinds,
-            default_channels::DefaultChannelsPlugin,
         },
         fragment::FragmentedMessage,
         message::Message,
         message_kinds::MessageKinds,
     },
 };
-
-// Protocol Plugin
-pub trait ProtocolPlugin {
-    fn build(&self, protocol: &mut Protocol);
-}
 
 // Protocol
 pub struct Protocol {
@@ -55,12 +49,6 @@ impl Protocol {
         Self::default()
     }
 
-    pub fn add_plugin<P: ProtocolPlugin>(&mut self, plugin: P) -> &mut Self {
-        self.check_lock();
-        plugin.build(self);
-        self
-    }
-
     pub fn link_condition(&mut self, config: LinkConditionerConfig) -> &mut Self {
         self.check_lock();
         self.socket.link_condition = Some(config);
@@ -82,13 +70,6 @@ impl Protocol {
     pub fn compression(&mut self, config: CompressionConfig) -> &mut Self {
         self.check_lock();
         self.compression = Some(config);
-        self
-    }
-
-    pub fn add_default_channels(&mut self) -> &mut Self {
-        self.check_lock();
-        let plugin = DefaultChannelsPlugin;
-        plugin.build(self);
         self
     }
 
