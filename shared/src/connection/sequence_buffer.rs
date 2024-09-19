@@ -59,7 +59,7 @@ impl SequenceBuffer {
     fn advance_sequence(&mut self, sequence_num: SeqNum) {
         if sequence_num >= self.sequence_num {
             self.remove_entries(sequence_num);
-            self.sequence_num.incr();
+            self.sequence_num = sequence_num + 1;
         }
     }
 
