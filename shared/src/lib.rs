@@ -24,7 +24,6 @@ mod connection;
 mod constants;
 mod game_time;
 mod index_buffer;
-mod key_generator;
 mod messages;
 mod protocol;
 mod timer;
@@ -63,7 +62,6 @@ pub use messages::{
 
 pub use game_time::{GameDuration, GameInstant, GAME_TIME_LIMIT};
 pub use index_buffer::*;
-pub use key_generator::KeyGenerator;
 pub use protocol::{Protocol, ProtocolPlugin};
 pub use timer::Timer;
 pub use types::*;
