@@ -182,13 +182,8 @@ macro_rules! impl_serde_for {
     ($impl_type:ident) => {
         impl Serde for $impl_type {
             fn ser(&self, writer: &mut dyn BitWrite) {
-                let du8 = unsafe {
-                    std::mem::transmute::<&$impl_type, &[u8; std::mem::size_of::<$impl_type>()]>(
-                        &self,
-                    )
-                };
-                for byte in du8 {
-                    writer.write_byte(*byte);
+                for byte in self.to_le_bytes() {
+                    writer.write_byte(byte);
                 }
             }
 
@@ -198,15 +193,7 @@ macro_rules! impl_serde_for {
                 for index in 0..BYTES_LENGTH {
                     byte_array[index] = reader.read_byte()?;
                 }
-                let mut container = [0 as $impl_type];
-                unsafe {
-                    std::ptr::copy_nonoverlapping(
-                        byte_array.as_ptr() as *const $impl_type,
-                        container.as_mut_ptr() as *mut $impl_type,
-                        1,
-                    )
-                }
-                Ok(container[0])
+				Ok($impl_type::from_le_bytes(byte_array))
             }
 
             fn bit_length(&self) -> u32 {
@@ -223,91 +210,27 @@ macro_rules! impl_serde_for {
 }
 
 // number primitives
+impl_serde_for!(u8);
 impl_serde_for!(u16);
 impl_serde_for!(u32);
 impl_serde_for!(u64);
+impl_serde_for!(i8);
 impl_serde_for!(i16);
 impl_serde_for!(i32);
 impl_serde_for!(i64);
 impl_serde_for!(f32);
 impl_serde_for!(f64);
 
-// u8
-impl Serde for u8 {
-    fn ser(&self, writer: &mut dyn BitWrite) {
-        writer.write_byte(*self);
-    }
-
-    fn de(reader: &mut BitReader) -> Result<u8, SerdeErr> {
-        reader.read_byte()
-    }
-
-    fn bit_length(&self) -> u32 {
-        <Self as ConstBitLength>::const_bit_length()
-    }
-}
-
-impl ConstBitLength for u8 {
-    fn const_bit_length() -> u32 {
-        8
-    }
-}
-
-// i8
-impl Serde for i8 {
-    fn ser(&self, writer: &mut dyn BitWrite) {
-        let du8 = unsafe { std::mem::transmute::<&i8, &u8>(self) };
-        writer.write_byte(*du8);
-    }
-
-    fn de(reader: &mut BitReader) -> Result<i8, SerdeErr> {
-        let byte = [reader.read_byte()?];
-        let mut container = [0_i8];
-        unsafe {
-            std::ptr::copy_nonoverlapping(
-                byte.as_ptr() as *const i8,
-                container.as_mut_ptr() as *mut i8,
-                1,
-            )
-        }
-        Ok(container[0])
-    }
-
-    fn bit_length(&self) -> u32 {
-        <Self as ConstBitLength>::const_bit_length()
-    }
-}
-
-impl ConstBitLength for i8 {
-    fn const_bit_length() -> u32 {
-        8
-    }
-}
-
 // usize
 impl Serde for usize {
     fn ser(&self, writer: &mut dyn BitWrite) {
-        let u64usize = *self as u64;
-        let du8 = unsafe { std::mem::transmute::<&u64, &[u8; 8]>(&u64usize) };
-        for byte in du8 {
-            writer.write_byte(*byte);
-        }
+		assert_eq!(std::mem::size_of::<u64>(), std::mem::size_of::<usize>());
+		(*self as u64).ser(writer);
     }
 
     fn de(reader: &mut BitReader) -> Result<usize, SerdeErr> {
-        let mut byte_array = [0_u8; 8];
-        for byte in &mut byte_array {
-            *byte = reader.read_byte()?;
-        }
-        let mut container = [0_u64];
-        unsafe {
-            std::ptr::copy_nonoverlapping(
-                byte_array.as_ptr().offset(0_isize) as *const u64,
-                container.as_mut_ptr() as *mut u64,
-                1,
-            )
-        }
-        Ok(container[0] as usize)
+		assert_eq!(std::mem::size_of::<u64>(), std::mem::size_of::<usize>());
+		u64::de(reader).map(|v| { v as usize })
     }
 
     fn bit_length(&self) -> u32 {
