@@ -2,16 +2,57 @@ use crate::SeqNum;
 use std::collections::VecDeque;
 
 /// A circular buffer of sequenced values. It stores a minimum sequence number which
-/// increases over time. Buffer indexes represent offsets from this number. Inserting
-/// values out of order forces empty space to be allocated for the sequence numbers
-/// skipped. It assumes such events are relatively rare in exchange for being able to
-/// lookup sequence values directly by index in constant time.
+/// increases over time. Buffer indexes represent offsets from this number.
 pub struct IndexBuffer<V> {
-	buffer: VecDeque<Option<V>>,
+	buffer: VecDeque<V>,
+	/// The SeqNum associated with the value at `buffer[n]` is `start + n`
 	start: SeqNum,
 }
 
 impl<V> IndexBuffer<V> {
+	pub fn new() -> Self {
+		Self::with_start(SeqNum::ZERO)
+	}
+
+	pub fn with_start(start: SeqNum) -> Self {
+		Self {
+			buffer: VecDeque::new(),
+			start,
+		}
+	}
+
+	pub fn start_index(&self) -> SeqNum { self.start }
+
+	pub fn len(&self) -> usize { self.buffer.len() }
+
+	pub fn push_back(&mut self, value: V) {
+		self.buffer.push_back(value);
+	}
+
+	pub fn pop_front(&mut self) -> Option<V> {
+		self.start.incr();
+		return self.buffer.pop_front();
+	}
+
+	pub fn iter<'a>(&'a self) -> impl Iterator<Item = (SeqNum, &'a V)> {
+		self.buffer.iter()
+			.enumerate()
+			.map(|(i, v)| { (self.start + i as u16, v)})
+	}
+}
+
+/// A circular buffer of sequenced values. It stores a minimum sequence number which
+/// increases over time. Buffer indexes represent offsets from this number. Inserting
+/// values out of order forces empty space to be allocated for the sequence numbers
+/// skipped. It assumes such events are relatively rare in exchange for being able to
+/// lookup sequence values directly by index in constant time.
+pub struct SparseIndexBuffer<V> {
+	buffer: VecDeque<Option<V>>,
+	/// The SeqNum associated with the value at `buffer[n]` is `start + n`
+	start: SeqNum,
+}
+
+impl<V> SparseIndexBuffer<V> {
 	pub fn new() -> Self {
 		Self::with_start(SeqNum::ZERO)
 	}
@@ -97,5 +138,11 @@ impl<V> IndexBuffer<V> {
 		self.buffer.push_back(Some(value));
 
 		return true;
+	}
+
+	pub fn iter<'a>(&'a self) -> impl Iterator<Item = (SeqNum, &'a Option<V>)> {
+		self.buffer.iter()
+			.enumerate()
+			.map(|(i, v)| { (self.start + i as u16, v)})
 	}
 }

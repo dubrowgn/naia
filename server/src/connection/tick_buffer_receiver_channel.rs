@@ -1,5 +1,5 @@
 use naia_shared::{
-	BitReader, IndexBuffer, MessageContainer, MessageKinds, Serde, SerdeErr,
+	BitReader, SparseIndexBuffer, MessageContainer, MessageKinds, Serde, SerdeErr,
 	Tick, TickBufferSettings, UnsignedVariableInteger,
 };
 
@@ -73,13 +73,13 @@ struct IncomingMessages {
     // front is present, back is future
     /// Buffer containing messages from the client, along with the corresponding tick
     /// We do not store anything for empty ticks
-    buffer: IndexBuffer<MessageContainer>,
+    buffer: SparseIndexBuffer<MessageContainer>,
 }
 
 impl IncomingMessages {
     pub fn new() -> Self {
         IncomingMessages {
-            buffer: IndexBuffer::new(),
+            buffer: SparseIndexBuffer::new(),
         }
     }
 
