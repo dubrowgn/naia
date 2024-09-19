@@ -12,7 +12,7 @@ pub enum HostType {
     Client,
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct SeqNum(pub u16);
 
 impl Display for SeqNum {
@@ -64,48 +64,33 @@ impl SeqNum {
 	}
 }
 
-impl PartialOrd for SeqNum {
-	fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
+impl Ord for SeqNum {
+	fn cmp(&self, rhs: &Self) -> Ordering {
 		if self == rhs {
-			Some(Ordering::Equal)
+			Ordering::Equal
 		} else if Self::seq_gt(self.0, rhs.0) {
-			Some(Ordering::Greater)
+			Ordering::Greater
 		} else {
-			Some(Ordering::Less)
+			Ordering::Less
 		}
 	}
 }
 
-impl Add for SeqNum {
-	type Output = Self;
-	fn add(self, rhs: Self) -> Self::Output { self + rhs.0 }
+impl PartialOrd for SeqNum {
+	fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> { Some(self.cmp(rhs)) }
 }
 
 impl Add<u16> for SeqNum {
 	type Output = Self;
 	fn add(self, rhs: u16) -> Self::Output { Self(self.0.wrapping_add(rhs)) }
 }
-
-impl AddAssign for SeqNum {
-	fn add_assign(&mut self, rhs: Self) { self.0 += rhs.0; }
-}
-
 impl AddAssign<u16> for SeqNum {
 	fn add_assign(&mut self, rhs: u16) { self.0 = self.0.wrapping_add(rhs); }
-}
-
-impl Sub for SeqNum {
-	type Output = Self;
-	fn sub(self, rhs: Self) -> Self::Output { self - rhs.0 }
 }
 
 impl Sub<u16> for SeqNum {
 	type Output = Self;
 	fn sub(self, rhs: u16) -> Self::Output { Self(self.0.wrapping_sub(rhs)) }
-}
-
-impl SubAssign for SeqNum {
-	fn sub_assign(&mut self, rhs: Self) { self.0 += rhs.0; }
 }
 
 impl SubAssign<u16> for SeqNum {
