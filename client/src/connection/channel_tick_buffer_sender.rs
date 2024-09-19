@@ -1,13 +1,13 @@
 use log::warn;
 use naia_shared::{
     BitWrite, BitWriter, MessageContainer, MessageKinds, Serde,
-    ShortMessageIndex, Tick, TickBufferSettings, UnsignedVariableInteger,
+    Tick, TickBufferSettings, UnsignedVariableInteger,
 };
 use std::collections::VecDeque;
 
 pub struct ChannelTickBufferSender {
     sending_messages: OutgoingMessages,
-    outgoing_messages: VecDeque<(Tick, Vec<(ShortMessageIndex, MessageContainer)>)>,
+    outgoing_messages: VecDeque<(Tick, MessageContainer)>,
     last_sent: Tick,
     new_msg_queued: bool,
 }
@@ -32,14 +32,13 @@ impl ChannelTickBufferSender {
             self.new_msg_queued = false;
 
             // Loop through outstanding messages and add them to the outgoing list
-            for (message_tick, message_map) in self.sending_messages.iter() {
+            for (message_tick, msg) in self.sending_messages.iter() {
                 if *message_tick > *client_sending_tick {
                     warn!("Sending message that is more recent than client sending tick! This shouldn't be possible.");
                     break;
                 }
 
-                let messages = message_map.collect_messages();
-                self.outgoing_messages.push_back((*message_tick, messages));
+                self.outgoing_messages.push_back((*message_tick, msg.clone()));
             }
         }
     }
@@ -61,7 +60,7 @@ impl ChannelTickBufferSender {
         writer: &mut BitWriter,
         host_tick: &Tick,
         has_written: &mut bool,
-    ) -> Option<Vec<(Tick, ShortMessageIndex)>> {
+    ) -> Option<Vec<Tick>> {
         let mut last_written_tick = *host_tick;
         let mut output = Vec::new();
 
@@ -70,7 +69,7 @@ impl ChannelTickBufferSender {
                 break;
             }
 
-            let (message_tick, messages) = self.outgoing_messages.front().unwrap();
+            let (message_tick, msg) = self.outgoing_messages.front().unwrap();
 
             // check that we can write the next message
             let mut counter = writer.counter();
@@ -82,14 +81,14 @@ impl ChannelTickBufferSender {
                 &mut counter,
                 &last_written_tick,
                 message_tick,
-                messages,
+                msg,
             );
 
             if counter.overflowed() {
                 // if nothing useful has been written in this packet yet,
                 // send warning about size of message being too big
                 if !*has_written {
-                    self.warn_overflow(messages, counter.bits_needed(), writer.bits_free());
+                    self.warn_overflow(&msg.name(), counter.bits_needed(), writer.bits_free());
                 }
 
                 break;
@@ -100,17 +99,15 @@ impl ChannelTickBufferSender {
             // write MessageContinue bit
             true.ser(writer);
             // write data
-            let message_indices = self.write_message(
+            self.write_message(
                 message_kinds,
                 writer,
                 &last_written_tick,
                 &message_tick,
-                &messages,
+                &msg,
             );
             last_written_tick = *message_tick;
-            for message_index in message_indices {
-                output.push((*message_tick, message_index));
-            }
+            output.push(*message_tick);
 
             // pop message we've written
             self.outgoing_messages.pop_front();
@@ -126,96 +123,31 @@ impl ChannelTickBufferSender {
         writer: &mut dyn BitWrite,
         last_written_tick: &Tick,
         message_tick: &Tick,
-        messages: &Vec<(ShortMessageIndex, MessageContainer)>,
-    ) -> Vec<ShortMessageIndex> {
-        let mut message_indices = Vec::new();
-
+        message: &MessageContainer,
+    ) {
         // write message tick diff
         // this is reversed (diff is always negative, but it's encoded as positive)
         // because packet tick is always larger than past ticks
         let message_tick_diff = last_written_tick.diff(*message_tick);
-        let message_tick_diff_encoded = UnsignedVariableInteger::<3>::new(message_tick_diff);
-        message_tick_diff_encoded.ser(writer);
+        UnsignedVariableInteger::<3>::new(message_tick_diff).ser(writer);
 
-        // write number of messages
-        let message_count = UnsignedVariableInteger::<3>::new(messages.len() as u64);
-        message_count.ser(writer);
-
-        let mut last_id_written: ShortMessageIndex = 0;
-        for (message_index, message) in messages {
-            // write message id diff
-            let id_diff = UnsignedVariableInteger::<2>::new(*message_index - last_id_written);
-            id_diff.ser(writer);
-
-            // write payload
-            message.write(message_kinds, writer);
-
-            // record id for output
-            message_indices.push(*message_index);
-            last_id_written = *message_index;
-        }
-
-        message_indices
+		// write payload
+		message.write(message_kinds, writer);
     }
 
-    pub fn notify_message_delivered(&mut self, tick: &Tick, message_index: &ShortMessageIndex) {
-        self.sending_messages.remove_message(tick, message_index);
+    pub fn notify_message_delivered(&mut self, tick: &Tick) {
+        self.sending_messages.remove_message(tick);
     }
 
     fn warn_overflow(
         &self,
-        messages: &Vec<(ShortMessageIndex, MessageContainer)>,
+        message_name: &String,
         bits_needed: u32,
         bits_free: u32,
     ) {
-        let mut message_names = "".to_string();
-        let mut added = false;
-        for (_id, message) in messages {
-            if added {
-                message_names.push(',');
-            } else {
-                added = true;
-            }
-            message_names.push_str(&message.name());
-        }
         panic!(
-            "Packet Write Error: Blocking overflow detected! Messages of type `{message_names}` requires {bits_needed} bits, but packet only has {bits_free} bits available! This condition should never be reached, as large Messages should be Fragmented in the Reliable channel"
+            "Packet Write Error: Blocking overflow detected! Message of type `{message_name}` requires {bits_needed} bits, but packet only has {bits_free} bits available! This condition should never be reached, as large Messages should be Fragmented in the Reliable channel"
         )
-    }
-}
-
-// MessageMap
-struct MessageMap {
-    list: Vec<Option<MessageContainer>>,
-}
-
-impl MessageMap {
-    pub fn new() -> Self {
-        MessageMap { list: Vec::new() }
-    }
-
-    pub fn insert(&mut self, message: MessageContainer) {
-        self.list.push(Some(message));
-    }
-
-    pub fn collect_messages(&self) -> Vec<(ShortMessageIndex, MessageContainer)> {
-        let mut output = Vec::new();
-        for (index, message_opt) in self.list.iter().enumerate() {
-            if let Some(message) = message_opt {
-                output.push((index as u8, message.clone()));
-            }
-        }
-        output
-    }
-
-    pub fn remove(&mut self, message_index: &ShortMessageIndex) {
-        if let Some(container) = self.list.get_mut(*message_index as usize) {
-            *container = None;
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.list.len()
     }
 }
 
@@ -224,7 +156,7 @@ impl MessageMap {
 struct OutgoingMessages {
     // front big, back small
     // front recent, back past
-    buffer: VecDeque<(Tick, MessageMap)>,
+    buffer: VecDeque<(Tick, MessageContainer)>,
     // this is the maximum length of the buffer
     capacity: usize,
 }
@@ -239,15 +171,9 @@ impl OutgoingMessages {
 
     // should only push increasing ticks of messages
     pub fn push(&mut self, message_tick: Tick, message: MessageContainer) {
-        if let Some((front_tick, msg_map)) = self.buffer.front_mut() {
-            if message_tick == *front_tick {
-                // been here before, cool
-                msg_map.insert(message);
-                return;
-            }
-
-            if message_tick < *front_tick {
-                warn!("This method should always receive increasing or equal Ticks! \
+        if let Some((front_tick, _)) = self.buffer.front_mut() {
+            if message_tick <= *front_tick {
+                warn!("This method should always receive increasing  Ticks! \
                 Received Tick: {message_tick} after receiving {front_tick}. \
                 Possibly try ensuring that Client.send_message() is only called on this channel once per Tick?");
                 return;
@@ -256,9 +182,7 @@ impl OutgoingMessages {
             // nothing is in here
         }
 
-        let mut msg_map = MessageMap::new();
-        msg_map.insert(message);
-        self.buffer.push_front((message_tick, msg_map));
+        self.buffer.push_front((message_tick, message));
 
         // a good time to prune down this list
         while self.buffer.len() > self.capacity {
@@ -280,26 +204,16 @@ impl OutgoingMessages {
         }
     }
 
-    pub fn remove_message(&mut self, tick: &Tick, message_index: &ShortMessageIndex) {
+    pub fn remove_message(&mut self, tick: &Tick) {
         let mut index = self.buffer.len();
 
-        if index == 0 {
-            // empty condition
-            return;
-        }
-
-        loop {
+        while index > 0 {
             index -= 1;
 
-            let mut remove = false;
-
-            if let Some((old_tick, message_map)) = self.buffer.get_mut(index) {
+            if let Some((old_tick, _)) = self.buffer.get_mut(index) {
                 if *old_tick == *tick {
                     // found it!
-                    message_map.remove(message_index);
-                    if message_map.len() == 0 {
-                        remove = true;
-                    }
+					self.buffer.remove(index);
                 } else {
                     // if tick is less than old tick, no sense continuing, only going to get bigger
                     // as we go
@@ -308,18 +222,10 @@ impl OutgoingMessages {
                     }
                 }
             }
-
-            if remove {
-                self.buffer.remove(index);
-            }
-
-            if index == 0 {
-                return;
-            }
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &(Tick, MessageMap)> {
+    pub fn iter(&self) -> impl Iterator<Item = &(Tick, MessageContainer)> {
         self.buffer.iter()
     }
 }

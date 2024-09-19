@@ -1,13 +1,8 @@
-use std::collections::HashMap;
-
+use crate::{MessageContainer, MessageIndex, MessageKinds};
+use crate::messages::fragment::{FragmentId, FragmentedMessage};
 use log::info;
-
 use naia_serde::BitReader;
-
-use crate::{
-    messages::fragment::{FragmentId, FragmentedMessage},
-    MessageContainer, MessageIndex, MessageKinds,
-};
+use std::collections::HashMap;
 
 pub struct FragmentReceiver {
     current_index: MessageIndex,
@@ -71,5 +66,3 @@ impl FragmentReceiver {
         output
     }
 }
-
-impl FragmentReceiver {}

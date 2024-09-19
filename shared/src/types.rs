@@ -1,9 +1,12 @@
 use naia_serde::Serde;
 use std::{cmp::Ordering, fmt::Display, ops::{Add, AddAssign, Sub, SubAssign}};
 
+/// message-level sequence number
 pub type MessageIndex = SeqNum;
+
+/// packet-level sequence number
 pub type PacketIndex = SeqNum;
-pub type ShortMessageIndex = u8;
+
 pub type Tick = SeqNum;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

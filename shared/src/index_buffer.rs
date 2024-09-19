@@ -6,14 +6,17 @@ use std::collections::VecDeque;
 /// values out of order forces empty space to be allocated for the sequence numbers
 /// skipped. It assumes such events are relatively rare in exchange for being able to
 /// lookup sequence values directly by index in constant time.
-#[derive(Default)]
 pub struct IndexBuffer<V> {
 	buffer: VecDeque<Option<V>>,
 	start: SeqNum,
 }
 
 impl<V> IndexBuffer<V> {
-	pub fn new(start: SeqNum) -> Self {
+	pub fn new() -> Self {
+		Self::with_start(SeqNum::ZERO)
+	}
+
+	pub fn with_start(start: SeqNum) -> Self {
 		Self {
 			buffer: VecDeque::new(),
 			start,

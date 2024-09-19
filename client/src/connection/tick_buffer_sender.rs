@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use naia_shared::{
     BitWrite, BitWriter, ChannelKind, ChannelKinds, ChannelMode, ConstBitLength,
-    MessageContainer, PacketIndex, PacketNotifiable,
-    Protocol, Serde, ShortMessageIndex, Tick,
+    MessageContainer, PacketIndex, PacketNotifiable, Protocol, Serde, Tick,
 };
 
 use super::channel_tick_buffer_sender::ChannelTickBufferSender;
@@ -11,7 +10,7 @@ use super::channel_tick_buffer_sender::ChannelTickBufferSender;
 pub struct TickBufferSender {
     channel_senders: HashMap<ChannelKind, ChannelTickBufferSender>,
     #[allow(clippy::type_complexity)]
-    packet_to_channel_map: HashMap<PacketIndex, Vec<(ChannelKind, Vec<(Tick, ShortMessageIndex)>)>>,
+    packet_to_channel_map: HashMap<PacketIndex, Vec<(ChannelKind, Vec<Tick>)>>,
 }
 
 impl TickBufferSender {
@@ -92,7 +91,7 @@ impl TickBufferSender {
             // write ChannelIndex
             channel_kind.ser(&protocol.channel_kinds, writer);
             // write Messages
-            if let Some(message_indices) = channel.write_messages(
+            if let Some(ticks) = channel.write_messages(
                 &protocol.message_kinds,
                 writer,
                 host_tick,
@@ -102,7 +101,7 @@ impl TickBufferSender {
                     .entry(packet_index)
                     .or_insert_with(Vec::new);
                 let channel_list = self.packet_to_channel_map.get_mut(&packet_index).unwrap();
-                channel_list.push((*channel_kind, message_indices));
+                channel_list.push((*channel_kind, ticks));
             }
 
             // write MessageContinue finish bit, release
@@ -119,10 +118,10 @@ impl TickBufferSender {
 impl PacketNotifiable for TickBufferSender {
     fn notify_packet_delivered(&mut self, packet_index: PacketIndex) {
         if let Some(channel_list) = self.packet_to_channel_map.get(&packet_index) {
-            for (channel_kind, message_indices) in channel_list {
+            for (channel_kind, ticks) in channel_list {
                 if let Some(channel) = self.channel_senders.get_mut(channel_kind) {
-                    for (tick, message_index) in message_indices {
-                        channel.notify_message_delivered(tick, message_index);
+                    for tick in ticks {
+                        channel.notify_message_delivered(tick);
                     }
                 }
             }
