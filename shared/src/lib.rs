@@ -23,6 +23,7 @@ pub use naia_socket_shared::{
 mod connection;
 mod constants;
 mod game_time;
+mod id_pool;
 mod index_buffer;
 mod messages;
 mod protocol;
@@ -60,6 +61,7 @@ pub use messages::{
 };
 
 pub use game_time::{GameDuration, GameInstant, GAME_TIME_LIMIT};
+pub use id_pool::*;
 pub use index_buffer::*;
 pub use protocol::Protocol;
 pub use timer::Timer;

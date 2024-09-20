@@ -8,7 +8,7 @@ use std::{
 use log::warn;
 
 use naia_shared::{
-    BitReader, BitWriter, Channel, ChannelKind, Message, MessageContainer,
+    BitReader, BitWriter, Channel, ChannelKind, IdPool, Message, MessageContainer,
 	PacketType, Protocol, Serde, SerdeErr, SocketConfig, StandardHeader, Tick, Timer,
 };
 
@@ -44,7 +44,7 @@ pub struct Server {
     handshake_manager: HandshakeManager,
     // Users
     users: HashMap<UserKey, User>,
-	next_user_id: UserKey,
+	user_id_pool: IdPool<UserKey>,
     user_connections: HashMap<SocketAddr, Connection>,
     validated_users: HashMap<SocketAddr, UserKey>,
     // Events
@@ -78,7 +78,7 @@ impl Server {
             handshake_manager: HandshakeManager::new(server_config.require_auth),
             // Users
             users: HashMap::new(),
-			next_user_id: UserKey(0),
+			user_id_pool: IdPool::default(),
             user_connections: HashMap::new(),
             validated_users: HashMap::new(),
             // Events
@@ -417,6 +417,8 @@ impl Server {
             self.io.deregister_client(&user.address);
         }
 
+		self.user_id_pool.put(*user_key);
+
         return user;
     }
 
@@ -504,7 +506,13 @@ impl Server {
                     address,
                     reader,
                 ) {
-                    HandshakeResult::Success(auth_message_opt) => {
+                     HandshakeResult::Success(auth_message_opt) => 'match_arm: {
+						let Some(user_key) = self.user_id_pool.get() else {
+							// too many connected users; reject request
+							// TODO -- send rejection?
+							break 'match_arm;
+						};
+
                         if self.validated_users.contains_key(address) {
                             // send validate response
                             let writer = self.handshake_manager.write_validate_response();
@@ -513,9 +521,6 @@ impl Server {
                                 warn!("Server Error: Cannot send validate success response packet to {}", &address);
                             };
                         } else {
-							let user_key = self.next_user_id;
-							self.next_user_id = UserKey(user_key.0.wrapping_add(1));
-
                             let user = User::new(*address);
                             self.users.insert(user_key, user);
 
