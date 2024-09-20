@@ -34,7 +34,7 @@ impl<V> IndexBuffer<V> {
 		return self.buffer.pop_front();
 	}
 
-	pub fn iter<'a>(&'a self) -> impl Iterator<Item = (SeqNum, &'a V)> {
+	pub fn iter(&self) -> impl Iterator<Item = (SeqNum, &V)> {
 		self.buffer.iter()
 			.enumerate()
 			.map(|(i, v)| { (self.start + i as u16, v)})
@@ -140,7 +140,7 @@ impl<V> SparseIndexBuffer<V> {
 		return true;
 	}
 
-	pub fn iter<'a>(&'a self) -> impl Iterator<Item = (SeqNum, &'a Option<V>)> {
+	pub fn iter(&self) -> impl Iterator<Item = (SeqNum, &Option<V>)> {
 		self.buffer.iter()
 			.enumerate()
 			.map(|(i, v)| { (self.start + i as u16, v)})
