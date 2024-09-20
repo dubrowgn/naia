@@ -3,13 +3,14 @@ use std::collections::VecDeque;
 
 /// A circular buffer of sequenced values. It stores a minimum sequence number which
 /// increases over time. Buffer indexes represent offsets from this number.
-pub struct IndexBuffer<V> {
+#[derive(Default)]
+pub struct IndexBuffer<V, const MAX_SIZE: usize = 0> {
 	buffer: VecDeque<V>,
 	/// The SeqNum associated with the value at `buffer[n]` is `start + n`
 	start: SeqNum,
 }
 
-impl<V> IndexBuffer<V> {
+impl<V, const MAX_SIZE: usize> IndexBuffer<V, MAX_SIZE> {
 	pub fn new() -> Self {
 		Self::with_start(SeqNum::ZERO)
 	}
@@ -26,6 +27,9 @@ impl<V> IndexBuffer<V> {
 	pub fn len(&self) -> usize { self.buffer.len() }
 
 	pub fn push_back(&mut self, value: V) {
+		if MAX_SIZE > 0 && self.buffer.len() == MAX_SIZE {
+			self.pop_front();
+		}
 		self.buffer.push_back(value);
 	}
 
@@ -46,13 +50,14 @@ impl<V> IndexBuffer<V> {
 /// values out of order forces empty space to be allocated for the sequence numbers
 /// skipped. It assumes such events are relatively rare in exchange for being able to
 /// lookup sequence values directly by index in constant time.
-pub struct SparseIndexBuffer<V> {
+#[derive(Default)]
+pub struct SparseIndexBuffer<V, const MAX_SIZE: usize = 0> {
 	buffer: VecDeque<Option<V>>,
 	/// The SeqNum associated with the value at `buffer[n]` is `start + n`
 	start: SeqNum,
 }
 
-impl<V> SparseIndexBuffer<V> {
+impl<V, const MAX_SIZE: usize> SparseIndexBuffer<V, MAX_SIZE> {
 	pub fn new() -> Self {
 		Self::with_start(SeqNum::ZERO)
 	}
@@ -116,6 +121,10 @@ impl<V> SparseIndexBuffer<V> {
 		}
 
 		let tgt_idx = idx.diff(self.start) as usize;
+		if MAX_SIZE > 0 && tgt_idx >= MAX_SIZE {
+			// too far into the future; drop
+			return false;
+		}
 
 		// received message out-of-order?
 		if tgt_idx < self.buffer.len() {
