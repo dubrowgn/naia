@@ -174,7 +174,10 @@ impl MessageManager {
                 panic!("Channel not configured correctly! Cannot send message.");
             };
             if !settings.reliable() {
-                panic!("ERROR: Attempting to send Message above the fragmentation size limit over an unreliable Message channel! Slim down the size of your Message, or send this Message through a reliable message channel.");
+                panic!(
+					"ERROR: Cannot fragment {} on unreliable channel; message bits: {}, fragment limit bits: {}",
+					message.name(), message_bit_length, FRAGMENTATION_LIMIT_BITS,
+				);
             }
 
             // Now fragment this message ...
