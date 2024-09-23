@@ -321,13 +321,9 @@ impl Server {
 
     /// Return a list of all currently connected Users' keys
     pub fn user_keys(&self) -> Vec<UserKey> {
-        let mut output = Vec::new();
-
-        for (user_key, _) in self.users.iter() {
-            output.push(*user_key);
-        }
-
-        output
+		return self.user_connections.iter()
+			.map(|(_, conn)| { conn.user_key })
+			.collect()
     }
 
     /// Get the number of Users currently connected
