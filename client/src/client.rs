@@ -409,7 +409,7 @@ impl Client {
                     match header.packet_type {
                         PacketType::Data => {
                             if connection
-                                .buffer_data_packet(&server_tick, &mut reader)
+                                .buffer_data_packet(&mut reader)
                                 .is_err()
                             {
                                 warn!("unable to parse data packet");

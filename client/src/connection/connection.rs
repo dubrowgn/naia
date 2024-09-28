@@ -5,17 +5,17 @@ use naia_shared::{
 };
 
 use crate::{
-    connection::{io::Io, tick_queue::TickQueue, time_manager::TimeManager},
+    connection::{io::Io, time_manager::TimeManager},
     events::ClientEvent,
 };
-use std::time::Instant;
+use std::{collections::VecDeque, time::Instant};
 
 pub struct Connection {
     pub base: BaseConnection,
     pub time_manager: TimeManager,
     /// Small buffer when receiving updates (entity actions, entity updates) from the server
     /// to make sure we receive them in order
-    jitter_buffer: TickQueue<OwnedBitReader>,
+    jitter_buffer: VecDeque<OwnedBitReader>,
 }
 
 impl Connection {
@@ -31,7 +31,7 @@ impl Connection {
                 channel_kinds,
             ),
             time_manager,
-            jitter_buffer: TickQueue::new(),
+            jitter_buffer: VecDeque::new(),
         }
     }
 
@@ -43,20 +43,16 @@ impl Connection {
 
     pub fn buffer_data_packet(
         &mut self,
-        incoming_tick: &Tick,
         reader: &mut BitReader,
     ) -> Result<(), SerdeErr> {
-        self.jitter_buffer
-            .add_item(*incoming_tick, reader.to_owned());
+        self.jitter_buffer.push_back(reader.to_owned());
         Ok(())
     }
 
     /// Read the packets (raw bits) from the jitter buffer that correspond to the
     /// `receiving_tick`. Reads packets, storing necessary data into an internal buffer
     pub fn read_buffered_packets(&mut self, protocol: &Protocol) -> Result<(), SerdeErr> {
-        let receiving_tick = self.time_manager.client_receiving_tick;
-
-        while let Some((_, owned_reader)) = self.jitter_buffer.pop_item(receiving_tick) {
+        while let Some(owned_reader) = self.jitter_buffer.pop_front() {
             let mut reader = owned_reader.borrow();
 
             self.base.read_packet(protocol, &mut reader)?;
