@@ -24,6 +24,8 @@ impl<V, const MAX_SIZE: usize> IndexBuffer<V, MAX_SIZE> {
 
 	pub fn start_index(&self) -> SeqNum { self.start }
 
+	pub fn last_index(&self) -> SeqNum { self.start + self.buffer.len() as u16 - 1 }
+
 	pub fn len(&self) -> usize { self.buffer.len() }
 
 	pub fn push_back(&mut self, value: V) {
