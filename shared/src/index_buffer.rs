@@ -40,6 +40,12 @@ impl<V, const MAX_SIZE: usize> IndexBuffer<V, MAX_SIZE> {
 		return self.buffer.pop_front();
 	}
 
+	pub fn trim_lt(&mut self, index: SeqNum) {
+		while !self.buffer.is_empty() && self.start < index {
+			self.pop_front();
+		}
+	}
+
 	pub fn iter(&self) -> impl Iterator<Item = (SeqNum, &V)> {
 		self.buffer.iter()
 			.enumerate()
