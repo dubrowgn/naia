@@ -1,7 +1,7 @@
 use crate::{messages::message_manager::MessageManager, types::PacketIndex};
 use std::collections::HashMap;
 use super::{
-    packet_notifiable::PacketNotifiable, packet_type::PacketType, sequence_buffer::SequenceBuffer,
+    packet_type::PacketType, sequence_buffer::SequenceBuffer,
     standard_header::StandardHeader,
 };
 
@@ -44,7 +44,6 @@ impl AckManager {
         &mut self,
         header: &StandardHeader,
         message_manager: &mut MessageManager,
-        packet_notifiables: &mut [&mut dyn PacketNotifiable],
     ) {
         let sender_packet_index = header.sender_packet_index;
         let sender_ack_index = header.sender_ack_index;
@@ -61,11 +60,7 @@ impl AckManager {
         // the current `sender_ack_index` was (clearly) received so we should remove it
         if let Some(sent_packet) = self.sent_packets.get(&sender_ack_index) {
             if sent_packet.packet_type == PacketType::Data {
-                self.notify_packet_delivered(
-                    sender_ack_index,
-                    message_manager,
-                    packet_notifiables,
-                );
+				message_manager.notify_packet_delivered(sender_ack_index);
             }
 
             self.sent_packets.remove(&sender_ack_index);
@@ -79,11 +74,7 @@ impl AckManager {
             if let Some(sent_packet) = self.sent_packets.get(&sent_packet_index) {
                 if sender_ack_bitfield & 1 == 1 {
                     if sent_packet.packet_type == PacketType::Data {
-                        self.notify_packet_delivered(
-                            sent_packet_index,
-                            message_manager,
-                            packet_notifiables,
-                        );
+						message_manager.notify_packet_delivered(sent_packet_index);
                     }
 
                     self.sent_packets.remove(&sent_packet_index);
@@ -121,18 +112,6 @@ impl AckManager {
         self.increment_local_packet_index();
 
         outgoing
-    }
-
-    fn notify_packet_delivered(
-        &self,
-        sent_packet_index: PacketIndex,
-        message_manager: &mut MessageManager,
-        packet_notifiables: &mut [&mut dyn PacketNotifiable],
-    ) {
-        message_manager.notify_packet_delivered(sent_packet_index);
-        for notifiable in packet_notifiables {
-            notifiable.notify_packet_delivered(sent_packet_index);
-        }
     }
 
     fn last_received_packet_index(&self) -> PacketIndex {

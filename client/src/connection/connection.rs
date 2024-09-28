@@ -38,8 +38,7 @@ impl Connection {
     // Incoming data
 
     pub fn process_incoming_header(&mut self, header: &StandardHeader) {
-        self.base
-            .process_incoming_header(header, &mut []);
+        self.base.process_incoming_header(header);
     }
 
     pub fn buffer_data_packet(

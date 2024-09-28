@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     ack_manager::AckManager, connection_config::ConnectionConfig,
-    packet_notifiable::PacketNotifiable, packet_type::PacketType, standard_header::StandardHeader,
+    packet_type::PacketType, standard_header::StandardHeader,
 };
 use std::time::Instant;
 
@@ -69,16 +69,8 @@ impl BaseConnection {
     /// Process an incoming packet, pulling out the packet index number to keep
     /// track of the current RTT, and sending the packet to the AckManager to
     /// handle packet notification events
-    pub fn process_incoming_header(
-        &mut self,
-        header: &StandardHeader,
-        packet_notifiables: &mut [&mut dyn PacketNotifiable],
-    ) {
-        self.ack_manager.process_incoming_header(
-            header,
-            &mut self.message_manager,
-            packet_notifiables,
-        );
+    pub fn process_incoming_header(&mut self, header: &StandardHeader) {
+        self.ack_manager.process_incoming_header(header, &mut self.message_manager);
     }
 
     /// Given a packet payload, start tracking the packet via it's index, attach

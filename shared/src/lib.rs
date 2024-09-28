@@ -38,7 +38,6 @@ pub use connection::{
     connection_config::ConnectionConfig,
     decoder::Decoder,
     encoder::Encoder,
-    packet_notifiable::PacketNotifiable,
     packet_type::PacketType,
     ping_store::{PingIndex, PingStore},
     standard_header::StandardHeader,

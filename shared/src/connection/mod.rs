@@ -5,7 +5,6 @@ pub mod compression_config;
 pub mod connection_config;
 pub mod decoder;
 pub mod encoder;
-pub mod packet_notifiable;
 pub mod packet_type;
 pub mod ping_store;
 mod sequence_buffer;

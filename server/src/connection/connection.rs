@@ -51,7 +51,7 @@ impl Connection {
     // Incoming Data
 
     pub fn process_incoming_header(&mut self, header: &StandardHeader) {
-        self.base.process_incoming_header(header, &mut []);
+        self.base.process_incoming_header(header);
     }
 
     /// Read packet data received from a client, storing necessary data in an internal buffer
