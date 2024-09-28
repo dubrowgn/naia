@@ -45,10 +45,13 @@ impl<A: ReceiverArranger> ReliableMessageReceiver<A> {
 
     fn push_message(
         &mut self,
+		message_index: MessageIndex,
         message_kinds: &MessageKinds,
         message: MessageContainer,
     ) {
         let Some(full_message) = ({
+			// Message framgmentation is not currently supported!
+			assert!(!message.is_fragment());
             if message.is_fragment() {
                 self.fragment_receiver.receive(message_kinds, message)
             } else {
@@ -58,13 +61,10 @@ impl<A: ReceiverArranger> ReliableMessageReceiver<A> {
             return;
         };
 
-        let first_index = self.current_index;
         self.current_index.incr();
 
-        //info!("Received message!");
-
         self.arranger
-            .process(&mut self.incoming_messages, first_index, full_message);
+            .process(&mut self.incoming_messages, message_index, full_message);
     }
 
     pub fn buffer_message(
@@ -76,8 +76,8 @@ impl<A: ReceiverArranger> ReliableMessageReceiver<A> {
         self.reliable_receiver
             .buffer_message(message_index, message);
         let received_messages = self.reliable_receiver.receive_messages();
-        for (_, received_message) in received_messages {
-            self.push_message(message_kinds, received_message)
+        for (msg_idx, received_message) in received_messages {
+            self.push_message(msg_idx, message_kinds, received_message)
         }
     }
 
