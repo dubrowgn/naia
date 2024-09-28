@@ -17,7 +17,6 @@ use crate::{
         connection::Connection,
         handshake_manager::{HandshakeManager, HandshakeResult},
         io::Io,
-        tick_buffer_messages::TickBufferMessages,
     },
     time_manager::TimeManager,
     transport::Socket, ServerEvent,
@@ -256,14 +255,6 @@ impl Server {
         })
     }
 
-    pub fn receive_tick_buffer_messages(&mut self, tick: &Tick) -> TickBufferMessages {
-        let mut tick_buffer_messages = TickBufferMessages::new();
-        for (_user_address, connection) in self.user_connections.iter_mut() {
-            // receive messages from anyone
-            connection.tick_buffer_messages(tick, &mut tick_buffer_messages);
-        }
-        tick_buffer_messages
-    }
 
     // Updates
 

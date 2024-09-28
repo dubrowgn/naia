@@ -1,7 +1,6 @@
 //! # Naia Server
 //! A server that uses either UDP or WebRTC communication to send/receive
-//! messages to/from connected clients, and syncs registered
-//! Entities/Components to clients to whom they are in-scope.
+//! messages to/from connected clients.
 
 #![deny(
     trivial_casts,
@@ -34,7 +33,6 @@ mod server_config;
 mod time_manager;
 mod user;
 
-pub use connection::tick_buffer_messages::TickBufferMessages;
 pub use error::NaiaServerError;
 pub use events::*;
 pub use server::Server;

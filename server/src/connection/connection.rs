@@ -8,10 +8,7 @@ use naia_shared::{
 };
 
 use crate::{
-    connection::{
-        io::Io, ping_config::PingConfig, tick_buffer_messages::TickBufferMessages,
-        tick_buffer_receiver::TickBufferReceiver,
-    },
+    connection::{io::Io, ping_config::PingConfig},
     events::ServerEvent,
     time_manager::TimeManager,
     user::UserKey,
@@ -25,7 +22,6 @@ pub struct Connection {
     pub user_key: UserKey,
     pub base: BaseConnection,
     pub ping_manager: PingManager,
-    tick_buffer: TickBufferReceiver,
 }
 
 impl Connection {
@@ -45,7 +41,6 @@ impl Connection {
                 channel_kinds,
             ),
             ping_manager: PingManager::new(ping_config),
-            tick_buffer: TickBufferReceiver::new(channel_kinds),
         }
     }
 
@@ -63,12 +58,9 @@ impl Connection {
     pub fn read_packet(
         &mut self,
         protocol: &Protocol,
-        client_tick: Tick,
+        _client_tick: Tick, // FIXME
         reader: &mut BitReader,
     ) -> Result<(), SerdeErr> {
-        // read tick-buffered messages
-        self.tick_buffer.read_messages(protocol, &client_tick, reader)?;
-
         // read common parts of packet (messages & world events)
         self.base.read_packet(protocol, reader)?;
 
@@ -84,15 +76,6 @@ impl Connection {
 			for message in messages {
 				incoming_events.push(ServerEvent::Message { user_key: self.user_key, msg: message });
 			}
-        }
-    }
-
-    pub fn tick_buffer_messages(&mut self, tick: &Tick, messages: &mut TickBufferMessages) {
-        let channel_messages = self.tick_buffer.receive_messages(tick);
-        for (channel_kind, received_messages) in channel_messages {
-            for message in received_messages {
-                messages.push_message(&self.user_key, &channel_kind, message);
-            }
         }
     }
 

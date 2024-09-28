@@ -228,35 +228,6 @@ impl Client {
         }
     }
 
-    pub fn send_tick_buffer_message<C: Channel, M: Message>(&mut self, tick: &Tick, message: &M) {
-        let cloned_message = M::clone_box(message);
-        self.send_tick_buffer_message_inner(tick, &ChannelKind::of::<C>(), cloned_message);
-    }
-
-    fn send_tick_buffer_message_inner(
-        &mut self,
-        tick: &Tick,
-        channel_kind: &ChannelKind,
-        message_box: Box<dyn Message>,
-    ) {
-        let channel_settings = self.protocol.channel_kinds.channel(channel_kind);
-
-        if !channel_settings.can_send_to_server() {
-            panic!("Cannot send message to Server on this Channel");
-        }
-
-        if !channel_settings.tick_buffered() {
-            panic!("Can only use `Client.send_tick_buffer_message()` on a Channel that is configured for it.");
-        }
-
-        if let Some(connection) = self.server_connection.as_mut() {
-            let message = MessageContainer::from_write(message_box);
-            connection
-                .tick_buffer
-                .send_message(tick, channel_kind, message);
-        }
-    }
-
     // Connection
 
     /// Get the address currently associated with the Server
