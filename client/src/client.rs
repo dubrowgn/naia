@@ -358,6 +358,7 @@ impl Client {
 
                             let server_addr = self.server_address_unwrapped();
                             self.incoming_events.push_connection(&server_addr);
+							return;
                         }
                         Some(HandshakeResult::Rejected) => {
                             let server_addr = self.server_address_unwrapped();
