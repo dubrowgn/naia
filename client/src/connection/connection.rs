@@ -9,7 +9,7 @@ use crate::{
         io::Io, tick_buffer_sender::TickBufferSender, tick_queue::TickQueue,
         time_manager::TimeManager,
     },
-    events::Events,
+    events::ClientEvent,
 };
 use std::time::Instant;
 
@@ -73,11 +73,11 @@ impl Connection {
     }
 
     /// Receive & process messages and emit events for them
-    pub fn process_packets(&mut self, incoming_events: &mut Events ) {
+    pub fn process_packets(&mut self, incoming_events: &mut Vec<ClientEvent> ) {
         let messages = self.base.message_manager.receive_messages();
-        for (channel_kind, messages) in messages {
+        for (_, messages) in messages {
             for message in messages {
-                incoming_events.push_message(&channel_kind, message);
+                incoming_events.push(ClientEvent::Message(message));
             }
         }
     }

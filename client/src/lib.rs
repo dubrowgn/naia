@@ -30,7 +30,4 @@ mod events;
 pub use client::Client;
 pub use client_config::ClientConfig;
 pub use error::NaiaClientError;
-pub use events::{
-    ClientTickEvent, ConnectEvent, DisconnectEvent,ErrorEvent, Events,
-    MessageEvent, RejectEvent, ServerTickEvent,
-};
+pub use events::*;

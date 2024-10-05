@@ -1,10 +1,6 @@
-use std::any::Any;
-
+use crate::{Message, MessageKind, MessageKinds};
 use naia_serde::BitWrite;
-
-use crate::{
-    Message, MessageKind, MessageKinds,
-};
+use std::any::Any;
 
 #[derive(Clone)]
 pub struct MessageContainer {
@@ -57,4 +53,14 @@ impl MessageContainer {
     pub fn kind(&self) -> MessageKind {
         return self.inner.kind();
     }
+
+	pub fn downcast<M: Message>(self) -> M {
+		*self.to_boxed_any()
+			.downcast::<M>()
+			.unwrap()
+	}
+
+	pub fn is<M: Message>(&self) -> bool {
+		self.inner.kind() == MessageKind::of::<M>()
+	}
 }

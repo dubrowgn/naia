@@ -7,7 +7,7 @@ use naia_shared::{
 };
 
 use std::time::Instant;
-use super::{client_config::ClientConfig, error::NaiaClientError, events::Events};
+use super::{client_config::ClientConfig, error::NaiaClientError};
 use crate::{
     connection::{
         base_time_manager::BaseTimeManager,
@@ -15,7 +15,7 @@ use crate::{
         handshake_manager::{HandshakeManager, HandshakeResult},
         io::Io,
     },
-    transport::Socket,
+    transport::Socket, ClientEvent,
 };
 
 /// Client can send/receive messages to/from a server, and has a pool of
@@ -31,7 +31,7 @@ pub struct Client {
     manual_disconnect: bool,
     waitlist_messages: VecDeque<(ChannelKind, Box<dyn Message>)>, // FIXME
     // Events
-    incoming_events: Events,
+    incoming_events: Vec::<ClientEvent>,
 }
 
 impl Client {
@@ -62,7 +62,7 @@ impl Client {
             manual_disconnect: false,
             waitlist_messages: VecDeque::new(),
             // Events
-            incoming_events: Events::new(),
+            incoming_events: Vec::new(),
         }
     }
 
@@ -124,7 +124,7 @@ impl Client {
     /// Must call this regularly (preferably at the beginning of every draw
     /// frame), in a loop until it returns None.
     /// Retrieves incoming update data from the server, and maintains the connection.
-    pub fn receive(&mut self) -> Events {
+    pub fn receive(&mut self) -> Vec<ClientEvent> {
         // Need to run this to maintain connection with server, and receive packets
         // until none left
         self.maintain_socket();
@@ -154,7 +154,7 @@ impl Client {
 
                 let mut index_tick = prev_receiving_tick + 1;
                 loop {
-                    self.incoming_events.push_server_tick(index_tick);
+                    self.incoming_events.push(ClientEvent::ServerTick(index_tick));
 
                     if index_tick == current_receiving_tick {
                         break;
@@ -167,7 +167,7 @@ impl Client {
                 // insert tick events in total range
                 let mut index_tick = prev_sending_tick + 1;
                 loop {
-                    self.incoming_events.push_client_tick(index_tick);
+                    self.incoming_events.push(ClientEvent::ClientTick(index_tick));
 
                     if index_tick == current_sending_tick {
                         break;
@@ -357,13 +357,13 @@ impl Client {
                             self.on_connect();
 
                             let server_addr = self.server_address_unwrapped();
-                            self.incoming_events.push_connection(&server_addr);
+							self.incoming_events.push(ClientEvent::Connect(server_addr));
 							return;
                         }
                         Some(HandshakeResult::Rejected) => {
                             let server_addr = self.server_address_unwrapped();
                             self.incoming_events.clear();
-                            self.incoming_events.push_rejection(&server_addr);
+							self.incoming_events.push(ClientEvent::Reject(server_addr));
                             self.disconnect_reset_connection();
                             return;
                         }
@@ -375,7 +375,7 @@ impl Client {
                 }
                 Err(error) => {
                     self.incoming_events
-                        .push_error(NaiaClientError::Wrapped(Box::new(error)));
+                        .push(ClientEvent::Error(NaiaClientError::Wrapped(Box::new(error))));
                 }
             }
         }
@@ -471,7 +471,7 @@ impl Client {
                 }
                 Err(error) => {
                     self.incoming_events
-                        .push_error(NaiaClientError::Wrapped(Box::new(error)));
+                        .push(ClientEvent::Error(NaiaClientError::Wrapped(Box::new(error))));
                 }
             }
         }
@@ -510,7 +510,7 @@ impl Client {
 
         self.disconnect_reset_connection();
 
-        self.incoming_events.push_disconnection(&server_addr);
+		self.incoming_events.push(ClientEvent::Disconnect(server_addr));
     }
 
     fn disconnect_reset_connection(&mut self) {
