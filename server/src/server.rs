@@ -20,12 +20,11 @@ use crate::{
         tick_buffer_messages::TickBufferMessages,
     },
     time_manager::TimeManager,
-    transport::Socket,
+    transport::Socket, ServerEvent,
 };
 
 use super::{
     error::NaiaServerError,
-    events::Events,
     server_config::ServerConfig,
     user::{User, UserKey, UserMut, UserRef},
 };
@@ -48,7 +47,7 @@ pub struct Server {
     user_connections: HashMap<SocketAddr, Connection>,
     validated_users: HashMap<SocketAddr, UserKey>,
     // Events
-    incoming_events: Events,
+    incoming_events: Vec<ServerEvent>,
     // Ticks
     time_manager: TimeManager,
 }
@@ -82,7 +81,7 @@ impl Server {
             user_connections: HashMap::new(),
             validated_users: HashMap::new(),
             // Events
-            incoming_events: Events::new(),
+            incoming_events: Vec::new(),
             // Ticks
             time_manager,
         }
@@ -108,19 +107,19 @@ impl Server {
 
     /// Must be called regularly, maintains connection to and receives messages
     /// from all Clients
-    pub fn receive(&mut self) -> Events {
+    pub fn receive(&mut self) -> Vec<ServerEvent> {
         // Need to run this to maintain connection with all clients, and receive packets
         // until none left
         self.maintain_socket();
 
         // tick event
         while self.time_manager.recv_server_tick() {
-            self.incoming_events
-                .push_tick(self.time_manager.current_tick());
+			self.incoming_events
+				.push(ServerEvent::Tick(self.time_manager.current_tick()));
         }
 
         // return all received messages and reset the buffer
-        std::mem::replace(&mut self.incoming_events, Events::new())
+        std::mem::take(&mut self.incoming_events)
     }
 
     // Connections
@@ -181,7 +180,7 @@ impl Server {
         if self.io.bandwidth_monitor_enabled() {
             self.io.register_client(&user.address);
         }
-        self.incoming_events.push_connection(user_key);
+        self.incoming_events.push(ServerEvent::Connect(*user_key));
     }
 
     /// Rejects an incoming Client User, terminating their attempt to establish
@@ -396,7 +395,7 @@ impl Server {
 
     pub(crate) fn user_disconnect(&mut self, user_key: &UserKey) {
         let user = self.user_delete(user_key);
-        self.incoming_events.push_disconnection(user_key, user);
+        self.incoming_events.push(ServerEvent::Disconnect { user_key:*user_key, user });
     }
 
     pub(crate) fn user_delete(&mut self, user_key: &UserKey) -> User {
@@ -465,8 +464,8 @@ impl Server {
                     break;
                 }
                 Err(error) => {
-                    self.incoming_events
-                        .push_error(NaiaServerError::Wrapped(Box::new(error)));
+					self.incoming_events
+						.push(ServerEvent::Error(NaiaServerError::Wrapped(Box::new(error))));
                 }
             }
         }
@@ -521,7 +520,7 @@ impl Server {
                             self.users.insert(user_key, user);
 
                             if let Some(auth_message) = auth_message_opt {
-                                self.incoming_events.push_auth(&user_key, auth_message);
+								self.incoming_events.push(ServerEvent::Auth { user_key, msg: auth_message});
                             } else {
                                 self.accept_connection(&user_key);
                             }

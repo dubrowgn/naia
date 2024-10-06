@@ -12,7 +12,7 @@ use crate::{
         io::Io, ping_config::PingConfig, tick_buffer_messages::TickBufferMessages,
         tick_buffer_receiver::TickBufferReceiver,
     },
-    events::Events,
+    events::ServerEvent,
     time_manager::TimeManager,
     user::UserKey,
 };
@@ -76,13 +76,13 @@ impl Connection {
     }
 
     /// Receive & process stored packet data
-    pub fn process_packets(&mut self, incoming_events: &mut Events) {
+    pub fn process_packets(&mut self, incoming_events: &mut Vec<ServerEvent>) {
         // Receive Message Events
         let messages =
             self.base.message_manager.receive_messages();
-        for (channel_kind, messages) in messages {
+        for (_, messages) in messages {
 			for message in messages {
-				incoming_events.push_message(&self.user_key, &channel_kind, message);
+				incoming_events.push(ServerEvent::Message { user_key: self.user_key, msg: message });
 			}
         }
     }
