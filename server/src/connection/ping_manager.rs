@@ -1,6 +1,6 @@
+use crate::connection::ping_config::PingConfig;
 use naia_shared::{BitReader, BitWriter, PingIndex, PingStore, Serde, Timer};
-
-use crate::{connection::ping_config::PingConfig, time_manager::TimeManager};
+use std::time::Instant;
 
 /// Is responsible for sending regular ping messages between client/servers
 /// and to estimate rtt/jitter
@@ -30,23 +30,23 @@ impl PingManager {
     }
 
     /// Get an outgoing ping payload
-    pub fn write_ping(&mut self, writer: &mut BitWriter, time_manager: &TimeManager) {
+    pub fn write_ping(&mut self, writer: &mut BitWriter) {
         self.ping_timer.reset();
 
-        let ping_index = self.sent_pings.push_new(time_manager.game_time_now());
+        let ping_index = self.sent_pings.push_new(Instant::now());
 
         // write index
         ping_index.ser(writer);
     }
 
     /// Process an incoming pong payload
-    pub fn process_pong(&mut self, time_manager: &TimeManager, reader: &mut BitReader) {
+    pub fn process_pong(&mut self, reader: &mut BitReader) {
         if let Ok(ping_index) = PingIndex::de(reader) {
             match self.sent_pings.remove(ping_index) {
                 None => {}
-                Some(game_instant) => {
-                    let rtt_millis = time_manager.game_time_since(&game_instant).as_millis();
-                    self.process_new_rtt(rtt_millis);
+                Some(sent_instant) => {
+					let rtt = Instant::now() - sent_instant;
+                    self.process_new_rtt(rtt.as_millis() as u32);
                 }
             }
         }

@@ -41,23 +41,20 @@ impl TimeManager {
     }
 
     pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), SerdeErr> {
-        if let Some((_offset_millis, rtt_millis)) =
-            self.base.read_pong(reader)?
-        {
+        if let Some(rtt_millis) = self.base.read_pong(reader)? {
             self.process_stats(rtt_millis);
         }
         Ok(())
     }
 
-    fn process_stats(&mut self, rtt_millis: u32) {
+    fn process_stats(&mut self, rtt_millis: f32) {
 		// Reacts in ~10s @ ~60tps; need different values for different tps
 		const TREND_WEIGHT: f32 = 0.5;
 		const SAMPLE_WEIGHT: f32 = 1.0 - TREND_WEIGHT;
 
-        let rtt_sample = rtt_millis as f32;
-        self.rtt_ewma = (TREND_WEIGHT * self.rtt_ewma) + (SAMPLE_WEIGHT * rtt_sample);
+        self.rtt_ewma = (TREND_WEIGHT * self.rtt_ewma) + (SAMPLE_WEIGHT * rtt_millis);
 
-        let rtt_diff = rtt_sample - self.rtt_ewma;
+        let rtt_diff = rtt_millis - self.rtt_ewma;
 		self.jitter_ewma = f32::abs(TREND_WEIGHT * self.jitter_ewma + SAMPLE_WEIGHT * rtt_diff);
     }
 

@@ -578,9 +578,7 @@ impl Server {
             }
             PacketType::Pong => {
                 // read client tick
-                connection
-                    .ping_manager
-                    .process_pong(&self.time_manager, reader);
+                connection.ping_manager.process_pong(reader);
             }
             _ => {}
         }
@@ -666,9 +664,7 @@ impl Server {
                     connection.base.write_header(PacketType::Ping, &mut writer);
 
                     // write body
-                    connection
-                        .ping_manager
-                        .write_ping(&mut writer, &self.time_manager);
+                    connection.ping_manager.write_ping(&mut writer);
 
                     // send packet
                     if self

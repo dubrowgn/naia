@@ -1,15 +1,13 @@
+use crate::connection::{connection::Connection, io::Io};
 use log::warn;
 use naia_shared::{
-    BitReader, BitWriter, GameInstant, PacketType,
+    BitReader, BitWriter, PacketType,
     PingIndex, PingStore, Serde, SerdeErr, StandardHeader,
 };
-
-use crate::connection::{connection::Connection, io::Io};
 use std::time::Instant;
 
 /// Responsible for keeping track of internal time, as well as sending and receiving Ping/Pong messages
 pub struct BaseTimeManager {
-    pub start_instant: Instant,
     sent_pings: PingStore,
     most_recent_ping: PingIndex,
     never_been_pinged: bool,
@@ -17,9 +15,7 @@ pub struct BaseTimeManager {
 
 impl BaseTimeManager {
     pub fn new() -> Self {
-        let now = Instant::now();
         Self {
-            start_instant: now,
             sent_pings: PingStore::new(),
             most_recent_ping: PingIndex::ZERO,
             never_been_pinged: true,
@@ -35,7 +31,7 @@ impl BaseTimeManager {
         StandardHeader::of_type(PacketType::Ping).ser(&mut writer);
 
         // Record ping
-        let ping_index = self.sent_pings.push_new(self.game_time_now());
+        let ping_index = self.sent_pings.push_new(Instant::now());
 
         // write index
         ping_index.ser(&mut writer);
@@ -78,9 +74,9 @@ impl BaseTimeManager {
     pub fn read_pong(
         &mut self,
         reader: &mut BitReader,
-    ) -> Result<Option<(i32, u32)>, SerdeErr> {
+    ) -> Result<Option<f32>, SerdeErr> {
         // important to record receipt time ASAP
-        let client_received_time = self.game_time_now();
+        let client_received_time = Instant::now();
 
         // read ping index
         let ping_index = PingIndex::de(reader)?;
@@ -93,42 +89,16 @@ impl BaseTimeManager {
             return Err(SerdeErr);
         };
 
-        // read server received time
-        let server_received_time = GameInstant::de(reader)?;
-
-        // read server sent time
-        let server_sent_time = GameInstant::de(reader)?;
-
         // if this is the most recent Ping or the 1st ping, apply values
         if ping_index > self.most_recent_ping || self.never_been_pinged {
             self.never_been_pinged = false;
             self.most_recent_ping = ping_index;
 
-            let send_offset_millis = server_received_time.offset_from(&client_sent_time);
-            let recv_offset_millis = server_sent_time.offset_from(&client_received_time);
-
-            let round_trip_time_millis = client_received_time
-                .time_since(&client_sent_time)
-                .as_millis();
-            let server_process_time_millis = server_sent_time
-                .time_since(&server_received_time)
-                .as_millis();
-
-            // Final values
-            let time_offset_millis = (send_offset_millis + recv_offset_millis) / 2;
-            let round_trip_delay_millis = round_trip_time_millis - server_process_time_millis;
-
-            return Ok(Some((
-                time_offset_millis,
-                round_trip_delay_millis,
-            )));
+            let rtt = client_received_time - client_sent_time;
+            return Ok(Some(1_000.0 * rtt.as_secs_f32()));
         }
 
         return Ok(None);
-    }
-
-    fn game_time_now(&self) -> GameInstant {
-        GameInstant::new(&self.start_instant)
     }
 
     pub fn sent_pings_clear(&mut self) {

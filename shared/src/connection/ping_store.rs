@@ -1,5 +1,5 @@
-use crate::{GameInstant, SeqNum};
-use std::collections::VecDeque;
+use crate::SeqNum;
+use std::{collections::VecDeque, time::Instant};
 
 pub type PingIndex = SeqNum;
 
@@ -9,7 +9,7 @@ pub struct PingStore {
     ping_index: PingIndex,
     // front big, back small
     // front recent, back past
-    buffer: VecDeque<(PingIndex, GameInstant)>,
+    buffer: VecDeque<(PingIndex, Instant)>,
 }
 
 impl PingStore {
@@ -20,7 +20,7 @@ impl PingStore {
         }
     }
 
-    pub fn push_new(&mut self, now: GameInstant) -> PingIndex {
+    pub fn push_new(&mut self, now: Instant) -> PingIndex {
         // save current ping index and add a new ping instant associated with it
         let ping_index = self.ping_index;
         self.ping_index.incr();
@@ -34,7 +34,7 @@ impl PingStore {
         ping_index
     }
 
-    pub fn remove(&mut self, ping_index: PingIndex) -> Option<GameInstant> {
+    pub fn remove(&mut self, ping_index: PingIndex) -> Option<Instant> {
         let mut vec_index = self.buffer.len();
 
         if vec_index == 0 {
