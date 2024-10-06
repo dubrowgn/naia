@@ -136,45 +136,16 @@ impl Client {
                 return std::mem::take(&mut self.incoming_events);
             }
 
-            let (receiving_tick_happened, sending_tick_happened) =
-                connection.time_manager.collect_ticks();
+			if connection
+				.read_buffered_packets(&self.protocol)
+				.is_err()
+			{
+				// TODO: Except for cosmic radiation .. Server should never send a malformed packet .. handle this
+				warn!("Error reading from buffered packet!");
+			}
 
-            if let Some((prev_receiving_tick, current_receiving_tick)) = receiving_tick_happened {
-                // read packets on tick boundary, de-jittering
-                if connection
-                    .read_buffered_packets(&self.protocol)
-                    .is_err()
-                {
-                    // TODO: Except for cosmic radiation .. Server should never send a malformed packet .. handle this
-                    warn!("Error reading from buffered packet!");
-                }
-
-                // receive packets, process into events
-                connection.process_packets(&mut self.incoming_events);
-
-                let mut index_tick = prev_receiving_tick + 1;
-                loop {
-                    self.incoming_events.push(ClientEvent::ServerTick(index_tick));
-
-                    if index_tick == current_receiving_tick {
-                        break;
-                    }
-                    index_tick.incr();
-                }
-            }
-
-            if let Some((prev_sending_tick, current_sending_tick)) = sending_tick_happened {
-                // insert tick events in total range
-                let mut index_tick = prev_sending_tick + 1;
-                loop {
-                    self.incoming_events.push(ClientEvent::ClientTick(index_tick));
-
-                    if index_tick == current_sending_tick {
-                        break;
-                    }
-                    index_tick.incr();
-                }
-            }
+			// receive packets, process into events
+			connection.process_packets(&mut self.incoming_events);
         } else {
             self.handshake_manager
                 .send(&self.protocol.message_kinds, &mut self.io);
