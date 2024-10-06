@@ -575,11 +575,7 @@ impl Server {
 
         match header.packet_type {
             PacketType::Data => {
-                // read client tick
-                let client_tick = Tick::de(reader)?;
-
-                // process data
-                connection.read_packet(&self.protocol, client_tick, reader)?;
+                connection.read_packet(&self.protocol, reader)?;
             }
             PacketType::Disconnect => {
                 if self

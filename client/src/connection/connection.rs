@@ -110,22 +110,14 @@ impl Connection {
         let mut writer = BitWriter::new();
 
         // Reserve bits we know will be required to finish the message:
-        // 1. Tick buffer finish bit
-        // 2. Messages finish bit
-        // 3. Updates finish bit
-        // 4. Actions finish bit
-        writer.reserve_bits(4);
+        // 1. Messages finish bit
+        writer.reserve_bits(1);
 
         // write header
         self.base.write_header(PacketType::Data, &mut writer);
 
-        // write client tick
-        let client_tick: Tick = self.time_manager.client_sending_tick;
-        client_tick.ser(&mut writer);
-
-        let mut has_written = false;
-
         // write common parts of packet (messages & world events)
+        let mut has_written = false;
         self.base.write_packet(
             protocol,
             &mut writer,

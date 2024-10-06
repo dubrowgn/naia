@@ -4,7 +4,7 @@ use log::warn;
 
 use naia_shared::{
     BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig,
-	HostType, PacketType, Protocol, Serde, SerdeErr, StandardHeader, Tick,
+	HostType, PacketType, Protocol, Serde, SerdeErr, StandardHeader,
 };
 
 use crate::{
@@ -58,7 +58,6 @@ impl Connection {
     pub fn read_packet(
         &mut self,
         protocol: &Protocol,
-        _client_tick: Tick, // FIXME
         reader: &mut BitReader,
     ) -> Result<(), SerdeErr> {
         // read common parts of packet (messages & world events)
