@@ -1,7 +1,7 @@
 use log::warn;
 use naia_shared::{
-    BitReader, BitWriter, GameDuration, GameInstant, PacketType,
-    PingIndex, PingStore, Serde, SerdeErr, StandardHeader, UnsignedVariableInteger,
+    BitReader, BitWriter, GameInstant, PacketType,
+    PingIndex, PingStore, Serde, SerdeErr, StandardHeader,
 };
 
 use crate::connection::{connection::Connection, io::Io};
@@ -78,7 +78,7 @@ impl BaseTimeManager {
     pub fn read_pong(
         &mut self,
         reader: &mut BitReader,
-    ) -> Result<Option<(f32, f32, i32, u32)>, SerdeErr> {
+    ) -> Result<Option<(i32, u32)>, SerdeErr> {
         // important to record receipt time ASAP
         let client_received_time = self.game_time_now();
 
@@ -95,13 +95,6 @@ impl BaseTimeManager {
 
         // read server received time
         let server_received_time = GameInstant::de(reader)?;
-
-        // read average tick duration
-        // convert from microseconds to milliseconds
-        let tick_duration_avg = (UnsignedVariableInteger::<9>::de(reader)?.get() as f32) / 1000.0;
-
-        let tick_speeedup_potential =
-            (UnsignedVariableInteger::<9>::de(reader)?.get() as f32) / 1000.0;
 
         // read server sent time
         let server_sent_time = GameInstant::de(reader)?;
@@ -126,8 +119,6 @@ impl BaseTimeManager {
             let round_trip_delay_millis = round_trip_time_millis - server_process_time_millis;
 
             return Ok(Some((
-                tick_duration_avg,
-                tick_speeedup_potential,
                 time_offset_millis,
                 round_trip_delay_millis,
             )));
@@ -136,12 +127,8 @@ impl BaseTimeManager {
         return Ok(None);
     }
 
-    pub fn game_time_now(&self) -> GameInstant {
+    fn game_time_now(&self) -> GameInstant {
         GameInstant::new(&self.start_instant)
-    }
-
-    pub fn game_time_since(&self, previous_instant: &GameInstant) -> GameDuration {
-        self.game_time_now().time_since(previous_instant)
     }
 
     pub fn sent_pings_clear(&mut self) {

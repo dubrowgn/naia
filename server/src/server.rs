@@ -2,14 +2,14 @@ use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
     panic,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use log::warn;
 
 use naia_shared::{
     BitReader, BitWriter, Channel, ChannelKind, IdPool, Message, MessageContainer,
-	PacketType, Protocol, Serde, SerdeErr, SocketConfig, StandardHeader, Tick, Timer,
+	PacketType, Protocol, Serde, SerdeErr, SocketConfig, StandardHeader, Timer,
 };
 
 use crate::{
@@ -57,7 +57,7 @@ impl Server {
         let mut protocol: Protocol = protocol.into();
         protocol.lock();
 
-        let time_manager = TimeManager::new(protocol.tick_interval);
+        let time_manager = TimeManager::new();
 
         let io = Io::new(
             &server_config.connection.bandwidth_measure_duration,
@@ -271,7 +271,6 @@ impl Server {
                 &self.protocol,
                 &now,
                 &mut self.io,
-                &self.time_manager,
             );
         }
     }
@@ -313,18 +312,6 @@ impl Server {
     /// Get the number of Users currently connected
     pub fn users_count(&self) -> usize {
         self.users.len()
-    }
-
-    // Ticks
-
-    /// Gets the current tick of the Server
-    pub fn current_tick(&self) -> Tick {
-        return self.time_manager.current_tick();
-    }
-
-    /// Gets the current average tick duration of the Server
-    pub fn average_tick_duration(&self) -> Duration {
-        self.time_manager.average_tick_duration()
     }
 
     // Bandwidth monitoring
@@ -647,12 +634,6 @@ impl Server {
                         .base
                         .write_header(PacketType::Heartbeat, &mut writer);
 
-                    // write server tick
-                    self.time_manager.current_tick().ser(&mut writer);
-
-                    // write server tick instant
-                    self.time_manager.current_tick_instant().ser(&mut writer);
-
                     // send packet
                     if self
                         .io
@@ -683,12 +664,6 @@ impl Server {
 
                     // write header
                     connection.base.write_header(PacketType::Ping, &mut writer);
-
-                    // write server tick
-                    self.time_manager.current_tick().ser(&mut writer);
-
-                    // write server tick instant
-                    self.time_manager.current_tick_instant().ser(&mut writer);
 
                     // write body
                     connection

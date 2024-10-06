@@ -4,13 +4,12 @@ use log::warn;
 
 use naia_shared::{
     BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig,
-	HostType, PacketType, Protocol, Serde, SerdeErr, StandardHeader,
+	HostType, PacketType, Protocol, SerdeErr, StandardHeader,
 };
 
 use crate::{
     connection::{io::Io, ping_config::PingConfig},
     events::ServerEvent,
-    time_manager::TimeManager,
     user::UserKey,
 };
 
@@ -84,18 +83,13 @@ impl Connection {
         protocol: &Protocol,
         now: &Instant,
         io: &mut Io,
-        time_manager: &TimeManager,
     ) {
         let rtt_millis = self.ping_manager.rtt_average;
         self.base.collect_messages(now, &rtt_millis);
 
         let mut any_sent = false;
         loop {
-            if self.send_packet(
-                protocol,
-                io,
-                time_manager,
-            ) {
+            if self.send_packet(protocol, io) {
                 any_sent = true;
             } else {
                 break;
@@ -112,13 +106,9 @@ impl Connection {
         &mut self,
         protocol: &Protocol,
         io: &mut Io,
-        time_manager: &TimeManager,
     ) -> bool {
         if self.base.message_manager.has_outgoing_messages() {
-            let writer = self.write_packet(
-                protocol,
-                time_manager,
-            );
+            let writer = self.write_packet(protocol);
 
             // send packet
             if io.send_packet(&self.address, writer.to_packet()).is_err() {
@@ -132,29 +122,17 @@ impl Connection {
         false
     }
 
-    fn write_packet(
-        &mut self,
-        protocol: &Protocol,
-        time_manager: &TimeManager,
-    ) -> BitWriter {
+    fn write_packet(&mut self, protocol: &Protocol) -> BitWriter {
         let next_packet_index = self.base.next_packet_index();
 
         let mut writer = BitWriter::new();
 
         // Reserve bits we know will be required to finish the message:
         // 1. Messages finish bit
-        // 2. Updates finish bit
-        // 3. Actions finish bit
-        writer.reserve_bits(3);
+        writer.reserve_bits(1);
 
         // write header
         self.base.write_header(PacketType::Data, &mut writer);
-
-        // write server tick
-        time_manager.current_tick().ser(&mut writer);
-
-        // write server tick instant
-        time_manager.current_tick_instant().ser(&mut writer);
 
         // write common data packet
         let mut has_written = false;

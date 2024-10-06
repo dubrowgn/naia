@@ -2,8 +2,8 @@ use std::{collections::VecDeque, net::SocketAddr};
 
 use log::warn;
 use naia_shared::{
-    BitWriter, Channel, ChannelKind, GameInstant, Message, MessageContainer,
-	PacketType, Protocol, Serde, SocketConfig, StandardHeader, Tick,
+    BitWriter, Channel, ChannelKind, Message, MessageContainer,
+	PacketType, Protocol, Serde, SocketConfig, StandardHeader,
 };
 
 use std::time::Instant;
@@ -222,42 +222,6 @@ impl Client {
             .time_manager.jitter()
     }
 
-    // Ticks
-
-    /// Gets the current tick of the Client
-    pub fn client_tick(&self) -> Option<Tick> {
-        if let Some(connection) = &self.server_connection {
-            return Some(connection.time_manager.client_sending_tick);
-        }
-        return None;
-    }
-
-    /// Gets the current tick of the Server
-    pub fn server_tick(&self) -> Option<Tick> {
-        if let Some(connection) = &self.server_connection {
-            return Some(connection.time_manager.client_receiving_tick);
-        }
-        return None;
-    }
-
-    // Interpolation
-
-    /// Gets the interpolation tween amount for the current frame, for use by entities on the Client Tick (i.e. predicted)
-    pub fn client_interpolation(&self) -> Option<f32> {
-        if let Some(connection) = &self.server_connection {
-            return Some(connection.time_manager.client_interpolation());
-        }
-        return None;
-    }
-
-    /// Gets the interpolation tween amount for the current frame, for use by entities on the Server Tick (i.e. authoritative)
-    pub fn server_interpolation(&self) -> Option<f32> {
-        if let Some(connection) = &self.server_connection {
-            return Some(connection.time_manager.server_interpolation());
-        }
-        return None;
-    }
-
     // Bandwidth monitoring
     pub fn outgoing_bandwidth(&mut self) -> f32 {
         self.io.outgoing_bandwidth()
@@ -360,22 +324,6 @@ impl Client {
                     // Read incoming header
                     connection.process_incoming_header(&header);
 
-                    // read server tick
-                    let Ok(server_tick) = Tick::de(&mut reader) else {
-                        warn!("unable to parse server_tick from packet");
-                        continue;
-                    };
-
-                    // read time since last tick
-                    let Ok(server_tick_instant) = GameInstant::de(&mut reader) else {
-                        warn!("unable to parse server_tick_instant from packet");
-                        continue;
-                    };
-
-                    connection
-                        .time_manager
-                        .recv_tick_instant(&server_tick, &server_tick_instant);
-
                     // Handle based on PacketType
                     match header.packet_type {
                         PacketType::Data => {
@@ -403,8 +351,7 @@ impl Client {
                             }
                         }
                         _ => {
-                            // no other packet types matter when connection
-                            // is established
+                            // no other packet types matter when connection is established
                         }
                     }
                 }

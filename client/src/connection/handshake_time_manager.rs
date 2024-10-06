@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use naia_shared::{BitReader, GameInstant, Serde, SerdeErr, Tick, GAME_TIME_LIMIT};
+use naia_shared::{BitReader, SerdeErr, GAME_TIME_LIMIT};
 
 use crate::connection::{base_time_manager::BaseTimeManager, io::Io, time_manager::TimeManager};
 
@@ -9,25 +9,16 @@ pub struct HandshakeTimeManager {
     handshake_pings: u8,
     ping_interval: Duration,
     pong_stats: Vec<(f32, f32)>,
-    server_tick: Tick,
-    server_tick_instant: GameInstant,
-    server_tick_duration_avg: f32,
-    server_speedup_potential: f32,
 }
 
 impl HandshakeTimeManager {
     pub fn new(ping_interval: Duration, handshake_pings: u8) -> Self {
         let base = BaseTimeManager::new();
-        let server_tick_instant = base.game_time_now();
         Self {
             base,
             ping_interval,
             handshake_pings,
             pong_stats: Vec::new(),
-            server_tick: Tick::ZERO,
-            server_tick_instant,
-            server_tick_duration_avg: 0.0,
-            server_speedup_potential: 0.0,
         }
     }
 
@@ -36,35 +27,16 @@ impl HandshakeTimeManager {
     }
 
     pub(crate) fn read_pong(&mut self, reader: &mut BitReader) -> Result<bool, SerdeErr> {
-        // read server tick
-        let server_tick = Tick::de(reader)?;
-
-        // read time since last tick
-        let server_tick_instant = GameInstant::de(reader)?;
-
-        if let Some((duration_avg, speedup_potential, offset_millis, rtt_millis)) =
+        if let Some((offset_millis, rtt_millis)) =
             self.base.read_pong(reader)?
         {
-            self.server_tick = server_tick;
-            self.server_tick_instant = server_tick_instant;
-            self.server_tick_duration_avg = duration_avg;
-            self.server_speedup_potential = speedup_potential;
-
-            self.buffer_stats(offset_millis, rtt_millis);
+			self.pong_stats.push((offset_millis as f32, rtt_millis as f32));
             if self.pong_stats.len() >= self.handshake_pings as usize {
                 return Ok(true);
             }
         }
 
         return Ok(false);
-    }
-
-    fn buffer_stats(&mut self, time_offset_millis: i32, rtt_millis: u32) {
-        let time_offset_millis_f32 = time_offset_millis as f32;
-        let rtt_millis_f32 = rtt_millis as f32;
-
-        self.pong_stats
-            .push((time_offset_millis_f32, rtt_millis_f32));
     }
 
     // This happens when a necessary # of handshake pongs have been recorded
@@ -86,20 +58,13 @@ impl HandshakeTimeManager {
         rtt_mean /= sample_count;
 
         // Find the Variance
-        let mut offset_diff_mean = 0.0;
         let mut rtt_diff_mean = 0.0;
 
-        for (time_offset_millis, rtt_millis) in &pongs {
-            offset_diff_mean += (*time_offset_millis - offset_mean).powi(2);
-            rtt_diff_mean += (*rtt_millis - rtt_mean).powi(2);
+        for (_, rtt_millis) in &pongs {
+            rtt_diff_mean += f32::abs(*rtt_millis - rtt_mean);
         }
 
-        offset_diff_mean /= sample_count;
         rtt_diff_mean /= sample_count;
-
-        // Find the Standard Deviation
-        let offset_stdv = offset_diff_mean.sqrt();
-        let rtt_stdv = rtt_diff_mean.sqrt();
 
         // Get values we were looking for
 
@@ -120,13 +85,8 @@ impl HandshakeTimeManager {
         TimeManager::from_parts(
             self.ping_interval,
             self.base,
-            self.server_tick,
-            self.server_tick_instant,
-            self.server_tick_duration_avg,
-            self.server_speedup_potential,
             rtt_mean,
-            rtt_stdv,
-            offset_stdv,
+            rtt_diff_mean,
         )
     }
 }
