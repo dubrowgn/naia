@@ -1,5 +1,5 @@
 use crate::NaiaServerError;
-use naia_shared::{MessageContainer, Tick};
+use naia_shared::MessageContainer;
 use super::user::{User, UserKey};
 
 pub enum ServerEvent {
@@ -8,5 +8,4 @@ pub enum ServerEvent {
 	Disconnect{ user_key: UserKey, user: User },
 	Error(NaiaServerError),
 	Message{ user_key: UserKey, msg: MessageContainer },
-	Tick(Tick),
 }

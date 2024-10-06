@@ -10,8 +10,6 @@ pub struct TimeManager {
     start_instant: Instant,
     current_tick: Tick,
     last_tick_game_instant: GameInstant,
-    last_tick_instant: Instant,
-    tick_interval: Duration,
     tick_duration_avg: f32,
     tick_duration_avg_min: f32,
     tick_duration_avg_max: f32,
@@ -22,7 +20,6 @@ impl TimeManager {
     /// Create a new TickManager with a given tick interval duration
     pub fn new(tick_interval: Duration) -> Self {
         let start_instant = Instant::now();
-        let last_tick_instant = start_instant.clone();
         let last_tick_game_instant = GameInstant::new(&start_instant);
         let tick_duration_avg = tick_interval.as_secs_f32() * 1000.0;
 
@@ -30,34 +27,11 @@ impl TimeManager {
             start_instant,
             current_tick: Tick::ZERO,
             last_tick_game_instant,
-            last_tick_instant,
-            tick_interval,
             tick_duration_avg,
             tick_duration_avg_min: tick_duration_avg,
             tick_duration_avg_max: tick_duration_avg,
             tick_speedup_potential: 0.0,
         }
-    }
-
-    // pub(crate) fn duration_until_next_tick(&self) -> Duration {
-    //     let mut new_instant = self.last_tick_instant.clone();
-    //     new_instant.add_millis(self.tick_interval_millis as u32);
-    //     return new_instant.until();
-    // }
-
-    /// Whether or not we should emit a tick event
-    pub fn recv_server_tick(&mut self) -> bool {
-		let elapsed = self.last_tick_instant.elapsed();
-		if elapsed < self.tick_interval {
-			return false;
-		}
-
-		self.record_tick_duration(self.tick_interval.as_secs_f32() * 1_000.0);
-		self.last_tick_instant += self.tick_interval;
-		self.last_tick_game_instant = self.game_time_now();
-		self.current_tick.incr();
-
-		return true;
     }
 
     /// Gets the current tick of the Server

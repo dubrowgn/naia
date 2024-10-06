@@ -111,12 +111,6 @@ impl Server {
         // until none left
         self.maintain_socket();
 
-        // tick event
-        while self.time_manager.recv_server_tick() {
-			self.incoming_events
-				.push(ServerEvent::Tick(self.time_manager.current_tick()));
-        }
-
         // return all received messages and reset the buffer
         std::mem::take(&mut self.incoming_events)
     }
