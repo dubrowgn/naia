@@ -43,7 +43,7 @@ pub use connection::{
 };
 pub use messages::{
     channels::{
-        channel::{Channel, ChannelDirection, ChannelMode, ReliableSettings, TickBufferSettings},
+        channel::{Channel, ChannelDirection, ChannelMode, ReliableSettings},
         channel_kinds::{ChannelKind, ChannelKinds},
         receivers::{
             channel_receiver::ChannelReceiver, ordered_reliable_receiver::OrderedReliableReceiver,

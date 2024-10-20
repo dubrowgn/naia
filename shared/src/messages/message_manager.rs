@@ -81,9 +81,6 @@ impl MessageManager {
                         )),
                     );
                 }
-                ChannelMode::TickBuffered(_) => {
-                    // Tick buffered channel uses another manager, skip
-                }
             };
         }
 
@@ -133,9 +130,6 @@ impl MessageManager {
                         channel_kind.clone(),
                         Box::new(OrderedReliableReceiver::new()),
                     );
-                }
-                ChannelMode::TickBuffered(_) => {
-                    // Tick buffered channel uses another manager, skip
                 }
             };
         }

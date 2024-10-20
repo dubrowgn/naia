@@ -10,10 +10,6 @@ pub struct ChannelSettings {
 
 impl ChannelSettings {
     pub fn new(mode: ChannelMode, direction: ChannelDirection) -> Self {
-        if mode.tick_buffered() && direction != ChannelDirection::ClientToServer {
-            panic!("TickBuffered Messages are only allowed to be sent from Client to Server");
-        }
-
         Self { mode, direction }
     }
 
@@ -24,12 +20,7 @@ impl ChannelSettings {
             ChannelMode::UnorderedReliable(_) => true,
             ChannelMode::SequencedReliable(_) => true,
             ChannelMode::OrderedReliable(_) => true,
-            ChannelMode::TickBuffered(_) => false,
         }
-    }
-
-    pub fn tick_buffered(&self) -> bool {
-        self.mode.tick_buffered()
     }
 
     pub fn can_send_to_server(&self) -> bool {
@@ -64,21 +55,6 @@ impl ReliableSettings {
 }
 
 #[derive(Clone)]
-pub struct TickBufferSettings {
-    /// Describes a maximum of messages that may be kept in the buffer.
-    /// Oldest messages are pruned out first.
-    pub message_capacity: usize,
-}
-
-impl TickBufferSettings {
-    pub const fn default() -> Self {
-        Self {
-            message_capacity: 64,
-        }
-    }
-}
-
-#[derive(Clone)]
 pub enum ChannelMode {
     /// Messages can be dropped, duplicated and/or arrive in any order.
     /// Resend=no, Dedupe=no, Order=no
@@ -102,22 +78,6 @@ pub enum ChannelMode {
     /// Messages arrive in order and without duplicates.
     /// Resend=yes, Dedupe=yes, Order=yes
     OrderedReliable(ReliableSettings),
-
-    /// Per-tick message buffering, useful for predictive client applications. The Client
-    /// ticks "ahead in the future" of the Server and dilates its clock such that the
-    /// Server should always have a buffer of messages to read from for each player on
-    /// each and every Tick. Messages for which the Client hasn't received an ACK are
-    /// pro-actively sent every single Tick until receiving that receipt or it is measured
-    /// that the Tick has passed on the Server. This avoids typical resend latency in the
-    /// event of dropped packets, but also means messages can be lost in the worst case.
-    /// Note: can only be sent from client-to-server
-    TickBuffered(TickBufferSettings),
-}
-
-impl ChannelMode {
-    pub fn tick_buffered(&self) -> bool {
-        matches!(self, ChannelMode::TickBuffered(_))
-    }
 }
 
 // ChannelDirection

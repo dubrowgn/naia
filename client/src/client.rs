@@ -174,10 +174,6 @@ impl Client {
             panic!("Cannot send message to Server on this Channel");
         }
 
-        if channel_settings.tick_buffered() {
-            panic!("Cannot call `Client.send_message()` on a Tick Buffered Channel, use `Client.send_tick_buffered_message()` instead");
-        }
-
         if let Some(connection) = &mut self.server_connection {
             let message = MessageContainer::from_write(message_box);
             connection.base.message_manager.send_message(
