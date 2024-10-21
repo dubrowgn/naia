@@ -5,41 +5,37 @@ use specifically with deterministic lockstep applications.
 
 ## Major changes/improvements
 
-* Code base reduced from ~39k lines of rust to ~14.7k (as of 2024-09-13)
+* Code base reduced from ~39k lines of rust to ~11.8k (as of 2024-10-21)
 * Removed bevy, hecs, and miniquad from naia core (no more naia changes necessary
   after new bevy/hecs/miniquad releases)
 * Removed entity replication; Entity replication is a huge chunk of the naia
   implementation. Deterministic applications don't benefit from these features.
-  (removed ~14,500 LoC)
+  (~14.5k LoC)
+* Removed tick buffered messages; These tend to be tighly coupled to the
+  application, and can be implmented on top of the other networking channels. This
+  removes a large amount of special casing in naia, and can be implemented
+  at the application level more robustly with a fraction of the code. (~2.5k LoC)
 * Removed WASM
-* Full support for client and server being in the same process.
+* Full support for client and server being in the same process
+* Messages are actually recieved in order, which allows deterministic applications
+* Split send and receive operations
 
 ## Other improvements
 
-* Removed user rooms
-* Removed command history
 * Various bug fixes
-    * Division by zero during connection when RTT ~0ms
+* Dramatically improved best case latency
+	* Immediate batch send avoids waiting a full tick duration in several places
+	* Best case RTT is now ~0-2ms (depending on application), instead of ~100ms
+* Reduced wait time between initial heartbeats (removes ~2.5s durting connect)
+* Removed a bunch of smaller items:
+	* user rooms
+	* command history
+	* BigMap
+	* and a lot more
 
-## Why fork naia?
+## To do (As of 2024-10-21)
 
-As of this writing, the upstream naia repo hasn't merged even trivial pull
-requests in over a year. That combined with the fact that some of the features
-and improvements require changes to the naia API means we need to fork it.
-
-## To do (As of 2024-08-31)
-
-* Split send, receive, and tick generation
-* Improve latecy
-    * Immediately send packets instead of waiting for next tick (reduce RTT by
-      &gt;=2 ticks)
-    * Tighten send/receive timing estimates
-    * Reduce wait time between initial heartbeats (removes ~2.5s durting
-      connect)
-* Various bug fixes
-    * Fully expose server configuration
-    * Don't discard messages for the current tick (client)
-    * Actually apply link conditioning
-* Replace BigMap with simple incrementing Id
-	* u32 instead of u64?
-	* handle wrap around
+* Fully expose server configuration
+* Use a u32 IdPool for UserKey
+* Fix data packets drop race condition on connect
+* Fix building with UDP still depends on webrtc
