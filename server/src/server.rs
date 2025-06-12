@@ -512,14 +512,12 @@ impl Server {
                             address
                         );
                     };
-                    //
-                } else {
-                    let user_key = *self
-                        .validated_users
-                        .get(address)
-						.unwrap_or_else(|| panic!("{} should be a user by now, from validation step", address));
+                } else if let Some(&user_key) = self.validated_users.get(address) {
                     self.finalize_connection(&user_key);
-                }
+                } else {
+					warn!("Dropping connect request from {}, which is not validated", address);
+				}
+
                 return Ok(true);
             }
             PacketType::Ping => {
