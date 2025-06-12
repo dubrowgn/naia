@@ -473,13 +473,7 @@ impl Server {
                     address,
                     reader,
                 ) {
-                     HandshakeResult::Success(auth_message_opt) => 'match_arm: {
-						let Some(user_key) = self.user_id_pool.get() else {
-							// too many connected users; reject request
-							// TODO -- send rejection?
-							break 'match_arm;
-						};
-
+                     HandshakeResult::Success(auth_message_opt) => {
                         if self.validated_users.contains_key(address) {
                             // send validate response
                             let writer = self.handshake_manager.write_validate_response();
@@ -487,7 +481,7 @@ impl Server {
                                 // TODO: pass this on and handle above
                                 warn!("Server Error: Cannot send validate success response packet to {}", &address);
                             };
-                        } else {
+                        } else if let Some(user_key) = self.user_id_pool.get() {
                             let user = User::new(*address);
                             self.users.insert(user_key, user);
 
@@ -496,6 +490,9 @@ impl Server {
                             } else {
                                 self.accept_connection(&user_key);
                             }
+                        } else {
+							// too many connected users; reject request
+							// TODO -- send rejection w/ reason
                         }
                     }
                     HandshakeResult::Invalid => {
@@ -520,7 +517,7 @@ impl Server {
                     let user_key = *self
                         .validated_users
                         .get(address)
-                        .expect("should be a user by now, from validation step");
+						.unwrap_or_else(|| panic!("{} should be a user by now, from validation step", address));
                     self.finalize_connection(&user_key);
                 }
                 return Ok(true);
