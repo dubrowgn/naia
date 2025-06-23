@@ -106,7 +106,24 @@ impl HandshakeManager {
         writer
     }
 
-    // Step 5 of Handshake
+	// Step 5 of Handshake
+	pub fn recv_connect_request(
+		&mut self, message_kinds: &MessageKinds, reader: &mut BitReader,
+	) -> HandshakeResult {
+		// Check if we have a message
+		match bool::de(reader) {
+			Ok(false) => return HandshakeResult::Success(None),
+			Err(_) => return HandshakeResult::Invalid,
+			_ => { }
+		}
+
+		match message_kinds.read(reader) {
+			Ok(msg) => HandshakeResult::Success(Some(msg)),
+			Err(_) => HandshakeResult::Invalid,
+		}
+	}
+
+    // Step 6 of Handshake
     pub(crate) fn write_connect_response(&self) -> BitWriter {
         let mut writer = BitWriter::new();
         StandardHeader::of_type(PacketType::ServerConnectResponse).ser(&mut writer);

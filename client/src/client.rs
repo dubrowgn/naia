@@ -73,10 +73,13 @@ impl Client {
     }
 
     /// Connect to the given server address
-    pub fn connect<S: Into<Box<dyn Socket>>>(&mut self, socket: S) {
+    pub fn connect<S: Into<Box<dyn Socket>>, M: Message>(&mut self, socket: S, msg: M) {
         if !self.is_disconnected() {
             panic!("Client has already initiated a connection, cannot initiate a new one. TIP: Check client.is_disconnected() before calling client.connect()");
         }
+
+		self.handshake_manager.set_connect_message(MessageContainer::from_write(Box::new(msg)));
+
         let boxed_socket: Box<dyn Socket> = socket.into();
         let (packet_sender, packet_receiver) = boxed_socket.connect();
         self.io.load(packet_sender, packet_receiver);

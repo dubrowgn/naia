@@ -53,6 +53,7 @@ pub struct HandshakeManager {
     pre_connection_timestamp: Timestamp,
     pre_connection_digest: Option<Vec<u8>>,
     auth_message: Option<MessageContainer>,
+    connect_message: Option<MessageContainer>,
 }
 
 impl HandshakeManager {
@@ -71,13 +72,18 @@ impl HandshakeManager {
             pre_connection_digest: None,
             connection_state: HandshakeState::AwaitingChallengeResponse,
             auth_message: None,
+            connect_message: None,
             ping_interval,
             handshake_pings,
         }
     }
 
-    pub fn set_auth_message(&mut self, auth: MessageContainer) {
-        self.auth_message = Some(auth);
+    pub fn set_auth_message(&mut self, msg: MessageContainer) {
+        self.auth_message = Some(msg);
+    }
+
+    pub fn set_connect_message(&mut self, msg: MessageContainer) {
+        self.connect_message = Some(msg);
     }
 
     pub fn is_connected(&self) -> bool {
@@ -114,7 +120,7 @@ impl HandshakeManager {
                     time_manager.send_ping(io);
                 }
                 HandshakeState::AwaitingConnectResponse(_) => {
-                    let writer = self.write_connect_request();
+                    let writer = self.write_connect_request(message_kinds);
                     if io.send_packet(writer.to_packet()).is_err() {
                         // TODO: pass this on and handle above
                         warn!("Client Error: Cannot send connect request packet to Server");
@@ -247,9 +253,18 @@ impl HandshakeManager {
     }
 
     // Step 5 of Handshake
-    pub fn write_connect_request(&self) -> BitWriter {
+    pub fn write_connect_request(&self, message_kinds: &MessageKinds) -> BitWriter {
         let mut writer = BitWriter::new();
         StandardHeader::of_type(PacketType::ClientConnectRequest).ser(&mut writer);
+
+		if let Some(connect_message) = &self.connect_message {
+            // write that we have a message
+            true.ser(&mut writer);
+			connect_message.write(message_kinds, &mut writer);
+		} else {
+			// write that we do not have a message
+			false.ser(&mut writer);
+		}
 
         writer
     }

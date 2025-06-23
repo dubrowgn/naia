@@ -5,7 +5,7 @@ use std::{
     time::Instant,
 };
 
-use log::warn;
+use log::{trace, warn};
 
 use naia_shared::{
     BitReader, BitWriter, Channel, ChannelKind, IdPool, Message, MessageContainer,
@@ -142,7 +142,7 @@ impl Server {
         self.validated_users.insert(user.address, *user_key);
     }
 
-    fn finalize_connection(&mut self, user_key: &UserKey) {
+    fn finalize_connection(&mut self, user_key: &UserKey, msg: Option<MessageContainer>) {
         let Some(user) = self.users.get(user_key) else {
             warn!("unknown user is finalizing connection...");
             return;
@@ -173,7 +173,7 @@ impl Server {
         if self.io.bandwidth_monitor_enabled() {
             self.io.register_client(&user.address);
         }
-        self.incoming_events.push(ServerEvent::Connect(*user_key));
+        self.incoming_events.push(ServerEvent::Connect{ user_key: *user_key, msg });
     }
 
     /// Rejects an incoming Client User, terminating their attempt to establish
@@ -496,26 +496,36 @@ impl Server {
                         }
                     }
                     HandshakeResult::Invalid => {
-                        // do nothing
+						trace!("Dropping invalid validate request from {}", address);
                     }
                 }
                 return Ok(true);
             }
             PacketType::ClientConnectRequest => {
-                if self.user_connections.contains_key(address) {
-                    // send connect response
-                    let writer = self.handshake_manager.write_connect_response();
-                    if self.io.send_packet(address, writer.to_packet()).is_err() {
-                        // TODO: pass this on and handle above
-                        warn!(
-                            "Server Error: Cannot send connect success response packet to {}",
-                            address
-                        );
-                    };
-                } else if let Some(&user_key) = self.validated_users.get(address) {
-                    self.finalize_connection(&user_key);
-                } else {
-					warn!("Dropping connect request from {}, which is not validated", address);
+				match self.handshake_manager.recv_connect_request(
+					&self.protocol.message_kinds,
+					reader,
+				) {
+					HandshakeResult::Success(msg) => {
+						if self.user_connections.contains_key(address) {
+							// send connect response
+							let writer = self.handshake_manager.write_connect_response();
+							if self.io.send_packet(address, writer.to_packet()).is_err() {
+								// TODO: pass this on and handle above
+								warn!(
+									"Server Error: Cannot send connect success response packet to {}",
+									address
+								);
+							};
+						} else if let Some(&user_key) = self.validated_users.get(address) {
+							self.finalize_connection(&user_key, msg);
+						} else {
+							warn!("Dropping connect request from {}, which is not validated", address);
+						}
+					}
+					HandshakeResult::Invalid => {
+						trace!("Dropping invalid connect request from {}", address);
+					}
 				}
 
                 return Ok(true);
