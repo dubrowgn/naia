@@ -1,9 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    net::SocketAddr,
-    panic,
-    time::Instant,
-};
+use std::{collections::{HashMap, HashSet}, net::SocketAddr, panic, time::Instant};
 
 use log::{trace, warn};
 
@@ -17,9 +12,7 @@ use crate::{
         connection::Connection,
         handshake_manager::{HandshakeManager, HandshakeResult},
         io::Io,
-    },
-    time_manager::TimeManager,
-    transport::Socket, ServerEvent,
+    }, time_manager::TimeManager, transport::Socket, ConnectContext, ServerEvent
 };
 
 use super::{
@@ -44,7 +37,7 @@ pub struct Server {
     users: HashMap<UserKey, User>,
 	user_id_pool: IdPool<UserKey>,
     user_connections: HashMap<SocketAddr, Connection>,
-    validated_users: HashMap<SocketAddr, UserKey>,
+	user_keys: HashMap<SocketAddr, UserKey>,
     // Events
     incoming_events: Vec<ServerEvent>,
     // Ticks
@@ -73,12 +66,12 @@ impl Server {
             heartbeat_timer: Timer::new(server_config.connection.heartbeat_interval),
             timeout_timer: Timer::new(server_config.connection.disconnection_timeout_duration),
             ping_timer: Timer::new(server_config.ping.ping_interval),
-            handshake_manager: HandshakeManager::new(server_config.require_auth),
+            handshake_manager: HandshakeManager::new(),
             // Users
             users: HashMap::new(),
 			user_id_pool: IdPool::default(),
             user_connections: HashMap::new(),
-            validated_users: HashMap::new(),
+			user_keys: HashMap::new(),
             // Events
             incoming_events: Vec::new(),
             // Ticks
@@ -119,44 +112,14 @@ impl Server {
 
     /// Accepts an incoming Client User, allowing them to establish a connection
     /// with the Server
-    pub fn accept_connection(&mut self, user_key: &UserKey) {
+    pub fn accept_connection(&mut self, user_key: &UserKey, ctx: &ConnectContext) {
         let Some(user) = self.users.get(user_key) else {
-            warn!("unknown user is finalizing connection...");
+			debug_assert!(false, "unknown user is attempting to accept connection...");
             return;
         };
-
-        // send validate response
-        let writer = self.handshake_manager.write_validate_response();
-        if self
-            .io
-            .send_packet(&user.address, writer.to_packet())
-            .is_err()
-        {
-            // TODO: pass this on and handle above
-            warn!(
-                "Server Error: Cannot send validate response packet to {}",
-                &user.address
-            );
-        }
-
-        self.validated_users.insert(user.address, *user_key);
-    }
-
-    fn finalize_connection(&mut self, user_key: &UserKey, req: ClientConnectRequest, msg: Option<MessageContainer>) {
-        let Some(user) = self.users.get(user_key) else {
-            warn!("unknown user is finalizing connection...");
-            return;
-        };
-        let new_connection = Connection::new(
-            &self.server_config.connection,
-            &self.server_config.ping,
-            &user.address,
-            user_key,
-            &self.protocol.channel_kinds,
-        );
 
         // send connect response
-        let writer = self.handshake_manager.write_connect_response(&req);
+        let writer = self.handshake_manager.write_connect_response(&ctx.req);
         if self
             .io
             .send_packet(&user.address, writer.to_packet())
@@ -169,11 +132,16 @@ impl Server {
             );
         }
 
-        self.user_connections.insert(user.address, new_connection);
+        self.user_connections.insert(user.address, Connection::new(
+            &self.server_config.connection,
+            &self.server_config.ping,
+            &user.address,
+            user_key,
+            &self.protocol.channel_kinds,
+        ));
         if self.io.bandwidth_monitor_enabled() {
             self.io.register_client(&user.address);
         }
-        self.incoming_events.push(ServerEvent::Connect{ user_key: *user_key, msg });
     }
 
     /// Rejects an incoming Client User, terminating their attempt to establish
@@ -193,7 +161,6 @@ impl Server {
                     &user.address
                 );
             }
-            //
         }
         self.user_delete(user_key);
     }
@@ -376,15 +343,15 @@ impl Server {
         };
 
         self.user_connections.remove(&user.address);
-        self.validated_users.remove(&user.address);
+		self.user_keys.remove(&user.address);
+		self.user_id_pool.put(*user_key);
+
         self.handshake_manager.delete_user(&user.address);
 
         // remove from bandwidth monitor
         if self.io.bandwidth_monitor_enabled() {
             self.io.deregister_client(&user.address);
         }
-
-		self.user_id_pool.put(*user_key);
 
         return user;
     }
@@ -467,48 +434,15 @@ impl Server {
                 }
                 return Ok(true);
             }
-            PacketType::ClientValidateRequest => {
-                match self.handshake_manager.recv_validate_request(
-                    &self.protocol.message_kinds,
-                    address,
-                    reader,
-                ) {
-                     HandshakeResult::Success(auth_message_opt) => {
-                        if self.validated_users.contains_key(address) {
-                            // send validate response
-                            let writer = self.handshake_manager.write_validate_response();
-                            if self.io.send_packet(address, writer.to_packet()).is_err() {
-                                // TODO: pass this on and handle above
-                                warn!("Server Error: Cannot send validate success response packet to {}", &address);
-                            };
-                        } else if let Some(user_key) = self.user_id_pool.get() {
-                            let user = User::new(*address);
-                            self.users.insert(user_key, user);
-
-                            if let Some(auth_message) = auth_message_opt {
-								self.incoming_events.push(ServerEvent::Auth { user_key, msg: auth_message});
-                            } else {
-                                self.accept_connection(&user_key);
-                            }
-                        } else {
-							// too many connected users; reject request
-							// TODO -- send rejection w/ reason
-                        }
-                    }
-                    HandshakeResult::Invalid => {
-						trace!("Dropping invalid validate request from {}", address);
-                    }
-                }
-                return Ok(true);
-            }
             PacketType::ClientConnectRequest => {
 				match self.handshake_manager.recv_connect_request(
 					&self.protocol.message_kinds,
+					address,
 					reader,
 				) {
-					HandshakeResult::Success((req, msg)) => {
+					HandshakeResult::Success(req, msg) => {
 						if self.user_connections.contains_key(address) {
-							// send connect response
+							// already connected, resend connect response
 							let writer = self.handshake_manager.write_connect_response(&req);
 							if self.io.send_packet(address, writer.to_packet()).is_err() {
 								// TODO: pass this on and handle above
@@ -517,10 +451,18 @@ impl Server {
 									address
 								);
 							};
-						} else if let Some(&user_key) = self.validated_users.get(address) {
-							self.finalize_connection(&user_key, req, msg);
+						} else if self.user_keys.contains_key(address) {
+							// connection already pending approval, do nothing
+						} else if let Some(user_key) = self.user_id_pool.get() {
+							// request connection approval from user code
+							self.user_keys.insert(*address, user_key);
+							self.users.insert(user_key, User::new(*address));
+
+							let ctx = ConnectContext { req };
+							self.incoming_events.push(ServerEvent::Connect { user_key, msg, ctx });
 						} else {
-							warn!("Dropping connect request from {}, which is not validated", address);
+							// too many connected users; reject request
+							// TODO -- send rejection w/ reason
 						}
 					}
 					HandshakeResult::Invalid => {

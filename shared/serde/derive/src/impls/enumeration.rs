@@ -3,14 +3,7 @@ use quote::{format_ident, quote};
 use syn::{DataEnum, Fields};
 
 fn bits_needed_for(max_value: usize) -> u8 {
-    let mut bits = 1;
-    while 2_usize.pow(bits) <= max_value {
-        bits += 1;
-    }
-    if bits >= 256 {
-        panic!("cannot encode a number in more than 255 bits!");
-    }
-    bits as u8
+	(usize::BITS - max_value.leading_zeros()) as u8
 }
 
 #[allow(clippy::format_push_string)]

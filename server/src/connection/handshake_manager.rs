@@ -1,34 +1,29 @@
-use std::{collections::HashMap, net::SocketAddr};
-
-use ring::{hmac, rand};
-
+use crate::{cache_map::CacheMap, connection::connection::Connection};
 pub use naia_shared::{
     BitReader, BitWriter, MessageContainer, MessageKinds, packet::*,
 	Serde, SerdeErr, StandardHeader
 };
+use ring::{hmac, rand};
+use std::{collections::HashMap, net::SocketAddr};
 
-use crate::{cache_map::CacheMap, connection::connection::Connection};
-
-pub enum HandshakeResult<T> {
+pub enum HandshakeResult {
     Invalid,
-    Success(T),
+    Success(ClientConnectRequest, Option<MessageContainer>),
 }
 
 pub struct HandshakeManager {
     connection_hash_key: hmac::Key,
-    require_auth: bool,
     address_to_timestamp_map: HashMap<SocketAddr, TimestampNs>,
     timestamp_digest_map: CacheMap<TimestampNs, Vec<u8>>,
 }
 
 impl HandshakeManager {
-    pub fn new(require_auth: bool) -> Self {
+    pub fn new() -> Self {
         let connection_hash_key =
             hmac::Key::generate(hmac::HMAC_SHA256, &rand::SystemRandom::new()).unwrap();
 
         Self {
             connection_hash_key,
-            require_auth,
             address_to_timestamp_map: HashMap::new(),
             timestamp_digest_map: CacheMap::with_capacity(64),
         }
@@ -64,13 +59,13 @@ impl HandshakeManager {
     }
 
     // Step 3 of Handshake
-    pub fn recv_validate_request(
+    pub fn recv_connect_request(
         &mut self,
         message_kinds: &MessageKinds,
         address: &SocketAddr,
         reader: &mut BitReader,
-    ) -> HandshakeResult<Option<MessageContainer>> {
-		let Ok(req) = ClientValidateRequest::de(reader) else {
+    ) -> HandshakeResult {
+		let Ok(req) = ClientConnectRequest::de(reader) else {
 			return HandshakeResult::Invalid;
 		};
 
@@ -79,56 +74,24 @@ impl HandshakeManager {
             return HandshakeResult::Invalid;
         };
 
-        // Timestamp hash is validated, now start configured auth process
-        let Ok(has_auth) = bool::de(reader) else {
-            return HandshakeResult::Invalid;
-        };
-        if has_auth != self.require_auth {
-            return HandshakeResult::Invalid;
-        }
+		// read optional message
+		let connect_msg = match bool::de(reader) {
+			Err(_) => return HandshakeResult::Invalid,
+			Ok(true) => {
+				let Ok(msg) = message_kinds.read(reader) else {
+					return HandshakeResult::Invalid;
+				};
+				Some(msg)
+			}
+			Ok(false) => None,
+		};
 
         self.address_to_timestamp_map.insert(*address, req.timestamp_ns);
 
-        if !has_auth {
-            return HandshakeResult::Success(None);
-        }
-
-        let Ok(auth_message) = message_kinds.read(reader) else {
-            return HandshakeResult::Invalid;
-        };
-
-        return HandshakeResult::Success(Some(auth_message));
+        return HandshakeResult::Success(req, connect_msg);
     }
 
     // Step 4 of Handshake
-    pub fn write_validate_response(&self) -> BitWriter {
-        let mut writer = BitWriter::new();
-        StandardHeader::of_type(PacketType::ServerValidateResponse).ser(&mut writer);
-        writer
-    }
-
-	// Step 5 of Handshake
-	pub fn recv_connect_request(
-		&mut self, message_kinds: &MessageKinds, reader: &mut BitReader,
-	) -> HandshakeResult<(ClientConnectRequest, Option<MessageContainer>)> {
-		let Ok(req) = ClientConnectRequest::de(reader) else {
-			return HandshakeResult::Invalid;
-		};
-
-		// Check if we have a message
-		match bool::de(reader) {
-			Ok(false) => return HandshakeResult::Success((req, None)),
-			Err(_) => return HandshakeResult::Invalid,
-			_ => { }
-		}
-
-		match message_kinds.read(reader) {
-			Ok(msg) => HandshakeResult::Success((req, Some(msg))),
-			Err(_) => HandshakeResult::Invalid,
-		}
-	}
-
-    // Step 6 of Handshake
     pub(crate) fn write_connect_response(&self, req: &ClientConnectRequest) -> BitWriter {
         let mut writer = BitWriter::new();
         StandardHeader::of_type(PacketType::ServerConnectResponse).ser(&mut writer);

@@ -27,6 +27,7 @@ use specifically with deterministic lockstep applications.
 	* Immediate batch send avoids waiting a full tick in several places
 	* Best case RTT is now ~0-2ms (depending on application), instead of ~100ms
 * Removed handshake ping/pongs (removes ~2.5s during connect)
+* Reduced handshake to 2 round trips by combining validation and connection requests
 * Use recycling u16 for UserKey
 * Removed a bunch of smaller items:
 	* user rooms

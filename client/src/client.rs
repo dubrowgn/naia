@@ -64,12 +64,6 @@ impl Client {
         }
     }
 
-    /// Set the auth object to use when setting up a connection with the Server
-    pub fn auth<M: Message>(&mut self, auth: M) {
-        self.handshake_manager
-            .set_auth_message(MessageContainer::from_write(Box::new(auth)));
-    }
-
     /// Connect to the given server address
     pub fn connect<S: Into<Box<dyn Socket>>, M: Message>(&mut self, socket: S, msg: M) {
         if !self.is_disconnected() {

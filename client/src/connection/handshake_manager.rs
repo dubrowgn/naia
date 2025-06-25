@@ -10,7 +10,6 @@ use super::io::Io;
 #[derive(Debug, PartialEq)]
 pub enum HandshakeState {
     AwaitingChallengeResponse,
-    AwaitingValidateResponse,
     AwaitingConnectResponse,
     Connected,
 }
@@ -26,7 +25,6 @@ pub struct HandshakeManager {
     handshake_timer: Timer,
     pre_connection_timestamp: TimestampNs,
     pre_connection_digest: Option<Vec<u8>>,
-    auth_message: Option<MessageContainer>,
     connect_message: Option<MessageContainer>,
 	epoch: Instant,
 	time_manager: Option<TimeManager>,
@@ -47,7 +45,6 @@ impl HandshakeManager {
             pre_connection_timestamp,
             pre_connection_digest: None,
             connection_state: HandshakeState::AwaitingChallengeResponse,
-            auth_message: None,
             connect_message: None,
             ping_interval,
             epoch: Instant::now(),
@@ -79,10 +76,6 @@ impl HandshakeManager {
 		self.handshake_timer.ring_manual();
 	}
 
-    pub fn set_auth_message(&mut self, msg: MessageContainer) {
-        self.auth_message = Some(msg);
-    }
-
     pub fn set_connect_message(&mut self, msg: MessageContainer) {
         self.connect_message = Some(msg);
     }
@@ -106,13 +99,6 @@ impl HandshakeManager {
                     if io.send_packet(writer.to_packet()).is_err() {
                         // TODO: pass this on and handle above
                         warn!("Client Error: Cannot send challenge request packet to Server");
-                    }
-                }
-                HandshakeState::AwaitingValidateResponse => {
-                    let writer = self.write_validate_request(message_kinds);
-                    if io.send_packet(writer.to_packet()).is_err() {
-                        // TODO: pass this on and handle above
-                        warn!("Client Error: Cannot send validate request packet to Server");
                     }
                 }
                 HandshakeState::AwaitingConnectResponse => {
@@ -141,10 +127,6 @@ impl HandshakeManager {
                 self.recv_challenge_response(reader);
                 return None;
             }
-            PacketType::ServerValidateResponse => {
-				self.recv_validate_response();
-                return None;
-            }
             PacketType::ServerConnectResponse => {
                 return self.recv_connect_response(reader);
             }
@@ -154,7 +136,6 @@ impl HandshakeManager {
             PacketType::Data
             | PacketType::Heartbeat
             | PacketType::ClientChallengeRequest
-            | PacketType::ClientValidateRequest
             | PacketType::ClientConnectRequest
             | PacketType::Ping
 			| PacketType::Pong
@@ -196,50 +177,18 @@ impl HandshakeManager {
 		self.sample_rtt(resp.client_timestamp_ns);
 
         self.pre_connection_digest = Some(resp.signature);
-		self.set_state(HandshakeState::AwaitingValidateResponse);
-    }
-
-    // Step 3 of Handshake
-    pub fn write_validate_request(&self, message_kinds: &MessageKinds) -> BitWriter {
-		debug_assert!(self.connection_state == HandshakeState::AwaitingValidateResponse);
-
-        let mut writer = BitWriter::new();
-        StandardHeader::of_type(PacketType::ClientValidateRequest).ser(&mut writer);
-		ClientValidateRequest {
-			timestamp_ns: self.pre_connection_timestamp,
-			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
-		}.ser(&mut writer);
-
-        // write auth message if there is one
-        if let Some(auth_message) = &self.auth_message {
-            // write that we have auth
-            true.ser(&mut writer);
-            // write payload
-            auth_message.write(message_kinds, &mut writer);
-        } else {
-            // write that we do not have auth
-            false.ser(&mut writer);
-        }
-
-        writer
-    }
-
-    // Step 4 of Handshake
-    pub fn recv_validate_response(&mut self) {
-        if self.connection_state != HandshakeState::AwaitingValidateResponse {
-			return;
-		}
-
 		self.set_state(HandshakeState::AwaitingConnectResponse);
     }
 
-    // Step 5 of Handshake
+    // Step 3 of Handshake
     pub fn write_connect_request(&self, message_kinds: &MessageKinds) -> BitWriter {
 		debug_assert!(self.connection_state == HandshakeState::AwaitingConnectResponse);
 
         let mut writer = BitWriter::new();
         StandardHeader::of_type(PacketType::ClientConnectRequest).ser(&mut writer);
 		ClientConnectRequest {
+			timestamp_ns: self.pre_connection_timestamp,
+			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
 			client_timestamp_ns: self.timestamp_ns(),
 		}.ser(&mut writer);
 
@@ -255,8 +204,8 @@ impl HandshakeManager {
         writer
     }
 
-    // Step 6 of Handshake
-    fn recv_connect_response(&mut self, reader: &mut BitReader) -> Option<HandshakeResult> {
+    // Step 4 of Handshake
+    pub fn recv_connect_response(&mut self, reader: &mut BitReader) -> Option<HandshakeResult> {
 		if self.connection_state != HandshakeState::AwaitingConnectResponse {
 			return None;
 		}
