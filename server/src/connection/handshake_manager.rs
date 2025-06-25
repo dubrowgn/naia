@@ -3,13 +3,11 @@ use std::{collections::HashMap, net::SocketAddr};
 use ring::{hmac, rand};
 
 pub use naia_shared::{
-    BitReader, BitWriter, MessageContainer,
-	MessageKinds, PacketType, Serde, SerdeErr, StandardHeader,
+    BitReader, BitWriter, ClientChallengeRequest, MessageContainer, MessageKinds,
+	PacketType, Serde, SerdeErr, ServerChallengeResponse, StandardHeader, TimestampNs
 };
 
 use crate::{cache_map::CacheMap, connection::connection::Connection};
-
-pub type Timestamp = u64;
 
 pub enum HandshakeResult {
     Invalid,
@@ -19,8 +17,8 @@ pub enum HandshakeResult {
 pub struct HandshakeManager {
     connection_hash_key: hmac::Key,
     require_auth: bool,
-    address_to_timestamp_map: HashMap<SocketAddr, Timestamp>,
-    timestamp_digest_map: CacheMap<Timestamp, Vec<u8>>,
+    address_to_timestamp_map: HashMap<SocketAddr, TimestampNs>,
+    timestamp_digest_map: CacheMap<TimestampNs, Vec<u8>>,
 }
 
 impl HandshakeManager {
@@ -41,27 +39,25 @@ impl HandshakeManager {
         &mut self,
         reader: &mut BitReader,
     ) -> Result<BitWriter, SerdeErr> {
-        let timestamp = Timestamp::de(reader)?;
-
-        Ok(self.write_challenge_response(&timestamp))
+		let req = ClientChallengeRequest::de(reader)?;
+        Ok(self.write_challenge_response(&req))
     }
 
     // Step 2 of Handshake
-    pub fn write_challenge_response(&mut self, timestamp: &Timestamp) -> BitWriter {
-        let mut writer = BitWriter::new();
-        StandardHeader::of_type(PacketType::ServerChallengeResponse).ser(&mut writer);
-        timestamp.ser(&mut writer);
-
-        if !self.timestamp_digest_map.contains_key(timestamp) {
-            let tag = hmac::sign(&self.connection_hash_key, &timestamp.to_le_bytes());
-            let tag_vec: Vec<u8> = Vec::from(tag.as_ref());
-            self.timestamp_digest_map.insert(*timestamp, tag_vec);
+    pub fn write_challenge_response(&mut self, req: &ClientChallengeRequest) -> BitWriter {
+        if !self.timestamp_digest_map.contains_key(&req.timestamp_ns) {
+            let tag = hmac::sign(&self.connection_hash_key, &req.timestamp_ns.to_le_bytes());
+            let tag_vec = Vec::from(tag.as_ref());
+            self.timestamp_digest_map.insert(req.timestamp_ns, tag_vec);
         }
 
-        //write timestamp digest
-        self.timestamp_digest_map
-            .get_unchecked(timestamp)
-            .ser(&mut writer);
+        let mut writer = BitWriter::new();
+
+        StandardHeader::of_type(PacketType::ServerChallengeResponse).ser(&mut writer);
+		ServerChallengeResponse {
+			timestamp_ns: req.timestamp_ns,
+			signature: self.timestamp_digest_map.get_unchecked(&req.timestamp_ns).clone(),
+		}.ser(&mut writer);
 
         writer
     }
@@ -158,9 +154,9 @@ impl HandshakeManager {
         self.address_to_timestamp_map.remove(address);
     }
 
-    fn timestamp_validate(&self, reader: &mut BitReader) -> Option<Timestamp> {
+    fn timestamp_validate(&self, reader: &mut BitReader) -> Option<TimestampNs> {
         // Read timestamp
-        let timestamp_result = Timestamp::de(reader);
+        let timestamp_result = TimestampNs::de(reader);
         if timestamp_result.is_err() {
             return None;
         }

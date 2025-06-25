@@ -35,6 +35,17 @@ pub enum PacketType {
 }
 
 #[derive(Clone, PartialEq, SerdeInternal)]
+pub struct ClientChallengeRequest {
+	pub timestamp_ns: TimestampNs,
+}
+
+#[derive(Clone, PartialEq, SerdeInternal)]
+pub struct ServerChallengeResponse {
+	pub timestamp_ns: TimestampNs,
+	pub signature: Vec<u8>,
+}
+
+#[derive(Clone, PartialEq, SerdeInternal)]
 pub struct Ping {
 	pub timestamp_ns: TimestampNs,
 }

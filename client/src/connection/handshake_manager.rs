@@ -1,16 +1,11 @@
-use std::time::{Duration, SystemTime};
-
-use log::warn;
-
-use naia_shared::{
-    BitReader, BitWriter, MessageContainer, MessageKinds, PacketType, Serde,
-    StandardHeader, Timer,
-};
-
-use super::io::Io;
 use crate::connection::{handshake_time_manager::HandshakeTimeManager, time_manager::TimeManager};
-
-pub type Timestamp = u64;
+use log::{trace, warn};
+use naia_shared::{
+    BitReader, BitWriter, ClientChallengeRequest, MessageContainer, MessageKinds,
+	PacketType, Serde, ServerChallengeResponse, StandardHeader, Timer, TimestampNs
+};
+use std::time::{Duration, SystemTime};
+use super::io::Io;
 
 pub enum HandshakeState {
     AwaitingChallengeResponse,
@@ -50,7 +45,7 @@ pub struct HandshakeManager {
     handshake_pings: u8,
     pub connection_state: HandshakeState,
     handshake_timer: Timer,
-    pre_connection_timestamp: Timestamp,
+    pre_connection_timestamp: TimestampNs,
     pre_connection_digest: Option<Vec<u8>>,
     auth_message: Option<MessageContainer>,
     connect_message: Option<MessageContainer>,
@@ -64,7 +59,7 @@ impl HandshakeManager {
         let pre_connection_timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("timing error!")
-            .as_secs();
+            .as_nanos() as TimestampNs;
 
         Self {
             handshake_timer,
@@ -192,33 +187,30 @@ impl HandshakeManager {
     // Step 1 of Handshake
     pub fn write_challenge_request(&self) -> BitWriter {
         let mut writer = BitWriter::new();
-        StandardHeader::of_type(PacketType::ClientChallengeRequest).ser(&mut writer);
 
-        self.pre_connection_timestamp.ser(&mut writer);
+        StandardHeader::of_type(PacketType::ClientChallengeRequest).ser(&mut writer);
+		ClientChallengeRequest { timestamp_ns: self.pre_connection_timestamp }.ser(&mut writer);
 
         writer
     }
 
     // Step 2 of Handshake
     pub fn recv_challenge_response(&mut self, reader: &mut BitReader) {
-        if self.connection_state == HandshakeState::AwaitingChallengeResponse {
-            let timestamp_result = Timestamp::de(reader);
-            if timestamp_result.is_err() {
-                return;
-            }
-            let timestamp = timestamp_result.unwrap();
+        if self.connection_state != HandshakeState::AwaitingChallengeResponse {
+			return;
+		}
 
-            if self.pre_connection_timestamp == timestamp {
-                let digest_bytes_result = Vec::<u8>::de(reader);
-                if digest_bytes_result.is_err() {
-                    return;
-                }
-                let digest_bytes = digest_bytes_result.unwrap();
-                self.pre_connection_digest = Some(digest_bytes);
+		let Ok(resp) = ServerChallengeResponse::de(reader) else {
+			trace!("Dropping malformed ServerChallengeResponse");
+			return;
+		};
 
-                self.connection_state = HandshakeState::AwaitingValidateResponse;
-            }
-        }
+		if self.pre_connection_timestamp != resp.timestamp_ns {
+			return;
+		}
+
+        self.pre_connection_digest = Some(resp.signature);
+        self.connection_state = HandshakeState::AwaitingValidateResponse;
     }
 
     // Step 3 of Handshake
