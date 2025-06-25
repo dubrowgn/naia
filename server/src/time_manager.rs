@@ -1,5 +1,5 @@
 use naia_shared::{
-    BitReader, BitWriter, PacketType, Ping, Pong, Serde, SerdeErr, StandardHeader,
+    BitReader, BitWriter, packet::*, Serde, SerdeErr, StandardHeader,
 };
 
 /// Manages the current tick for the host

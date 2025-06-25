@@ -1,6 +1,6 @@
 use crate::connection::ping_config::PingConfig;
 use log::trace;
-use naia_shared::{BitReader, BitWriter, Ping, Pong, Serde, Timer, TimestampNs};
+use naia_shared::{BitReader, BitWriter, packet::*, Serde, Timer};
 use std::time::Instant;
 
 /// Is responsible for sending regular ping messages between client/servers

@@ -37,7 +37,7 @@ pub use connection::{
     connection_config::ConnectionConfig,
     decoder::Decoder,
     encoder::Encoder,
-    packet::*,
+    packet,
     standard_header::StandardHeader,
 };
 pub use messages::{

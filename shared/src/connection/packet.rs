@@ -46,6 +46,13 @@ pub struct ServerChallengeResponse {
 }
 
 #[derive(Clone, PartialEq, SerdeInternal)]
+pub struct ClientValidateRequest {
+	pub timestamp_ns: TimestampNs,
+	pub signature: Vec<u8>,
+	// optional message; can't derive Serde
+}
+
+#[derive(Clone, PartialEq, SerdeInternal)]
 pub struct Ping {
 	pub timestamp_ns: TimestampNs,
 }
@@ -53,6 +60,12 @@ pub struct Ping {
 #[derive(Clone, PartialEq, SerdeInternal)]
 pub struct Pong {
 	pub timestamp_ns: TimestampNs,
+}
+
+#[derive(Clone, PartialEq, SerdeInternal)]
+pub struct Disconnect {
+	pub timestamp_ns: TimestampNs,
+	pub signature: Vec<u8>,
 }
 
 // Most packets should be Data, so lets compress this a bit more.

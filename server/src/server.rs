@@ -9,7 +9,7 @@ use log::{trace, warn};
 
 use naia_shared::{
     BitReader, BitWriter, Channel, ChannelKind, IdPool, Message, MessageContainer,
-	PacketType, Protocol, Serde, SerdeErr, SocketConfig, StandardHeader, Timer,
+	packet::*, Protocol, Serde, SerdeErr, SocketConfig, StandardHeader, Timer,
 };
 
 use crate::{

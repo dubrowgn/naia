@@ -1,8 +1,8 @@
 use crate::connection::{handshake_time_manager::HandshakeTimeManager, time_manager::TimeManager};
 use log::{trace, warn};
 use naia_shared::{
-    BitReader, BitWriter, ClientChallengeRequest, MessageContainer, MessageKinds,
-	PacketType, Serde, ServerChallengeResponse, StandardHeader, Timer, TimestampNs
+    BitReader, BitWriter, MessageContainer, MessageKinds, packet::*,
+	Serde, StandardHeader, Timer
 };
 use std::time::{Duration, SystemTime};
 use super::io::Io;
@@ -218,9 +218,10 @@ impl HandshakeManager {
         let mut writer = BitWriter::new();
 
         StandardHeader::of_type(PacketType::ClientValidateRequest).ser(&mut writer);
-
-        // write timestamp & digest into payload
-        self.write_signed_timestamp(&mut writer);
+		ClientValidateRequest {
+			timestamp_ns: self.pre_connection_timestamp,
+			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
+		}.ser(&mut writer);
 
         // write auth message if there is one
         if let Some(auth_message) = &self.auth_message {
@@ -274,15 +275,10 @@ impl HandshakeManager {
     pub fn write_disconnect(&self) -> BitWriter {
         let mut writer = BitWriter::new();
         StandardHeader::of_type(PacketType::Disconnect).ser(&mut writer);
-        self.write_signed_timestamp(&mut writer);
+		Disconnect {
+			timestamp_ns: self.pre_connection_timestamp,
+			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
+		}.ser(&mut writer);
         writer
-    }
-
-    // Private methods
-
-    fn write_signed_timestamp(&self, writer: &mut BitWriter) {
-        self.pre_connection_timestamp.ser(writer);
-        let digest: &Vec<u8> = self.pre_connection_digest.as_ref().unwrap();
-        digest.ser(writer);
     }
 }

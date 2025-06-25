@@ -3,8 +3,7 @@ use std::time::Duration;
 use naia_client::internal::{HandshakeManager as ClientHandshakeManager, HandshakeState};
 use naia_server::internal::{HandshakeManager as ServerHandshakeManager, HandshakeResult};
 use naia_shared::{
-    BitReader, BitWriter, MessageContainer, PacketType, Protocol, Serde,
-    StandardHeader,
+    BitReader, BitWriter, MessageContainer, packet::*, Protocol, Serde, StandardHeader,
 };
 use naia_test::Auth;
 

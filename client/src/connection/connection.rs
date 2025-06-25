@@ -1,7 +1,7 @@
 use log::warn;
 use naia_shared::{
     BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig, HostType,
-    OwnedBitReader, PacketType, Protocol, SerdeErr, StandardHeader,
+    OwnedBitReader, packet::*, Protocol, SerdeErr, StandardHeader,
 };
 
 use crate::{

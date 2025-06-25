@@ -3,8 +3,8 @@ use std::{collections::HashMap, net::SocketAddr};
 use ring::{hmac, rand};
 
 pub use naia_shared::{
-    BitReader, BitWriter, ClientChallengeRequest, MessageContainer, MessageKinds,
-	PacketType, Serde, SerdeErr, ServerChallengeResponse, StandardHeader, TimestampNs
+    BitReader, BitWriter, MessageContainer, MessageKinds, packet::*,
+	Serde, SerdeErr, StandardHeader
 };
 
 use crate::{cache_map::CacheMap, connection::connection::Connection};
@@ -69,11 +69,15 @@ impl HandshakeManager {
         address: &SocketAddr,
         reader: &mut BitReader,
     ) -> HandshakeResult {
-        // Verify that timestamp hash has been written by this
-        // server instance
-        let Some(timestamp) = self.timestamp_validate(reader) else {
+		let Ok(req) = ClientValidateRequest::de(reader) else {
+			return HandshakeResult::Invalid;
+		};
+
+        // Verify that timestamp hash has been written by this server instance
+		if !self.is_timestamp_valid(&req.timestamp_ns, &req.signature) {
             return HandshakeResult::Invalid;
         };
+
         // Timestamp hash is validated, now start configured auth process
         let Ok(has_auth) = bool::de(reader) else {
             return HandshakeResult::Invalid;
@@ -82,7 +86,7 @@ impl HandshakeManager {
             return HandshakeResult::Invalid;
         }
 
-        self.address_to_timestamp_map.insert(*address, timestamp);
+        self.address_to_timestamp_map.insert(*address, req.timestamp_ns);
 
         if !has_auth {
             return HandshakeResult::Success(None);
@@ -131,17 +135,19 @@ impl HandshakeManager {
         connection: &Connection,
         reader: &mut BitReader,
     ) -> bool {
-        // Verify that timestamp hash has been written by this
-        // server instance
-        if let Some(new_timestamp) = self.timestamp_validate(reader) {
-            if let Some(old_timestamp) = self.address_to_timestamp_map.get(&connection.address) {
-                if *old_timestamp == new_timestamp {
-                    return true;
-                }
-            }
-        }
+		let Ok(req) = Disconnect::de(reader) else {
+			return false;
+		};
 
-        false
+        // Verify that timestamp hash has been written by this server instance
+		if !self.is_timestamp_valid(&req.timestamp_ns, &req.signature) {
+			return false;
+		}
+
+		match self.address_to_timestamp_map.get(&connection.address) {
+			Some(old_timestamp) => *old_timestamp == req.timestamp_ns,
+			None => false,
+		}
     }
 
     pub fn write_reject_response(&self) -> BitWriter {
@@ -154,31 +160,12 @@ impl HandshakeManager {
         self.address_to_timestamp_map.remove(address);
     }
 
-    fn timestamp_validate(&self, reader: &mut BitReader) -> Option<TimestampNs> {
-        // Read timestamp
-        let timestamp_result = TimestampNs::de(reader);
-        if timestamp_result.is_err() {
-            return None;
-        }
-        let timestamp = timestamp_result.unwrap();
-
-        // Read digest
-        let digest_bytes_result = Vec::<u8>::de(reader);
-        if digest_bytes_result.is_err() {
-            return None;
-        }
-        let digest_bytes = digest_bytes_result.unwrap();
-
+    fn is_timestamp_valid(&self, timestamp: &TimestampNs, signature: &Vec<u8>,) -> bool {
         // Verify that timestamp hash has been written by this server instance
-        let validation_result = hmac::verify(
+        hmac::verify(
             &self.connection_hash_key,
             &timestamp.to_le_bytes(),
-            &digest_bytes,
-        );
-        if validation_result.is_err() {
-            None
-        } else {
-            Some(timestamp)
-        }
+            signature,
+        ).is_ok()
     }
 }

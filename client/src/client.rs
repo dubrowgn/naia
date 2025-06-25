@@ -3,7 +3,7 @@ use std::{collections::VecDeque, net::SocketAddr};
 use log::warn;
 use naia_shared::{
     BitWriter, Channel, ChannelKind, Message, MessageContainer,
-	PacketType, Protocol, Serde, SocketConfig, StandardHeader,
+	packet::*, Protocol, Serde, SocketConfig, StandardHeader,
 };
 
 use std::time::Instant;
