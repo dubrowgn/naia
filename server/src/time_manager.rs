@@ -1,5 +1,5 @@
 use naia_shared::{
-    BitReader, BitWriter, PacketType, PingIndex, Serde, SerdeErr, StandardHeader,
+    BitReader, BitWriter, PacketType, Ping, Pong, Serde, SerdeErr, StandardHeader,
 };
 
 /// Manages the current tick for the host
@@ -10,17 +10,11 @@ impl TimeManager {
     pub fn new() -> Self { Self {} }
 
     pub(crate) fn process_ping(&self, reader: &mut BitReader) -> Result<BitWriter, SerdeErr> {
-        // read incoming ping index
-        let ping_index = PingIndex::de(reader)?;
+		let ping = Ping::de(reader)?;
 
-        // start packet writer
         let mut writer = BitWriter::new();
-
-        // write pong payload
         StandardHeader::of_type(PacketType::Pong).ser(&mut writer);
-
-        // write index
-        ping_index.ser(&mut writer);
+		Pong { timestamp_ns: ping.timestamp_ns }.ser(&mut writer);
 
         Ok(writer)
     }

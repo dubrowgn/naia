@@ -1,6 +1,6 @@
 use naia_serde::SerdeInternal;
 
-use crate::{connection::packet_type::PacketType, types::PacketIndex};
+use crate::{connection::packet::PacketType, types::PacketIndex};
 
 // This header provides reliability information.
 #[derive(Copy, Debug, PartialEq, Clone, SerdeInternal)]

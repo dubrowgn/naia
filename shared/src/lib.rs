@@ -37,8 +37,7 @@ pub use connection::{
     connection_config::ConnectionConfig,
     decoder::Decoder,
     encoder::Encoder,
-    packet_type::PacketType,
-    ping_store::{PingIndex, PingStore},
+    packet::*,
     standard_header::StandardHeader,
 };
 pub use messages::{

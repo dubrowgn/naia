@@ -1,8 +1,8 @@
-// An enum representing the different types of packets that can be
-// sent/received
+use naia_serde::*;
 
-use naia_serde::{BitReader, BitWrite, ConstBitLength, Serde, SerdeErr, UnsignedInteger};
+pub type TimestampNs = u64;
 
+/// An enum representing the different types of packets that can be sent/received
 #[derive(Copy, Debug, Clone, Eq, PartialEq)]
 pub enum PacketType {
     // A packet containing Message/Entity/Component data
@@ -32,6 +32,16 @@ pub enum PacketType {
     Pong,
     // Used to request a graceful Client disconnect from the Server
     Disconnect,
+}
+
+#[derive(Clone, PartialEq, SerdeInternal)]
+pub struct Ping {
+	pub timestamp_ns: TimestampNs,
+}
+
+#[derive(Clone, PartialEq, SerdeInternal)]
+pub struct Pong {
+	pub timestamp_ns: TimestampNs,
 }
 
 // Most packets should be Data, so lets compress this a bit more.

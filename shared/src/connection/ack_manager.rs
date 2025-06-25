@@ -1,7 +1,7 @@
 use crate::{messages::message_manager::MessageManager, types::PacketIndex};
 use std::collections::HashMap;
 use super::{
-    packet_type::PacketType, sequence_buffer::SequenceBuffer,
+    packet::PacketType, sequence_buffer::SequenceBuffer,
     standard_header::StandardHeader,
 };
 

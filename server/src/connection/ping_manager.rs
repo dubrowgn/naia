@@ -1,5 +1,6 @@
 use crate::connection::ping_config::PingConfig;
-use naia_shared::{BitReader, BitWriter, PingIndex, PingStore, Serde, Timer};
+use log::trace;
+use naia_shared::{BitReader, BitWriter, Ping, Pong, Serde, Timer, TimestampNs};
 use std::time::Instant;
 
 /// Is responsible for sending regular ping messages between client/servers
@@ -8,7 +9,7 @@ pub struct PingManager {
     pub rtt_average: f32,
     pub jitter_average: f32,
     ping_timer: Timer,
-    sent_pings: PingStore,
+	epoch: Instant,
 }
 
 impl PingManager {
@@ -20,9 +21,13 @@ impl PingManager {
             rtt_average: rtt_average,
             jitter_average: jitter_average,
             ping_timer: Timer::new(ping_config.ping_interval),
-            sent_pings: PingStore::new(),
+			epoch: Instant::now(),
         }
     }
+
+	fn timestamp_ns(&self) -> TimestampNs {
+		self.epoch.elapsed().as_nanos() as TimestampNs
+	}
 
     /// Returns whether a ping message should be sent
     pub fn should_send_ping(&self) -> bool {
@@ -32,24 +37,23 @@ impl PingManager {
     /// Get an outgoing ping payload
     pub fn write_ping(&mut self, writer: &mut BitWriter) {
         self.ping_timer.reset();
-
-        let ping_index = self.sent_pings.push_new(Instant::now());
-
-        // write index
-        ping_index.ser(writer);
+		Ping { timestamp_ns: self.timestamp_ns() }.ser(writer);
     }
 
     /// Process an incoming pong payload
     pub fn process_pong(&mut self, reader: &mut BitReader) {
-        if let Ok(ping_index) = PingIndex::de(reader) {
-            match self.sent_pings.remove(ping_index) {
-                None => {}
-                Some(sent_instant) => {
-					let rtt = Instant::now() - sent_instant;
-                    self.process_new_rtt(rtt.as_millis() as u32);
-                }
-            }
-        }
+		let Ok(pong) = Pong::de(reader) else {
+			trace!("Dropping malformed pong");
+			return;
+		};
+
+		let now_ns = self.timestamp_ns();
+		if now_ns < pong.timestamp_ns {
+			return;
+		}
+
+		let rtt_ns = now_ns - pong.timestamp_ns;
+		self.process_new_rtt((rtt_ns / 1_000_000) as u32);
     }
 
     /// Recompute rtt/jitter estimations

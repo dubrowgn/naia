@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     ack_manager::AckManager, connection_config::ConnectionConfig,
-    packet_type::PacketType, standard_header::StandardHeader,
+    packet::PacketType, standard_header::StandardHeader,
 };
 use std::time::Instant;
 

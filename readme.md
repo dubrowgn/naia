@@ -27,15 +27,15 @@ use specifically with deterministic lockstep applications.
 	* Immediate batch send avoids waiting a full tick duration in several places
 	* Best case RTT is now ~0-2ms (depending on application), instead of ~100ms
 * Reduced wait time between initial heartbeats (removes ~2.5s durting connect)
+* Use recycling u16 for UserKey
 * Removed a bunch of smaller items:
 	* user rooms
 	* command history
 	* BigMap
+	* PingStore
 	* and a lot more
 
-## To do (As of 2024-10-21)
+## To do (As of 2025-06-25)
 
 * Fully expose server configuration
-* Use a u32 IdPool for UserKey
 * Fix data packets drop race condition on connect
-* Fix building with UDP still depends on webrtc

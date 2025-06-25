@@ -60,9 +60,6 @@ impl HandshakeTimeManager {
 
         rtt_diff_mean /= sample_count;
 
-        // Clear out outstanding pings
-        self.base.sent_pings_clear();
-
         TimeManager::from_parts(
             self.ping_interval,
             self.base,
