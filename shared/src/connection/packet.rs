@@ -1,5 +1,6 @@
 use naia_serde::*;
 
+// u64 is enough for ~584 years of nanoseconds
 pub type TimestampNs = u64;
 
 /// An enum representing the different types of packets that can be sent/received
@@ -37,12 +38,16 @@ pub enum PacketType {
 #[derive(Clone, PartialEq, SerdeInternal)]
 pub struct ClientChallengeRequest {
 	pub timestamp_ns: TimestampNs,
+	/// client's transmission timestamp (monotonic nanoseconds since an arbitrary epoch)
+	pub client_timestamp_ns: TimestampNs,
 }
 
 #[derive(Clone, PartialEq, SerdeInternal)]
 pub struct ServerChallengeResponse {
 	pub timestamp_ns: TimestampNs,
 	pub signature: Vec<u8>,
+	/// client's transmission timestamp from ClientChallengeRequest (verbatim)
+	pub client_timestamp_ns: TimestampNs,
 }
 
 #[derive(Clone, PartialEq, SerdeInternal)]
@@ -50,6 +55,18 @@ pub struct ClientValidateRequest {
 	pub timestamp_ns: TimestampNs,
 	pub signature: Vec<u8>,
 	// optional message; can't derive Serde
+}
+
+#[derive(Clone, PartialEq, SerdeInternal)]
+pub struct ClientConnectRequest {
+	/// client's transmission timestamp (monotonic nanoseconds since an arbitrary epoch)
+	pub client_timestamp_ns: TimestampNs,
+}
+
+#[derive(Clone, PartialEq, SerdeInternal)]
+pub struct ServerConnectResponse {
+	/// client's transmission timestamp from ClientConnectRequest (verbatim)
+	pub client_timestamp_ns: TimestampNs,
 }
 
 #[derive(Clone, PartialEq, SerdeInternal)]

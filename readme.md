@@ -24,9 +24,9 @@ use specifically with deterministic lockstep applications.
 
 * Various bug fixes
 * Dramatically improved best case latency
-	* Immediate batch send avoids waiting a full tick duration in several places
+	* Immediate batch send avoids waiting a full tick in several places
 	* Best case RTT is now ~0-2ms (depending on application), instead of ~100ms
-* Reduced wait time between initial heartbeats (removes ~2.5s durting connect)
+* Removed handshake ping/pongs (removes ~2.5s during connect)
 * Use recycling u16 for UserKey
 * Removed a bunch of smaller items:
 	* user rooms

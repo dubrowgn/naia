@@ -9,9 +9,9 @@ pub use naia_shared::{
 
 use crate::{cache_map::CacheMap, connection::connection::Connection};
 
-pub enum HandshakeResult {
+pub enum HandshakeResult<T> {
     Invalid,
-    Success(Option<MessageContainer>),
+    Success(T),
 }
 
 pub struct HandshakeManager {
@@ -57,6 +57,7 @@ impl HandshakeManager {
 		ServerChallengeResponse {
 			timestamp_ns: req.timestamp_ns,
 			signature: self.timestamp_digest_map.get_unchecked(&req.timestamp_ns).clone(),
+			client_timestamp_ns: req.client_timestamp_ns,
 		}.ser(&mut writer);
 
         writer
@@ -68,7 +69,7 @@ impl HandshakeManager {
         message_kinds: &MessageKinds,
         address: &SocketAddr,
         reader: &mut BitReader,
-    ) -> HandshakeResult {
+    ) -> HandshakeResult<Option<MessageContainer>> {
 		let Ok(req) = ClientValidateRequest::de(reader) else {
 			return HandshakeResult::Invalid;
 		};
@@ -109,24 +110,31 @@ impl HandshakeManager {
 	// Step 5 of Handshake
 	pub fn recv_connect_request(
 		&mut self, message_kinds: &MessageKinds, reader: &mut BitReader,
-	) -> HandshakeResult {
+	) -> HandshakeResult<(ClientConnectRequest, Option<MessageContainer>)> {
+		let Ok(req) = ClientConnectRequest::de(reader) else {
+			return HandshakeResult::Invalid;
+		};
+
 		// Check if we have a message
 		match bool::de(reader) {
-			Ok(false) => return HandshakeResult::Success(None),
+			Ok(false) => return HandshakeResult::Success((req, None)),
 			Err(_) => return HandshakeResult::Invalid,
 			_ => { }
 		}
 
 		match message_kinds.read(reader) {
-			Ok(msg) => HandshakeResult::Success(Some(msg)),
+			Ok(msg) => HandshakeResult::Success((req, Some(msg))),
 			Err(_) => HandshakeResult::Invalid,
 		}
 	}
 
     // Step 6 of Handshake
-    pub(crate) fn write_connect_response(&self) -> BitWriter {
+    pub(crate) fn write_connect_response(&self, req: &ClientConnectRequest) -> BitWriter {
         let mut writer = BitWriter::new();
         StandardHeader::of_type(PacketType::ServerConnectResponse).ser(&mut writer);
+		ServerConnectResponse {
+			client_timestamp_ns: req.client_timestamp_ns,
+		}.ser(&mut writer);
         writer
     }
 

@@ -1,10 +1,13 @@
-use crate::connection::{base_time_manager::BaseTimeManager, io::Io};
-use naia_shared::{BitReader, SerdeErr, Timer};
-use std::time::Duration;
+use crate::connection::io::Io;
+use log::warn;
+use naia_shared::{
+	packet::*, BitReader, BitWriter, Serde, SerdeErr, StandardHeader, Timer
+};
+use std::time::{Duration, Instant};
 
 pub struct TimeManager {
-    base: BaseTimeManager,
     ping_timer: Timer,
+	epoch: Instant,
 
     // Stats
     rtt_ewma: f32,
@@ -14,40 +17,55 @@ pub struct TimeManager {
 impl TimeManager {
     pub fn from_parts(
         ping_interval: Duration,
-        base: BaseTimeManager,
         rtt_ms: f32,
         jitter_ms: f32,
     ) -> Self {
         Self {
-            base,
             ping_timer: Timer::new(ping_interval),
+			epoch: Instant::now(),
 			rtt_ewma: rtt_ms,
 			jitter_ewma: jitter_ms,
         }
     }
 
+	fn timestamp_ns(&self) -> TimestampNs {
+		self.epoch.elapsed().as_nanos() as TimestampNs
+	}
+
     // Base
 
     pub fn send_ping(&mut self, io: &mut Io) -> bool {
-        if self.ping_timer.ringing() {
-            self.ping_timer.reset();
+        if !self.ping_timer.ringing() {
+			return false;
+		}
 
-            self.base.send_ping(io);
+		self.ping_timer.reset();
 
-            return true;
+        let mut writer = BitWriter::new();
+        StandardHeader::of_type(PacketType::Ping).ser(&mut writer);
+		Ping { timestamp_ns: self.timestamp_ns() }.ser(&mut writer);
+
+        // send packet
+        if io.send_packet(writer.to_packet()).is_err() {
+            // TODO: pass this on and handle above
+            warn!("Client Error: Cannot send ping packet to Server");
         }
 
-        return false;
+		return true;
     }
 
     pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), SerdeErr> {
-        if let Some(rtt_millis) = self.base.read_pong(reader)? {
-            self.process_stats(rtt_millis);
-        }
+		let now_ns = self.timestamp_ns();
+		let pong = Pong::de(reader)?;
+		if now_ns >= pong.timestamp_ns {
+			let rtt_ns = now_ns - pong.timestamp_ns;
+			self.sample_rtt(rtt_ns as f32 / 1_000_000.0);
+		}
+
         Ok(())
     }
 
-    fn process_stats(&mut self, rtt_millis: f32) {
+    pub fn sample_rtt(&mut self, rtt_millis: f32) {
 		// Reacts in ~10s @ ~60tps; need different values for different tps
 		const TREND_WEIGHT: f32 = 0.5;
 		const SAMPLE_WEIGHT: f32 = 1.0 - TREND_WEIGHT;

@@ -142,7 +142,7 @@ impl Server {
         self.validated_users.insert(user.address, *user_key);
     }
 
-    fn finalize_connection(&mut self, user_key: &UserKey, msg: Option<MessageContainer>) {
+    fn finalize_connection(&mut self, user_key: &UserKey, req: ClientConnectRequest, msg: Option<MessageContainer>) {
         let Some(user) = self.users.get(user_key) else {
             warn!("unknown user is finalizing connection...");
             return;
@@ -156,7 +156,7 @@ impl Server {
         );
 
         // send connect response
-        let writer = self.handshake_manager.write_connect_response();
+        let writer = self.handshake_manager.write_connect_response(&req);
         if self
             .io
             .send_packet(&user.address, writer.to_packet())
@@ -506,10 +506,10 @@ impl Server {
 					&self.protocol.message_kinds,
 					reader,
 				) {
-					HandshakeResult::Success(msg) => {
+					HandshakeResult::Success((req, msg)) => {
 						if self.user_connections.contains_key(address) {
 							// send connect response
-							let writer = self.handshake_manager.write_connect_response();
+							let writer = self.handshake_manager.write_connect_response(&req);
 							if self.io.send_packet(address, writer.to_packet()).is_err() {
 								// TODO: pass this on and handle above
 								warn!(
@@ -518,7 +518,7 @@ impl Server {
 								);
 							};
 						} else if let Some(&user_key) = self.validated_users.get(address) {
-							self.finalize_connection(&user_key, msg);
+							self.finalize_connection(&user_key, req, msg);
 						} else {
 							warn!("Dropping connect request from {}, which is not validated", address);
 						}

@@ -9,7 +9,7 @@ use naia_test::Auth;
 
 #[test]
 fn end_to_end_handshake_w_auth() {
-    let mut client = ClientHandshakeManager::new(Duration::new(0, 0), Duration::new(0, 0), 1);
+    let mut client = ClientHandshakeManager::new(Duration::new(0, 0), Duration::new(0, 0));
     let mut server = ServerHandshakeManager::new(true);
     let mut bytes: Box<[u8]>;
     let mut writer: BitWriter;

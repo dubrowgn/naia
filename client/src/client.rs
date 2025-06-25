@@ -10,7 +10,6 @@ use std::time::Instant;
 use super::{client_config::ClientConfig, error::NaiaClientError};
 use crate::{
     connection::{
-        base_time_manager::BaseTimeManager,
         connection::Connection,
         handshake_manager::{HandshakeManager, HandshakeResult},
         io::Io,
@@ -41,9 +40,8 @@ impl Client {
         protocol.lock();
 
         let handshake_manager = HandshakeManager::new(
-            client_config.send_handshake_interval,
+            client_config.handshake_resend_interval,
             client_config.ping_interval,
-            client_config.handshake_pings,
         );
 
         let compression_config = protocol.compression.clone();
@@ -338,10 +336,21 @@ impl Client {
                             // already marked as heard, job done
                         }
                         PacketType::Ping => {
-                            let Ok(ping_index) = BaseTimeManager::read_ping(&mut reader) else {
+                            let Ok(ping) = Ping::de(&mut reader) else {
                                 panic!("unable to read ping index");
                             };
-                            BaseTimeManager::send_pong(connection, &mut self.io, ping_index);
+
+							// write
+							let mut writer = BitWriter::new();
+							connection.base.write_header(PacketType::Pong, &mut writer);
+							Pong { timestamp_ns: ping.timestamp_ns }.ser(&mut writer);
+
+							// send packet
+							if self.io.send_packet(writer.to_packet()).is_err() {
+								// TODO: pass this on and handle above
+								warn!("Client Error: Cannot send pong packet to Server");
+							}
+							connection.base.mark_sent();
                         }
                         PacketType::Pong => {
                             if connection.time_manager.read_pong(&mut reader).is_err() {
@@ -410,9 +419,8 @@ impl Client {
         );
 
         self.handshake_manager = HandshakeManager::new(
-            self.client_config.send_handshake_interval,
+            self.client_config.handshake_resend_interval,
             self.client_config.ping_interval,
-            self.client_config.handshake_pings,
         );
     }
 
