@@ -362,7 +362,7 @@ impl Server {
 
     /// Maintain connection with a client and read all incoming packet data
     fn maintain_socket(&mut self) {
-        self.handle_disconnects();
+        self.handle_timeouts();
         self.handle_heartbeats();
         self.handle_pings();
 
@@ -541,7 +541,7 @@ impl Server {
 		connection.process_packets(&mut self.incoming_events);
     }
 
-    fn handle_disconnects(&mut self) {
+    fn handle_timeouts(&mut self) {
         // disconnects
         if self.timeout_timer.ringing() {
             self.timeout_timer.reset();

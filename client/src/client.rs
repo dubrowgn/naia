@@ -131,14 +131,6 @@ impl Client {
                 return std::mem::take(&mut self.incoming_events);
             }
 
-			if connection
-				.read_buffered_packets(&self.protocol)
-				.is_err()
-			{
-				// TODO: Except for cosmic radiation .. Server should never send a malformed packet .. handle this
-				warn!("Error reading from buffered packet!");
-			}
-
 			// receive packets, process into events
 			connection.process_packets(&mut self.incoming_events);
         } else {
@@ -318,10 +310,7 @@ impl Client {
                     // Handle based on PacketType
                     match header.packet_type {
                         PacketType::Data => {
-                            if connection
-                                .buffer_data_packet(&mut reader)
-                                .is_err()
-                            {
+							if connection.read_packet(&self.protocol, &mut reader).is_err() {
                                 warn!("unable to parse data packet");
                                 continue;
                             }

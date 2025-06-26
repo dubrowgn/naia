@@ -1,21 +1,18 @@
 use log::warn;
 use naia_shared::{
-    BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig, HostType,
-    OwnedBitReader, packet::*, Protocol, SerdeErr, StandardHeader,
+	BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig,
+	HostType, packet::*, Protocol, SerdeErr, StandardHeader,
 };
 
 use crate::{
     connection::{io::Io, time_manager::TimeManager},
     events::ClientEvent,
 };
-use std::{collections::VecDeque, time::Instant};
+use std::time::Instant;
 
 pub struct Connection {
     pub base: BaseConnection,
     pub time_manager: TimeManager,
-    /// Small buffer when receiving updates (entity actions, entity updates) from the server
-    /// to make sure we receive them in order
-    jitter_buffer: VecDeque<OwnedBitReader>,
 }
 
 impl Connection {
@@ -31,7 +28,6 @@ impl Connection {
                 channel_kinds,
             ),
             time_manager,
-            jitter_buffer: VecDeque::new(),
         }
     }
 
@@ -41,25 +37,12 @@ impl Connection {
         self.base.process_incoming_header(header);
     }
 
-    pub fn buffer_data_packet(
-        &mut self,
-        reader: &mut BitReader,
-    ) -> Result<(), SerdeErr> {
-        self.jitter_buffer.push_back(reader.to_owned());
-        Ok(())
-    }
-
-    /// Read the packets (raw bits) from the jitter buffer that correspond to the
-    /// `receiving_tick`. Reads packets, storing necessary data into an internal buffer
-    pub fn read_buffered_packets(&mut self, protocol: &Protocol) -> Result<(), SerdeErr> {
-        while let Some(owned_reader) = self.jitter_buffer.pop_front() {
-            let mut reader = owned_reader.borrow();
-
-            self.base.read_packet(protocol, &mut reader)?;
-        }
-
-        Ok(())
-    }
+	/// Read packet data received from a client, storing necessary data in an internal buffer
+	pub fn read_packet(
+		&mut self, protocol: &Protocol, reader: &mut BitReader
+	) -> Result<(), SerdeErr> {
+		self.base.read_packet(protocol, reader)
+	}
 
     /// Receive & process messages and emit events for them
     pub fn process_packets(&mut self, incoming_events: &mut Vec<ClientEvent> ) {
