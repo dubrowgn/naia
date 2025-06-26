@@ -117,11 +117,10 @@ impl HandshakeManager {
 
     // Call this regularly so handshake manager can process incoming requests
     pub fn recv(&mut self, reader: &mut BitReader) -> Option<HandshakeResult> {
-        let header_result = StandardHeader::de(reader);
-        if header_result.is_err() {
+        let Ok(header) = StandardHeader::de(reader) else {
             return None;
-        }
-        let header = header_result.unwrap();
+        };
+
         match header.packet_type {
             PacketType::ServerChallengeResponse => {
                 self.recv_challenge_response(reader);

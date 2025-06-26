@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use naia_client::internal::{HandshakeManager as ClientHandshakeManager, HandshakeState};
+use naia_client::internal::{HandshakeManager as ClientHandshakeManager};
 use naia_server::internal::{HandshakeManager as ServerHandshakeManager, HandshakeResult};
 use naia_shared::{
     BitReader, BitWriter, MessageContainer, packet::*, Protocol, Serde, StandardHeader,
@@ -36,7 +36,7 @@ fn end_to_end_handshake_w_auth() {
     {
         reader = BitReader::new(&bytes);
         StandardHeader::de(&mut reader).expect("unable to read standard header from stream");
-        writer = server.recv_challenge_request(&mut reader).unwrap();
+        server.recv_challenge_request(&mut reader).unwrap();
     }
 
     // 3. Client send connect request
