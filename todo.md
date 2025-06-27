@@ -1,4 +1,3 @@
 # todo
-* Naia drops out-of-order data packets on connect
-* add server shutdown, notify clients
+* server drops out-of-order data packets on connect
 * encryption

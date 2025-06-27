@@ -1,25 +1,19 @@
-use std::{collections::{HashMap, HashSet}, net::SocketAddr, panic, time::Instant};
-
-use log::{trace, warn};
-
+use crate::{
+	ConnectContext, error::NaiaServerError, server_config::ServerConfig,
+	ServerEvent, time_manager::TimeManager, transport::Socket,
+};
+use crate::connection::{
+	connection::Connection,
+	handshake_manager::{HandshakeManager, HandshakeResult},
+	io::Io,
+};
+use crate::user::{User, UserKey, UserMut, UserRef};
 use naia_shared::{
-    BitReader, BitWriter, Channel, ChannelKind, IdPool, Message, MessageContainer,
+	BitReader, BitWriter, Channel, ChannelKind, IdPool, Message, MessageContainer,
 	packet::*, Protocol, Serde, SerdeErr, SocketConfig, StandardHeader, Timer,
 };
-
-use crate::{
-    connection::{
-        connection::Connection,
-        handshake_manager::{HandshakeManager, HandshakeResult},
-        io::Io,
-    }, time_manager::TimeManager, transport::Socket, ConnectContext, ServerEvent
-};
-
-use super::{
-    error::NaiaServerError,
-    server_config::ServerConfig,
-    user::{User, UserKey, UserMut, UserRef},
-};
+use log::{trace, warn};
+use std::{collections::{HashMap, HashSet}, net::SocketAddr, panic, time::Instant};
 
 /// A server that uses either UDP or WebRTC communication to send/receive
 /// messages to/from connected clients, and syncs registered entities to
@@ -81,10 +75,48 @@ impl Server {
 
     /// Listen at the given addresses
     pub fn listen<S: Into<Box<dyn Socket>>>(&mut self, socket: S) {
+		debug_assert!(!self.is_listening(), "Server is already listening");
         let boxed_socket: Box<dyn Socket> = socket.into();
         let (packet_sender, packet_receiver) = boxed_socket.listen();
         self.io.load(packet_sender, packet_receiver);
     }
+
+	/// Disconnect from all connected clients and stop listening
+	pub fn shutdown(&mut self) {
+		debug_assert!(self.is_listening(), "Server is not listening");
+		if !self.is_listening() {
+			return;
+		}
+
+		// send disconnect packets to all connected clients
+		for _ in 0..3 {
+			for (addr, conn) in self.user_connections.iter_mut() {
+				let mut writer = BitWriter::new();
+				StandardHeader::of_type(PacketType::Disconnect).ser(&mut writer);
+				Disconnect { timestamp_ns: 0, signature: vec![] }.ser(&mut writer);
+
+				if self.io.send_packet(addr, writer.to_packet()).is_err() {
+					warn!("Failed to send disconnect to {:?} @ {addr}", conn.user_key);
+				};
+			}
+		}
+
+		// clean up
+		let user_keys = self.users.keys().copied().collect::<Vec<_>>();
+		for user_key in user_keys {
+			self.user_disconnect(&user_key);
+		}
+
+		// stop listening
+		self.reset_connection();
+	}
+
+	fn reset_connection(&mut self) {
+		self.io = Io::new(
+            &self.server_config.connection.bandwidth_measure_duration,
+            &self.protocol.compression,
+        );
+	}
 
     /// Returns whether or not the Server has initialized correctly and is
     /// listening for Clients

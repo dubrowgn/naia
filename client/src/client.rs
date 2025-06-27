@@ -27,7 +27,7 @@ pub struct Client {
     io: Io,
     server_connection: Option<Connection>,
     handshake_manager: HandshakeManager,
-    manual_disconnect: bool,
+    pending_disconnect: bool,
     waitlist_messages: VecDeque<(ChannelKind, Box<dyn Message>)>, // FIXME
     // Events
     incoming_events: Vec::<ClientEvent>,
@@ -57,7 +57,7 @@ impl Client {
             ),
             server_connection: None,
             handshake_manager,
-            manual_disconnect: false,
+            pending_disconnect: false,
             waitlist_messages: VecDeque::new(),
             // Events
             incoming_events: Vec::new(),
@@ -106,7 +106,7 @@ impl Client {
             }
         }
 
-        self.manual_disconnect = true;
+        self.pending_disconnect = true;
     }
 
     /// Returns socket config
@@ -126,7 +126,7 @@ impl Client {
 
         // all other operations
         if let Some(connection) = &mut self.server_connection {
-            if connection.base.should_drop() || self.manual_disconnect {
+            if connection.base.should_drop() || self.pending_disconnect {
                 self.disconnect_with_events();
                 return std::mem::take(&mut self.incoming_events);
             }
@@ -290,6 +290,10 @@ impl Client {
                         .expect("unable to parse header from incoming packet");
 
                     match header.packet_type {
+						PacketType::Disconnect => {
+							self.pending_disconnect = true;
+							return;
+						}
                         PacketType::Data
                         | PacketType::Heartbeat
                         | PacketType::Ping

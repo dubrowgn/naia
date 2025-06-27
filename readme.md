@@ -29,6 +29,7 @@ use specifically with deterministic lockstep applications.
 * Removed handshake ping/pongs (removes ~2.5s during connect)
 * Reduced handshake to 2 round trips by combining validation and connection requests
 * Use recycling u16 for UserKey
+* Server notifies clients on shutdown
 * Removed a bunch of smaller items:
 	* user rooms
 	* command history
