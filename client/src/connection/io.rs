@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, time::Duration};
 
 use naia_shared::{
-    BitReader, CompressionConfig, Decoder, Encoder, OutgoingPacket, metrics::*,
+    BitReader, CompressionConfig, Decoder, Encoder, metrics::*, OutgoingPacket,
 };
 
 use crate::{
@@ -14,20 +14,17 @@ const BYTES_TO_KBPS_FACTOR: f32 = 0.008;
 pub struct Io {
     packet_sender: Option<Box<dyn PacketSender>>,
     packet_receiver: Option<Box<dyn PacketReceiver>>,
-    outgoing_bandwidth_monitor: Option<RollingWindow>,
-    incoming_bandwidth_monitor: Option<RollingWindow>,
+    outgoing_bandwidth_monitor: RollingWindow,
+    incoming_bandwidth_monitor: RollingWindow,
     outgoing_encoder: Option<Encoder>,
     incoming_decoder: Option<Decoder>,
 }
 
 impl Io {
     pub fn new(
-        bandwidth_measure_duration: &Option<Duration>,
+        bandwidth_measure_duration: &Duration,
         compression_config: &Option<CompressionConfig>,
     ) -> Self {
-        let outgoing_bandwidth_monitor = bandwidth_measure_duration.map(RollingWindow::new);
-        let incoming_bandwidth_monitor = bandwidth_measure_duration.map(RollingWindow::new);
-
         let outgoing_encoder = compression_config.as_ref().and_then(|config| {
             config
                 .client_to_server
@@ -44,8 +41,8 @@ impl Io {
         Io {
             packet_sender: None,
             packet_receiver: None,
-            outgoing_bandwidth_monitor,
-            incoming_bandwidth_monitor,
+            outgoing_bandwidth_monitor: RollingWindow::new(*bandwidth_measure_duration),
+            incoming_bandwidth_monitor: RollingWindow::new(*bandwidth_measure_duration),
             outgoing_encoder,
             incoming_decoder,
         }
@@ -78,9 +75,7 @@ impl Io {
         }
 
         // Bandwidth monitoring
-        if let Some(monitor) = &mut self.outgoing_bandwidth_monitor {
-            monitor.sample(payload.len() as f32 * BYTES_TO_KBPS_FACTOR);
-        }
+        self.outgoing_bandwidth_monitor.sample(payload.len() as f32 * BYTES_TO_KBPS_FACTOR);
 
         self.packet_sender
             .as_mut()
@@ -98,9 +93,7 @@ impl Io {
 
         if let Ok(Some(mut payload)) = receive_result {
             // Bandwidth monitoring
-            if let Some(monitor) = &mut self.incoming_bandwidth_monitor {
-                monitor.sample(payload.len() as f32 * BYTES_TO_KBPS_FACTOR);
-            }
+            self.incoming_bandwidth_monitor.sample(payload.len() as f32 * BYTES_TO_KBPS_FACTOR);
 
             // Decompression
             if let Some(decoder) = &mut self.incoming_decoder {
@@ -128,18 +121,10 @@ impl Io {
     }
 
     pub fn outgoing_bandwidth(&mut self) -> f32 {
-        return self
-            .outgoing_bandwidth_monitor
-            .as_mut()
-            .expect("Need to call `enable_bandwidth_monitor()` on Io before calling this")
-            .mean();
+        return self.outgoing_bandwidth_monitor.mean();
     }
 
     pub fn incoming_bandwidth(&mut self) -> f32 {
-        return self
-            .incoming_bandwidth_monitor
-            .as_mut()
-            .expect("Need to call `enable_bandwidth_monitor()` on Io before calling this")
-            .mean();
+        return self.incoming_bandwidth_monitor.mean();
     }
 }

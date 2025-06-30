@@ -171,9 +171,7 @@ impl Server {
             user_key,
             &self.protocol.channel_kinds,
         ));
-        if self.io.bandwidth_monitor_enabled() {
-            self.io.register_client(&user.address);
-        }
+        self.io.register_client(&user.address);
     }
 
     /// Rejects an incoming Client User, terminating their attempt to establish
@@ -381,9 +379,7 @@ impl Server {
         self.handshake_manager.delete_user(&user.address);
 
         // remove from bandwidth monitor
-        if self.io.bandwidth_monitor_enabled() {
-            self.io.deregister_client(&user.address);
-        }
+        self.io.deregister_client(&user.address);
 
         return user;
     }

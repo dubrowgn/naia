@@ -1,6 +1,5 @@
-use std::{collections::HashMap, net::SocketAddr, time::Duration};
-
 use naia_shared::metrics::RollingWindow;
+use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
 pub struct BandwidthMonitor {
     total_monitor: RollingWindow,
