@@ -58,7 +58,7 @@ impl Connection {
 
     /// Collect and send any outgoing packets from client to server
     pub fn send_packets(&mut self, protocol: &Protocol, now: &Instant, io: &mut Io) {
-        let rtt_millis = self.time_manager.rtt();
+        let rtt_millis = self.time_manager.rtt_ms();
         self.base.collect_messages(now, &rtt_millis);
 
         let mut any_sent = false;

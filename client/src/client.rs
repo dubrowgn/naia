@@ -194,7 +194,7 @@ impl Client {
         self.server_connection
             .as_ref()
             .expect("it is expected that you should verify whether the client is connected before calling this method")
-            .time_manager.rtt()
+            .time_manager.rtt_ms()
     }
 
     /// Gets the average Jitter measured in connection to the Server
@@ -202,7 +202,7 @@ impl Client {
         self.server_connection
             .as_ref()
             .expect("it is expected that you should verify whether the client is connected before calling this method")
-            .time_manager.jitter()
+            .time_manager.jitter_ms()
     }
 
     // Bandwidth monitoring

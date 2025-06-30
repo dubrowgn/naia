@@ -1,19 +1,12 @@
-use std::net::SocketAddr;
-
+use crate::{ events::ServerEvent, user::UserKey };
 use log::warn;
-
 use naia_shared::{
     BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig,
 	HostType, packet::*, Protocol, SerdeErr, StandardHeader,
 };
-
-use crate::{
-    connection::{io::Io, ping_config::PingConfig},
-    events::ServerEvent,
-    user::UserKey,
-};
-
-use std::time::Instant;
+use std::net::SocketAddr;
+use std::time::{Duration, Instant};
+use super::io::Io;
 use super::ping_manager::PingManager;
 
 pub struct Connection {
@@ -26,7 +19,7 @@ pub struct Connection {
 impl Connection {
     pub fn new(
         connection_config: &ConnectionConfig,
-        ping_config: &PingConfig,
+        ping_interval: Duration,
         user_address: &SocketAddr,
         user_key: &UserKey,
         channel_kinds: &ChannelKinds,
@@ -39,7 +32,7 @@ impl Connection {
                 connection_config,
                 channel_kinds,
             ),
-            ping_manager: PingManager::new(ping_config),
+            ping_manager: PingManager::new(ping_interval),
         }
     }
 
@@ -84,8 +77,8 @@ impl Connection {
         now: &Instant,
         io: &mut Io,
     ) {
-        let rtt_millis = self.ping_manager.rtt_average;
-        self.base.collect_messages(now, &rtt_millis);
+		let rtt_ms = self.ping_manager.rtt_ms();
+		self.base.collect_messages(now, &rtt_ms);
 
         let mut any_sent = false;
         loop {

@@ -1,32 +1,26 @@
 use crate::connection::io::Io;
 use log::warn;
 use naia_shared::{
-	packet::*, BitReader, BitWriter, Serde, SerdeErr, StandardHeader, Timer
+	packet::*, BitReader, BitWriter, metrics::*, Serde, SerdeErr, StandardHeader, Timer
 };
 use std::time::{Duration, Instant};
 
 pub struct TimeManager {
     ping_timer: Timer,
 	epoch: Instant,
-
-    // Stats
-    rtt_ewma: f32,
-    jitter_ewma: f32,
+    rtt_ms: RollingWindow,
 }
 
+const METRICS_WINDOW_SIZE: Duration = Duration::from_secs(7);
+
 impl TimeManager {
-    pub fn from_parts(
-        ping_interval: Duration,
-        rtt_ms: f32,
-        jitter_ms: f32,
-    ) -> Self {
-        Self {
-            ping_timer: Timer::new(ping_interval),
+	pub fn new(ping_interval: Duration) -> Self {
+		Self {
+			ping_timer: Timer::new(ping_interval),
 			epoch: Instant::now(),
-			rtt_ewma: rtt_ms,
-			jitter_ewma: jitter_ms,
-        }
-    }
+			rtt_ms: RollingWindow::new(METRICS_WINDOW_SIZE),
+		}
+	}
 
 	fn timestamp_ns(&self) -> TimestampNs {
 		self.epoch.elapsed().as_nanos() as TimestampNs
@@ -59,30 +53,24 @@ impl TimeManager {
 		let pong = Pong::de(reader)?;
 		if now_ns >= pong.timestamp_ns {
 			let rtt_ns = now_ns - pong.timestamp_ns;
-			self.sample_rtt(rtt_ns as f32 / 1_000_000.0);
+			self.sample_rtt_ms(rtt_ns as f32 / 1_000_000.0);
 		}
 
         Ok(())
     }
 
-    pub fn sample_rtt(&mut self, rtt_millis: f32) {
-		// Reacts in ~10s @ ~60tps; need different values for different tps
-		const TREND_WEIGHT: f32 = 0.5;
-		const SAMPLE_WEIGHT: f32 = 1.0 - TREND_WEIGHT;
+	pub fn sample_rtt_ms(&mut self, rtt_ms: f32) {
+		self.rtt_ms.sample(rtt_ms);
+	}
 
-        self.rtt_ewma = (TREND_WEIGHT * self.rtt_ewma) + (SAMPLE_WEIGHT * rtt_millis);
+	// Stats
 
-        let rtt_diff = rtt_millis - self.rtt_ewma;
-		self.jitter_ewma = f32::abs(TREND_WEIGHT * self.jitter_ewma + SAMPLE_WEIGHT * rtt_diff);
-    }
+	pub(crate) fn rtt_ms(&self) -> f32 {
+		self.rtt_ms.mean()
+	}
 
-    // Stats
-
-    pub(crate) fn rtt(&self) -> f32 {
-        self.rtt_ewma
-    }
-
-    pub(crate) fn jitter(&self) -> f32 {
-		self.jitter_ewma
-    }
+	pub(crate) fn jitter_ms(&self) -> f32 {
+		let mean = self.rtt_ms.mean();
+		f32::max(self.rtt_ms.max() - mean, mean - self.rtt_ms.min())
+	}
 }

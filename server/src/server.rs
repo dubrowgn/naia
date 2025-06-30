@@ -59,7 +59,7 @@ impl Server {
             io,
             heartbeat_timer: Timer::new(server_config.connection.heartbeat_interval),
             timeout_timer: Timer::new(server_config.connection.disconnection_timeout_duration),
-            ping_timer: Timer::new(server_config.ping.ping_interval),
+            ping_timer: Timer::new(server_config.ping_interval),
             handshake_manager: HandshakeManager::new(),
             // Users
             users: HashMap::new(),
@@ -166,7 +166,7 @@ impl Server {
 
         self.user_connections.insert(user.address, Connection::new(
             &self.server_config.connection,
-            &self.server_config.ping,
+            self.server_config.ping_interval,
             &user.address,
             user_key,
             &self.protocol.channel_kinds,
@@ -333,7 +333,7 @@ impl Server {
     pub fn rtt(&self, user_key: &UserKey) -> Option<f32> {
         if let Some(user) = self.users.get(user_key) {
             if let Some(connection) = self.user_connections.get(&user.address) {
-                return Some(connection.ping_manager.rtt_average);
+                return Some(connection.ping_manager.rtt_ms());
             }
         }
         None
@@ -344,7 +344,7 @@ impl Server {
     pub fn jitter(&self, user_key: &UserKey) -> Option<f32> {
         if let Some(user) = self.users.get(user_key) {
             if let Some(connection) = self.user_connections.get(&user.address) {
-                return Some(connection.ping_manager.jitter_average);
+                return Some(connection.ping_manager.jitter_ms());
             }
         }
         None

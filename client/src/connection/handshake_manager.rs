@@ -60,15 +60,9 @@ impl HandshakeManager {
 		let now_ns = self.timestamp_ns();
 		let rtt_ms = (now_ns - start_timestamp_ns) as f32 / 1_000_000.0;
 
-		if let Some(time_manager) = &mut self.time_manager {
-			time_manager.sample_rtt(rtt_ms);
-		} else {
-			self.time_manager = Some(TimeManager::from_parts(
-				self.ping_interval,
-				rtt_ms,
-				0.0,
-			));
-		}
+		self.time_manager
+			.get_or_insert_with(|| TimeManager::new(self.ping_interval))
+			.sample_rtt_ms(rtt_ms);
 	}
 
 	fn set_state(&mut self, state: HandshakeState) {

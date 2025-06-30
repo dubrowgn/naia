@@ -1,21 +1,21 @@
-use crate::connection::ping_config::PingConfig;
 use naia_shared::ConnectionConfig;
-use std::default::Default;
+use std::{default::Default, time::Duration};
 
 /// Contains Config properties which will be used by the Server
 #[derive(Clone)]
 pub struct ServerConfig {
     /// Used to configure the connections with Clients
     pub connection: ConnectionConfig,
-    /// Configuration used to monitor the ping & jitter on the network
-    pub ping: PingConfig,
+    /// The duration to wait before sending a ping message to the remote host,
+    /// in order to estimate RTT time
+    pub ping_interval: Duration,
 }
 
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             connection: ConnectionConfig::default(),
-            ping: PingConfig::default(),
+            ping_interval: Duration::from_secs(1),
         }
     }
 }
