@@ -330,7 +330,7 @@ impl Client {
 							// write
 							let mut writer = BitWriter::new();
 							connection.base.write_header(PacketType::Pong, &mut writer);
-							Pong { timestamp_ns: ping.timestamp_ns }.ser(&mut writer);
+							Pong::from_ping(&ping).ser(&mut writer);
 
 							// send packet
 							if self.io.send_packet(writer.to_packet()).is_err() {

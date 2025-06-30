@@ -1,6 +1,6 @@
 use crate::{
 	ConnectContext, error::NaiaServerError, server_config::ServerConfig,
-	ServerEvent, time_manager::TimeManager, transport::Socket,
+	ServerEvent, transport::Socket,
 };
 use crate::connection::{
 	connection::Connection,
@@ -34,8 +34,6 @@ pub struct Server {
 	user_keys: HashMap<SocketAddr, UserKey>,
     // Events
     incoming_events: Vec<ServerEvent>,
-    // Ticks
-    time_manager: TimeManager,
 }
 
 impl Server {
@@ -43,8 +41,6 @@ impl Server {
     pub fn new<P: Into<Protocol>>(server_config: ServerConfig, protocol: P) -> Self {
         let mut protocol: Protocol = protocol.into();
         protocol.lock();
-
-        let time_manager = TimeManager::new();
 
         let io = Io::new(
             &server_config.connection.bandwidth_measure_duration,
@@ -68,8 +64,6 @@ impl Server {
 			user_keys: HashMap::new(),
             // Events
             incoming_events: Vec::new(),
-            // Ticks
-            time_manager,
         }
     }
 
@@ -501,9 +495,17 @@ impl Server {
                 return Ok(true);
             }
             PacketType::Ping => {
-                let response = self.time_manager.process_ping(reader).unwrap();
+				let Ok(ping) = Ping::de(reader) else {
+					warn!("Server Error: dropping malformed ping packet");
+					return Ok(true);
+				};
+
+				let mut writer = BitWriter::new();
+				StandardHeader::of_type(PacketType::Pong).ser(&mut writer);
+				Pong::from_ping(&ping).ser(&mut writer);
+
                 // send packet
-                if self.io.send_packet(address, response.to_packet()).is_err() {
+                if self.io.send_packet(address, writer.to_packet()).is_err() {
                     // TODO: pass this on and handle above
                     warn!("Server Error: Cannot send pong packet to {}", address);
                 };

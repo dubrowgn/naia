@@ -71,6 +71,12 @@ pub struct Pong {
 	pub timestamp_ns: TimestampNs,
 }
 
+impl Pong {
+	pub fn from_ping(ping: &Ping) -> Self {
+		Self { timestamp_ns: ping.timestamp_ns }
+	}
+}
+
 #[derive(Clone, PartialEq, SerdeInternal)]
 pub struct Disconnect {
 	pub timestamp_ns: TimestampNs,

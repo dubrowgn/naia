@@ -30,7 +30,6 @@ mod error;
 mod events;
 mod server;
 mod server_config;
-mod time_manager;
 mod user;
 
 pub use error::NaiaServerError;
