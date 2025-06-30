@@ -25,13 +25,13 @@ mod constants;
 mod id_pool;
 mod index_buffer;
 mod messages;
+pub mod metrics;
 mod protocol;
 mod timer;
 mod types;
 
 pub use connection::{
     ack_manager::AckManager,
-    bandwidth_monitor::BandwidthMonitor,
     base_connection::BaseConnection,
     compression_config::{CompressionConfig, CompressionMode},
     connection_config::ConnectionConfig,

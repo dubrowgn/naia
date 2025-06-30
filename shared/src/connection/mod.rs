@@ -1,5 +1,4 @@
 pub mod ack_manager;
-pub mod bandwidth_monitor;
 pub mod base_connection;
 pub mod compression_config;
 pub mod connection_config;
