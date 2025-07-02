@@ -13,6 +13,8 @@ use std::time::Instant;
 pub struct Connection {
     pub base: BaseConnection,
     pub time_manager: TimeManager,
+	pkt_rx_count: u64,
+	pkt_tx_count: u64,
 }
 
 impl Connection {
@@ -28,6 +30,8 @@ impl Connection {
                 channel_kinds,
             ),
             time_manager,
+			pkt_rx_count: 0,
+			pkt_tx_count: 0,
         }
     }
 
@@ -41,6 +45,7 @@ impl Connection {
 	pub fn read_packet(
 		&mut self, protocol: &Protocol, reader: &mut BitReader
 	) -> Result<(), SerdeErr> {
+		self.pkt_rx_count += 1;
 		self.base.read_packet(protocol, reader)
 	}
 
@@ -76,6 +81,7 @@ impl Connection {
             let writer = self.write_packet(protocol);
 
             // send packet
+			self.pkt_tx_count += 1;
             if io.send_packet(writer.to_packet()).is_err() {
                 // TODO: pass this on and handle above
                 warn!("Client Error: Cannot send data packet to Server");
@@ -118,4 +124,6 @@ impl Connection {
 	pub fn msg_rx_miss_count(&self) -> u64 { self.base.msg_rx_miss_count() }
 	pub fn msg_tx_count(&self) -> u64 { self.base.msg_tx_count() }
 	pub fn msg_tx_queue_count(&self) -> u64 { self.base.msg_tx_queue_count() }
+	pub fn pkt_rx_count(&self) -> u64 { self.pkt_rx_count }
+	pub fn pkt_tx_count(&self) -> u64 { self.pkt_tx_count }
 }

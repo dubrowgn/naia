@@ -3,7 +3,7 @@
 This is a stripped down version of [naia](https://github.com/naia-lib/naia) for
 use specifically with deterministic lockstep applications.
 
-## Major changes/improvements
+## Major Removals
 
 * Code base reduced from ~39k lines of rust to ~11.8k (as of 2024-10-21)
 * Removed bevy, hecs, and miniquad from naia core (no more naia changes necessary
@@ -16,9 +16,13 @@ use specifically with deterministic lockstep applications.
   removes a large amount of special casing in naia, and can be implemented
   at the application level more robustly with a fraction of the code. (~2.5k LoC)
 * Removed WASM
+
+## Major Additions
+
 * Full support for client and server being in the same process
 * Messages are actually recieved in order, which allows deterministic applications
 * Split send and receive operations
+* Added message and packet-level performance counters
 
 ## Other improvements
 
@@ -40,4 +44,5 @@ use specifically with deterministic lockstep applications.
 ## To do (As of 2025-06-25)
 
 * Fully expose server configuration
-* Fix data packets drop race condition on connect
+* Fix server drops data packets race condition on connect
+* Add encryption

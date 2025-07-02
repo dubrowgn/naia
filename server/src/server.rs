@@ -666,4 +666,6 @@ impl Server {
 	pub fn msg_rx_miss_count(&self) -> u64 { self.connections().map(Connection::msg_rx_miss_count).sum() }
 	pub fn msg_tx_count(&self) -> u64 { self.connections().map(Connection::msg_tx_count).sum() }
 	pub fn msg_tx_queue_count(&self) -> u64 { self.connections().map(Connection::msg_tx_queue_count).sum() }
+	pub fn pkt_rx_count(&self) -> u64 { self.connections().map(Connection::pkt_rx_count).sum() }
+	pub fn pkt_tx_count(&self) -> u64 { self.connections().map(Connection::pkt_tx_count).sum() }
 }
