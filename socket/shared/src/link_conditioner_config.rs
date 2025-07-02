@@ -12,6 +12,7 @@ pub struct LinkConditionerConfig {
 }
 
 impl LinkConditionerConfig {
+	pub const PERFECT: Self = Self::new(0.0, 0.0, 0.0, 0.0);
 	pub const GOOD: Self = Self::new(40.0, 6.0, 0.002, 0.002);
 	pub const AVERAGE: Self = Self::new(170.0, 45.0, 0.02, 0.02);
 	pub const POOR: Self = Self::new(300.0, 84.0, 0.04, 0.04);
