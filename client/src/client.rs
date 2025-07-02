@@ -51,10 +51,7 @@ impl Client {
             client_config: client_config.clone(),
             protocol,
             // Connection
-            io: Io::new(
-                &client_config.connection.bandwidth_measure_duration,
-                &compression_config,
-            ),
+			io: Io::new(&compression_config),
             server_connection: None,
             handshake_manager,
             pending_disconnect: false,
@@ -203,15 +200,6 @@ impl Client {
             .as_ref()
             .expect("it is expected that you should verify whether the client is connected before calling this method")
             .time_manager.jitter_ms()
-    }
-
-    // Bandwidth monitoring
-    pub fn outgoing_bandwidth(&mut self) -> f32 {
-        self.io.outgoing_bandwidth()
-    }
-
-    pub fn incoming_bandwidth(&mut self) -> f32 {
-        self.io.incoming_bandwidth()
     }
 
     // Private methods
@@ -399,12 +387,7 @@ impl Client {
 
     fn disconnect_reset_connection(&mut self) {
         self.server_connection = None;
-
-        self.io = Io::new(
-            &self.client_config.connection.bandwidth_measure_duration,
-            &self.protocol.compression,
-        );
-
+		self.io = Io::new(&self.protocol.compression);
         self.handshake_manager = HandshakeManager::new(
             self.client_config.handshake_resend_interval,
             self.client_config.ping_interval,
@@ -418,6 +401,8 @@ impl Client {
 
 	// performance counters
 
+	pub fn bytes_rx(&self) -> u64 { self.io.bytes_rx() }
+	pub fn bytes_tx(&self) -> u64 { self.io.bytes_tx() }
 	pub fn msg_rx_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_rx_count).unwrap_or(0) }
 	pub fn msg_rx_drop_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_rx_drop_count).unwrap_or(0) }
 	pub fn msg_rx_miss_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_rx_miss_count).unwrap_or(0) }

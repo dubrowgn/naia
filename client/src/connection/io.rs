@@ -1,7 +1,7 @@
-use std::{net::SocketAddr, time::Duration};
+use std::net::SocketAddr;
 
 use naia_shared::{
-    BitReader, CompressionConfig, Decoder, Encoder, metrics::*, OutgoingPacket,
+    BitReader, CompressionConfig, Decoder, Encoder, OutgoingPacket,
 };
 
 use crate::{
@@ -9,22 +9,17 @@ use crate::{
     transport::{PacketReceiver, PacketSender, ServerAddr},
 };
 
-const BYTES_TO_KBPS_FACTOR: f32 = 0.008;
-
 pub struct Io {
     packet_sender: Option<Box<dyn PacketSender>>,
     packet_receiver: Option<Box<dyn PacketReceiver>>,
-    outgoing_bandwidth_monitor: RollingWindow,
-    incoming_bandwidth_monitor: RollingWindow,
+	bytes_tx: u64,
+	bytes_rx: u64,
     outgoing_encoder: Option<Encoder>,
     incoming_decoder: Option<Decoder>,
 }
 
 impl Io {
-    pub fn new(
-        bandwidth_measure_duration: &Duration,
-        compression_config: &Option<CompressionConfig>,
-    ) -> Self {
+    pub fn new(compression_config: &Option<CompressionConfig>) -> Self {
         let outgoing_encoder = compression_config.as_ref().and_then(|config| {
             config
                 .client_to_server
@@ -41,8 +36,8 @@ impl Io {
         Io {
             packet_sender: None,
             packet_receiver: None,
-            outgoing_bandwidth_monitor: RollingWindow::new(*bandwidth_measure_duration),
-            incoming_bandwidth_monitor: RollingWindow::new(*bandwidth_measure_duration),
+			bytes_tx: 0,
+			bytes_rx: 0,
             outgoing_encoder,
             incoming_decoder,
         }
@@ -75,7 +70,7 @@ impl Io {
         }
 
         // Bandwidth monitoring
-        self.outgoing_bandwidth_monitor.sample(payload.len() as f32 * BYTES_TO_KBPS_FACTOR);
+		self.bytes_tx = self.bytes_tx.wrapping_add(payload.len() as u64);
 
         self.packet_sender
             .as_mut()
@@ -93,7 +88,7 @@ impl Io {
 
         if let Ok(Some(mut payload)) = receive_result {
             // Bandwidth monitoring
-            self.incoming_bandwidth_monitor.sample(payload.len() as f32 * BYTES_TO_KBPS_FACTOR);
+			self.bytes_rx = self.bytes_rx.wrapping_add(payload.len() as u64);
 
             // Decompression
             if let Some(decoder) = &mut self.incoming_decoder {
@@ -120,11 +115,8 @@ impl Io {
         }
     }
 
-    pub fn outgoing_bandwidth(&mut self) -> f32 {
-        return self.outgoing_bandwidth_monitor.mean();
-    }
+	// Performance counters
 
-    pub fn incoming_bandwidth(&mut self) -> f32 {
-        return self.incoming_bandwidth_monitor.mean();
-    }
+	pub fn bytes_rx(&self) -> u64 { self.bytes_rx }
+	pub fn bytes_tx(&self) -> u64 { self.bytes_tx }
 }

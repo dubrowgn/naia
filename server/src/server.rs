@@ -42,10 +42,7 @@ impl Server {
         let mut protocol: Protocol = protocol.into();
         protocol.lock();
 
-        let io = Io::new(
-            &server_config.connection.bandwidth_measure_duration,
-            &protocol.compression,
-        );
+        let io = Io::new(&protocol.compression);
 
         Server {
             // Config
@@ -110,10 +107,7 @@ impl Server {
 	}
 
 	fn reset_connection(&mut self) {
-		self.io = Io::new(
-            &self.server_config.connection.bandwidth_measure_duration,
-            &self.protocol.compression,
-        );
+		self.io = Io::new(&self.protocol.compression);
 	}
 
     /// Returns whether or not the Server has initialized correctly and is
@@ -169,7 +163,6 @@ impl Server {
             user_key,
             &self.protocol.channel_kinds,
         ));
-        self.io.register_client(&user.address);
     }
 
     /// Rejects an incoming Client User, terminating their attempt to establish
@@ -307,23 +300,6 @@ impl Server {
         self.users.len()
     }
 
-    // Bandwidth monitoring
-    pub fn outgoing_bandwidth_total(&mut self) -> f32 {
-        self.io.outgoing_bandwidth_total()
-    }
-
-    pub fn incoming_bandwidth_total(&mut self) -> f32 {
-        self.io.incoming_bandwidth_total()
-    }
-
-    pub fn outgoing_bandwidth_to_client(&mut self, address: &SocketAddr) -> f32 {
-        self.io.outgoing_bandwidth_to_client(address)
-    }
-
-    pub fn incoming_bandwidth_from_client(&mut self, address: &SocketAddr) -> f32 {
-        self.io.incoming_bandwidth_from_client(address)
-    }
-
     // Ping
     /// Gets the average Round Trip Time measured to the given User's Client
     pub fn rtt(&self, user_key: &UserKey) -> Option<f32> {
@@ -373,9 +349,6 @@ impl Server {
 		self.user_id_pool.put(*user_key);
 
         self.handshake_manager.delete_user(&user.address);
-
-        // remove from bandwidth monitor
-        self.io.deregister_client(&user.address);
 
         return user;
     }
@@ -661,6 +634,8 @@ impl Server {
 
 	// performance counters
 
+	pub fn bytes_rx(&self) -> u64 { self.io.bytes_rx() }
+	pub fn bytes_tx(&self) -> u64 { self.io.bytes_tx() }
 	pub fn msg_rx_count(&self) -> u64 { self.connections().map(Connection::msg_rx_count).sum() }
 	pub fn msg_rx_drop_count(&self) -> u64 { self.connections().map(Connection::msg_rx_drop_count).sum() }
 	pub fn msg_rx_miss_count(&self) -> u64 { self.connections().map(Connection::msg_rx_miss_count).sum() }

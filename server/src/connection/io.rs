@@ -1,27 +1,21 @@
-use std::{net::SocketAddr, panic, time::Duration};
-
-use naia_shared::{CompressionConfig, Decoder, Encoder, OutgoingPacket, OwnedBitReader};
-
-use super::bandwidth_monitor::BandwidthMonitor;
 use crate::{
     error::NaiaServerError,
     transport::{PacketReceiver, PacketSender},
 };
+use naia_shared::{CompressionConfig, Decoder, Encoder, OutgoingPacket, OwnedBitReader};
+use std::net::SocketAddr;
 
 pub struct Io {
     packet_sender: Option<Box<dyn PacketSender>>,
     packet_receiver: Option<Box<dyn PacketReceiver>>,
-    outgoing_bandwidth_monitor: BandwidthMonitor,
-    incoming_bandwidth_monitor: BandwidthMonitor,
+	bytes_rx: u64,
+	bytes_tx: u64,
     outgoing_encoder: Option<Encoder>,
     incoming_decoder: Option<Decoder>,
 }
 
 impl Io {
-    pub fn new(
-        bandwidth_measure_duration: &Duration,
-        compression_config: &Option<CompressionConfig>,
-    ) -> Self {
+    pub fn new(compression_config: &Option<CompressionConfig>) -> Self {
         let outgoing_encoder = compression_config.as_ref().and_then(|config| {
             config
                 .server_to_client
@@ -38,8 +32,8 @@ impl Io {
         Io {
             packet_sender: None,
             packet_receiver: None,
-            outgoing_bandwidth_monitor: BandwidthMonitor::new(*bandwidth_measure_duration),
-            incoming_bandwidth_monitor: BandwidthMonitor::new(*bandwidth_measure_duration),
+            bytes_rx: 0,
+            bytes_tx: 0,
             outgoing_encoder,
             incoming_decoder,
         }
@@ -75,9 +69,7 @@ impl Io {
             payload = encoder.encode(payload);
         }
 
-        // Bandwidth monitoring
-        self.outgoing_bandwidth_monitor.record_packet(address, payload.len());
-
+		self.bytes_tx = self.bytes_tx.wrapping_add(payload.len() as u64);
         self.packet_sender
             .as_ref()
             .expect("Cannot call Server.send_packet() until you call Server.listen()!")
@@ -94,8 +86,7 @@ impl Io {
 
         match receive_result {
             Ok(Some((address, mut payload))) => {
-                // Bandwidth monitoring
-                self.incoming_bandwidth_monitor.record_packet(&address, payload.len());
+				self.bytes_rx = self.bytes_rx.wrapping_add(payload.len() as u64);
 
                 // Decompression
                 if let Some(decoder) = &mut self.incoming_decoder {
@@ -109,41 +100,6 @@ impl Io {
         }
     }
 
-    pub fn register_client(&mut self, address: &SocketAddr) {
-        self.outgoing_bandwidth_monitor
-            .create_client(address);
-        self.incoming_bandwidth_monitor
-            .create_client(address);
-    }
-
-    pub fn deregister_client(&mut self, address: &SocketAddr) {
-        self.outgoing_bandwidth_monitor
-            .delete_client(address);
-        self.incoming_bandwidth_monitor
-            .delete_client(address);
-    }
-
-    pub fn outgoing_bandwidth_total(&mut self) -> f32 {
-        return self
-            .outgoing_bandwidth_monitor
-            .total_bandwidth();
-    }
-
-    pub fn incoming_bandwidth_total(&mut self) -> f32 {
-        return self
-            .incoming_bandwidth_monitor
-            .total_bandwidth();
-    }
-
-    pub fn outgoing_bandwidth_to_client(&mut self, address: &SocketAddr) -> f32 {
-        return self
-            .outgoing_bandwidth_monitor
-            .client_bandwidth(address);
-    }
-
-    pub fn incoming_bandwidth_from_client(&mut self, address: &SocketAddr) -> f32 {
-        return self
-            .incoming_bandwidth_monitor
-            .client_bandwidth(address);
-    }
+    pub fn bytes_rx(&self) -> u64 { self.bytes_rx }
+    pub fn bytes_tx(&self) -> u64 { self.bytes_tx }
 }
