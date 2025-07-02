@@ -15,6 +15,9 @@ use std::mem;
 pub struct SequencedUnreliableReceiver {
     newest_received_message_index: Option<MessageIndex>,
     incoming_messages: Vec<MessageContainer>,
+	msg_rx_count: u64,
+	msg_rx_drop_count: u64,
+	msg_rx_miss_count: u64,
 }
 
 impl SequencedUnreliableReceiver {
@@ -22,6 +25,9 @@ impl SequencedUnreliableReceiver {
         Self {
             newest_received_message_index: None,
             incoming_messages: Vec::new(),
+			msg_rx_count: 0,
+			msg_rx_drop_count: 0,
+			msg_rx_miss_count: 0,
         }
     }
 
@@ -30,15 +36,19 @@ impl SequencedUnreliableReceiver {
         message_index: MessageIndex,
         message: MessageContainer,
     ) {
+		self.msg_rx_count += 1;
         self.arrange_message(message_index, message);
     }
 
     pub fn arrange_message(&mut self, message_index: MessageIndex, message: MessageContainer) {
         if let Some(most_recent_id) = self.newest_received_message_index {
             if message_index > most_recent_id {
+				self.msg_rx_miss_count += message_index.diff(most_recent_id) as u64 - 1;
                 self.incoming_messages.push(message);
                 self.newest_received_message_index = Some(message_index);
-            }
+            } else {
+				self.msg_rx_drop_count += 1;
+			}
         } else {
             self.incoming_messages.push(message);
             self.newest_received_message_index = Some(message_index);
@@ -64,4 +74,8 @@ impl ChannelReceiver for SequencedUnreliableReceiver {
         }
         Ok(())
     }
+
+	fn msg_rx_count(&self) -> u64 { self.msg_rx_count }
+	fn msg_rx_drop_count(&self) -> u64 { self.msg_rx_drop_count }
+	fn msg_rx_miss_count(&self) -> u64 { self.msg_rx_miss_count }
 }

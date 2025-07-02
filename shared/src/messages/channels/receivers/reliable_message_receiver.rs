@@ -30,6 +30,8 @@ pub struct ReliableMessageReceiver<A: ReceiverArranger> {
     arranger: A,
     fragment_receiver: FragmentReceiver,
     current_index: MessageIndex,
+	msg_rx_count: u64,
+	msg_rx_drop_count: u64,
 }
 
 impl<A: ReceiverArranger> ReliableMessageReceiver<A> {
@@ -40,6 +42,8 @@ impl<A: ReceiverArranger> ReliableMessageReceiver<A> {
             arranger,
             fragment_receiver: FragmentReceiver::new(),
             current_index: MessageIndex::ZERO,
+            msg_rx_count: 0,
+			msg_rx_drop_count: 0,
         }
     }
 
@@ -73,8 +77,10 @@ impl<A: ReceiverArranger> ReliableMessageReceiver<A> {
         message_index: MessageIndex,
         message: MessageContainer,
     ) {
-        self.reliable_receiver
-            .buffer_message(message_index, message);
+		self.msg_rx_count += 1;
+        if !self.reliable_receiver.buffer_message(message_index, message) {
+			self.msg_rx_drop_count += 1;
+		}
         let received_messages = self.reliable_receiver.receive_messages();
         for (msg_idx, received_message) in received_messages {
             self.push_message(msg_idx, message_kinds, received_message)
@@ -105,4 +111,8 @@ impl<A: ReceiverArranger> ChannelReceiver for ReliableMessageReceiver<A> {
         }
         Ok(())
     }
+
+	fn msg_rx_count(&self) -> u64 { self.msg_rx_count }
+	fn msg_rx_drop_count(&self) -> u64 { self.msg_rx_drop_count }
+	fn msg_rx_miss_count(&self) -> u64 { 0 }
 }

@@ -110,4 +110,12 @@ impl Connection {
 
         writer
     }
+
+	// performance counters
+
+	pub fn msg_rx_count(&self) -> u64 { self.base.msg_rx_count() }
+	pub fn msg_rx_drop_count(&self) -> u64 { self.base.msg_rx_drop_count() }
+	pub fn msg_rx_miss_count(&self) -> u64 { self.base.msg_rx_miss_count() }
+	pub fn msg_tx_count(&self) -> u64 { self.base.msg_tx_count() }
+	pub fn msg_tx_queue_count(&self) -> u64 { self.base.msg_tx_queue_count() }
 }

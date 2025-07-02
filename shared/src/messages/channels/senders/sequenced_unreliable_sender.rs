@@ -18,6 +18,7 @@ pub struct SequencedUnreliableSender {
     outgoing_messages: VecDeque<(MessageIndex, MessageContainer)>,
     /// Next message id to use (not yet used in the buffer)
     next_send_message_index: MessageIndex,
+	msg_tx_count: u64,
 }
 
 impl SequencedUnreliableSender {
@@ -25,12 +26,14 @@ impl SequencedUnreliableSender {
         Self {
             outgoing_messages: VecDeque::new(),
             next_send_message_index: MessageIndex::ZERO,
+			msg_tx_count: 0,
         }
     }
 }
 
 impl ChannelSender for SequencedUnreliableSender {
     fn send(&mut self, message: MessageContainer) {
+		self.msg_tx_count += 1;
         self.outgoing_messages
             .push_back((self.next_send_message_index, message));
         self.next_send_message_index.incr();
@@ -63,4 +66,7 @@ impl ChannelSender for SequencedUnreliableSender {
             has_written,
         )
     }
+
+	fn msg_tx_count(&self) -> u64 { self.msg_tx_count }
+	fn msg_tx_queue_count(&self) -> u64 { self.msg_tx_count }
 }

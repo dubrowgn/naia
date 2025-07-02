@@ -12,12 +12,14 @@ use std::time::Instant;
 
 pub struct UnorderedUnreliableSender {
     outgoing_messages: VecDeque<MessageContainer>,
+	msg_tx_count: u64,
 }
 
 impl UnorderedUnreliableSender {
     pub fn new() -> Self {
         Self {
             outgoing_messages: VecDeque::new(),
+			msg_tx_count: 0,
         }
     }
 
@@ -40,6 +42,7 @@ impl UnorderedUnreliableSender {
 
 impl ChannelSender for UnorderedUnreliableSender {
     fn send(&mut self, message: MessageContainer) {
+		self.msg_tx_count += 1;
         self.outgoing_messages.push_back(message);
     }
 
@@ -90,4 +93,7 @@ impl ChannelSender for UnorderedUnreliableSender {
         }
         None
     }
+
+	fn msg_tx_count(&self) -> u64 { self.msg_tx_count }
+	fn msg_tx_queue_count(&self) -> u64 { self.msg_tx_count }
 }

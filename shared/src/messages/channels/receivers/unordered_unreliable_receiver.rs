@@ -10,12 +10,14 @@ use std::{collections::VecDeque, mem};
 
 pub struct UnorderedUnreliableReceiver {
     incoming_messages: VecDeque<MessageContainer>,
+	msg_rx_count: u64,
 }
 
 impl UnorderedUnreliableReceiver {
     pub fn new() -> Self {
         Self {
             incoming_messages: VecDeque::new(),
+			msg_rx_count: 0,
         }
     }
 
@@ -29,6 +31,7 @@ impl UnorderedUnreliableReceiver {
     }
 
     fn recv_message(&mut self, message: MessageContainer) {
+		self.msg_rx_count += 1;
         self.incoming_messages.push_back(message);
     }
 }
@@ -51,4 +54,8 @@ impl ChannelReceiver for UnorderedUnreliableReceiver {
 
         Ok(())
     }
+
+	fn msg_rx_count(&self) -> u64 { self.msg_rx_count }
+	fn msg_rx_drop_count(&self) -> u64 { 0 }
+	fn msg_rx_miss_count(&self) -> u64 { 0 }
 }

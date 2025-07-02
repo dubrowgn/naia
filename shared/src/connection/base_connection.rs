@@ -92,21 +92,6 @@ impl BaseConnection {
         self.message_manager.collect_outgoing_messages(now, rtt_millis);
     }
 
-    fn write_messages(
-        &mut self,
-        protocol: &Protocol,
-        writer: &mut BitWriter,
-        packet_index: PacketIndex,
-        has_written: &mut bool,
-    ) {
-        self.message_manager.write_messages(
-            protocol,
-            writer,
-            packet_index,
-            has_written,
-        );
-    }
-
     pub fn write_packet(
         &mut self,
         protocol: &Protocol,
@@ -115,7 +100,7 @@ impl BaseConnection {
         has_written: &mut bool,
     ) {
         // write messages
-        self.write_messages(
+        self.message_manager.write_messages(
             &protocol,
             writer,
             packet_index,
@@ -136,4 +121,12 @@ impl BaseConnection {
 
         Ok(())
     }
+
+	// performance counters
+
+	pub fn msg_rx_count(&self) -> u64 { self.message_manager.msg_rx_count() }
+	pub fn msg_rx_drop_count(&self) -> u64 { self.message_manager.msg_rx_drop_count() }
+	pub fn msg_rx_miss_count(&self) -> u64 { self.message_manager.msg_rx_miss_count() }
+	pub fn msg_tx_count(&self) -> u64 { self.message_manager.msg_tx_count() }
+	pub fn msg_tx_queue_count(&self) -> u64 { self.message_manager.msg_tx_queue_count() }
 }

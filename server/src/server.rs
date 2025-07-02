@@ -67,6 +67,10 @@ impl Server {
         }
     }
 
+	fn connections(&self) -> impl Iterator<Item = &Connection> {
+		self.user_connections.values()
+	}
+
     /// Listen at the given addresses
     pub fn listen<S: Into<Box<dyn Socket>>>(&mut self, socket: S) {
 		debug_assert!(!self.is_listening(), "Server is already listening");
@@ -295,9 +299,7 @@ impl Server {
 
     /// Return a list of all currently connected Users' keys
     pub fn user_keys(&self) -> Vec<UserKey> {
-		return self.user_connections.iter()
-			.map(|(_, conn)| { conn.user_key })
-			.collect()
+		return self.connections().map(Connection::user_key).collect()
     }
 
     /// Get the number of Users currently connected
@@ -578,11 +580,10 @@ impl Server {
 
             let mut user_disconnects: Vec<UserKey> = Vec::new();
 
-            for (_, connection) in &mut self.user_connections.iter_mut() {
+            for connection in self.connections() {
                 // user disconnects
                 if connection.base.should_drop() {
                     user_disconnects.push(connection.user_key);
-                    continue;
                 }
             }
 
@@ -657,4 +658,12 @@ impl Server {
             }
         }
     }
+
+	// performance counters
+
+	pub fn msg_rx_count(&self) -> u64 { self.connections().map(Connection::msg_rx_count).sum() }
+	pub fn msg_rx_drop_count(&self) -> u64 { self.connections().map(Connection::msg_rx_drop_count).sum() }
+	pub fn msg_rx_miss_count(&self) -> u64 { self.connections().map(Connection::msg_rx_miss_count).sum() }
+	pub fn msg_tx_count(&self) -> u64 { self.connections().map(Connection::msg_tx_count).sum() }
+	pub fn msg_tx_queue_count(&self) -> u64 { self.connections().map(Connection::msg_tx_queue_count).sum() }
 }

@@ -22,4 +22,10 @@ pub trait ChannelSender: Send + Sync {
         writer: &mut BitWriter,
         has_written: &mut bool,
     ) -> Option<Vec<MessageIndex>>;
+
+	/// Performance counter for the number of messages transmitted
+	fn msg_tx_count(&self) -> u64;
+
+	/// Performance counter for the	number of messages queued for transmission
+	fn msg_tx_queue_count(&self) -> u64;
 }

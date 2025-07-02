@@ -16,7 +16,7 @@ impl<M> ReliableReceiver<M> {
         }
     }
 
-    pub(crate) fn buffer_message(&mut self, message_index: MessageIndex, message: M) {
+    pub(crate) fn buffer_message(&mut self, message_index: MessageIndex, message: M) -> bool {
         // moving from oldest incoming message to newest
         // compare existing slots and see if the message_index has been instantiated
         // already if it has, put the message into the slot
@@ -26,7 +26,7 @@ impl<M> ReliableReceiver<M> {
 
         if message_index < self.oldest_received_message_index {
             // already moved sliding window past this message id
-            return;
+            return false;
         }
 
         let mut current_index = 0;
@@ -41,7 +41,7 @@ impl<M> ReliableReceiver<M> {
                             should_push_message = true;
                         } else {
                             // already received this message
-                            return;
+                            return false;
                         }
                     }
                 }
@@ -61,7 +61,7 @@ impl<M> ReliableReceiver<M> {
             if should_push_message {
                 self.incoming_messages.push((message_index, message));
                 self.clear_old_messages();
-                return;
+                return true;
             }
 
             current_index += 1;
@@ -71,11 +71,7 @@ impl<M> ReliableReceiver<M> {
     fn clear_old_messages(&mut self) {
         // clear all received messages from record
         loop {
-            let mut has_message = false;
             if let Some((_, true)) = self.record.front() {
-                has_message = true;
-            }
-            if has_message {
                 self.record.pop_front();
                 self.oldest_received_message_index.incr();
             } else {

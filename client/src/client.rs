@@ -415,4 +415,12 @@ impl Client {
         // NOTE: may panic if the connection is not yet established!
         self.io.server_addr().expect("connection not established!")
     }
+
+	// performance counters
+
+	pub fn msg_rx_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_rx_count).unwrap_or(0) }
+	pub fn msg_rx_drop_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_rx_drop_count).unwrap_or(0) }
+	pub fn msg_rx_miss_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_rx_miss_count).unwrap_or(0) }
+	pub fn msg_tx_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_tx_count).unwrap_or(0) }
+	pub fn msg_tx_queue_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_tx_queue_count).unwrap_or(0) }
 }

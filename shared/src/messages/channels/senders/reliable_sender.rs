@@ -17,6 +17,8 @@ pub struct ReliableSender {
     sending_messages: VecDeque<Option<(MessageIndex, Option<Instant>, MessageContainer)>>,
     next_send_message_index: MessageIndex,
     outgoing_messages: VecDeque<(MessageIndex, MessageContainer)>,
+	msg_tx_count: u64,
+	msg_tx_queue_count: u64,
 }
 
 impl ReliableSender {
@@ -26,6 +28,8 @@ impl ReliableSender {
             next_send_message_index: MessageIndex::ZERO,
             sending_messages: VecDeque::new(),
             outgoing_messages: VecDeque::new(),
+			msg_tx_count: 0,
+			msg_tx_queue_count: 0,
         }
     }
 
@@ -38,6 +42,7 @@ impl ReliableSender {
 
 impl ChannelSender for ReliableSender {
     fn send(&mut self, message: MessageContainer) {
+		self.msg_tx_queue_count += 1;
         self.sending_messages
             .push_back(Some((self.next_send_message_index, None, message)));
         self.next_send_message_index.incr();
@@ -56,6 +61,7 @@ impl ChannelSender for ReliableSender {
                 should_send = true;
             }
             if should_send {
+				self.msg_tx_count += 1;
                 self.outgoing_messages
                     .push_back((*message_index, message.clone()));
                 *last_sent_opt = Some(now.clone());
@@ -97,4 +103,7 @@ impl ChannelSender for ReliableSender {
             has_written,
         )
     }
+
+	fn msg_tx_count(&self) -> u64 { self.msg_tx_count }
+	fn msg_tx_queue_count(&self) -> u64 { self.msg_tx_queue_count }
 }

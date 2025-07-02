@@ -149,6 +149,14 @@ impl MessageManager {
         }
     }
 
+	fn receivers(&self) -> impl Iterator<Item = &dyn ChannelReceiver> {
+		self.channel_receivers.values().map(Box::as_ref)
+	}
+
+	fn senders(&self) -> impl Iterator<Item = &dyn ChannelSender> {
+		self.channel_senders.values().map(Box::as_ref)
+	}
+
     // Outgoing Messages
 
     /// Queues an Message to be transmitted to the remote host
@@ -195,12 +203,7 @@ impl MessageManager {
     /// Returns whether the Manager has queued Messages that can be transmitted
     /// to the remote host
     pub fn has_outgoing_messages(&self) -> bool {
-        for channel in self.channel_senders.values() {
-            if channel.has_messages() {
-                return true;
-            }
-        }
-        false
+		self.senders().any(ChannelSender::has_messages)
     }
 
     pub fn write_messages(
@@ -290,9 +293,7 @@ impl MessageManager {
         }
         output
     }
-}
 
-impl MessageManager {
     /// Occurs when a packet has been notified as delivered. Stops tracking the
     /// status of Messages in that packet.
     pub fn notify_packet_delivered(&mut self, packet_index: PacketIndex) {
@@ -306,4 +307,12 @@ impl MessageManager {
             }
         }
     }
+
+	// performance counters
+
+	pub fn msg_rx_count(&self) -> u64 { self.receivers().map(ChannelReceiver::msg_rx_count).sum() }
+	pub fn msg_rx_drop_count(&self) -> u64 { self.receivers().map(ChannelReceiver::msg_rx_drop_count).sum() }
+	pub fn msg_rx_miss_count(&self) -> u64 { self.receivers().map(ChannelReceiver::msg_rx_miss_count).sum() }
+	pub fn msg_tx_count(&self) -> u64 { self.senders().map(ChannelSender::msg_tx_count).sum() }
+	pub fn msg_tx_queue_count(&self) -> u64 { self.senders().map(ChannelSender::msg_tx_queue_count).sum() }
 }
