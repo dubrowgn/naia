@@ -529,8 +529,9 @@ impl Server {
                 // already marked heard above
             }
             PacketType::Pong => {
-                // read client tick
-                connection.ping_manager.process_pong(reader);
+				if connection.ping_manager.read_pong(reader).is_err() {
+					trace!("Dropping malformed pong");
+				}
             }
             _ => {}
         }
@@ -548,9 +549,7 @@ impl Server {
 
     fn handle_timeouts(&mut self) {
         // disconnects
-        if self.timeout_timer.ringing() {
-            self.timeout_timer.reset();
-
+        if self.timeout_timer.try_reset() {
             let mut user_disconnects: Vec<UserKey> = Vec::new();
 
             for connection in self.connections() {
@@ -602,34 +601,20 @@ impl Server {
     }
 
     fn handle_pings(&mut self) {
-        // pings
-        if self.ping_timer.ringing() {
-            self.ping_timer.reset();
+		if !self.ping_timer.try_reset() {
+			return;
+		}
 
-            for (user_address, connection) in &mut self.user_connections.iter_mut() {
-                // send pings
-                if connection.ping_manager.should_send_ping() {
-                    let mut writer = BitWriter::new();
-
-                    // write header
-                    connection.base.write_header(PacketType::Ping, &mut writer);
-
-                    // write body
-                    connection.ping_manager.write_ping(&mut writer);
-
-                    // send packet
-                    if self
-                        .io
-                        .send_packet(user_address, writer.to_packet())
-                        .is_err()
-                    {
-                        // TODO: pass this on and handle above
-                        warn!("Server Error: Cannot send ping packet to {}", user_address);
-                    }
-                    connection.base.mark_sent();
-                }
-            }
-        }
+		for (addr, conn) in &mut self.user_connections.iter_mut() {
+			match conn.ping_manager.try_send_ping(&addr, &mut self.io) {
+				Ok(true) => conn.base.mark_sent(),
+				Ok(false) => {},
+				Err(_) => {
+					// TODO: pass this on and handle above
+					warn!("Server Error: Cannot send ping packet to {}", addr);
+				},
+			}
+		}
     }
 
 	// performance counters

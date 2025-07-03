@@ -1,14 +1,15 @@
-use crate::connection::io::Io;
-use log::warn;
-use naia_shared::{
-	packet::*, BitReader, BitWriter, metrics::*, Serde, SerdeErr, StandardHeader, Timer
-};
+use crate::NaiaClientError;
+use naia_shared::{BitReader, BitWriter, Serde, SerdeErr, StandardHeader, Timer};
+use naia_shared::metrics::*;
+use naia_shared::packet::*;
 use std::time::{Duration, Instant};
+use super::io::Io;
 
+/// Tracks ping and pong related info to estimate link quality metrics like rtt and jitter
 pub struct TimeManager {
     ping_timer: Timer,
 	epoch: Instant,
-    rtt_ms: RollingWindow,
+	rtt_ms: RollingWindow,
 }
 
 const METRICS_WINDOW_SIZE: Duration = Duration::from_secs(7);
@@ -26,29 +27,22 @@ impl TimeManager {
 		self.epoch.elapsed().as_nanos() as TimestampNs
 	}
 
-    // Base
-
-    pub fn send_ping(&mut self, io: &mut Io) -> bool {
-        if !self.ping_timer.ringing() {
-			return false;
+	/// Send a ping packet if enough time has passed
+    pub fn try_send_ping(&mut self, io: &mut Io) -> Result<bool, NaiaClientError> {
+		if !self.ping_timer.try_reset() {
+			return Ok(false);
 		}
 
-		self.ping_timer.reset();
-
-        let mut writer = BitWriter::new();
-        StandardHeader::of_type(PacketType::Ping).ser(&mut writer);
+		let mut writer = BitWriter::new();
+		StandardHeader::of_type(PacketType::Ping).ser(&mut writer);
 		Ping { timestamp_ns: self.timestamp_ns() }.ser(&mut writer);
+		io.send_packet(writer.to_packet())?;
 
-        // send packet
-        if io.send_packet(writer.to_packet()).is_err() {
-            // TODO: pass this on and handle above
-            warn!("Client Error: Cannot send ping packet to Server");
-        }
-
-		return true;
+		Ok(true)
     }
 
-    pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), SerdeErr> {
+	/// Read an incoming pong to update link quality metrics
+	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), SerdeErr> {
 		let now_ns = self.timestamp_ns();
 		let pong = Pong::de(reader)?;
 		if now_ns >= pong.timestamp_ns {

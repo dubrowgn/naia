@@ -33,4 +33,14 @@ impl Timer {
     pub fn ring_manual(&mut self) {
         self.last -= self.duration;
     }
+
+	/// Returns if the timer is ringing, and does a reset if it is
+	pub fn try_reset(&mut self) -> bool {
+		if self.ringing() {
+			self.reset();
+			true
+		} else {
+			false
+		}
+	}
 }

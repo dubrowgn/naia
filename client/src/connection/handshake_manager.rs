@@ -81,11 +81,9 @@ impl HandshakeManager {
     // Give handshake manager the opportunity to send out messages to the server
     pub fn send(&mut self, message_kinds: &MessageKinds, io: &mut Io) {
         if io.is_loaded() {
-            if !self.handshake_timer.ringing() {
+            if !self.handshake_timer.try_reset() {
                 return;
             }
-
-            self.handshake_timer.reset();
 
             match &mut self.connection_state {
                 HandshakeState::AwaitingChallengeResponse => {

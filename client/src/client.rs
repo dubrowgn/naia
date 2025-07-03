@@ -369,10 +369,11 @@ impl Client {
     }
 
     fn handle_pings(connection: &mut Connection, io: &mut Io) {
-        // send pings
-        if connection.time_manager.send_ping(io) {
-            connection.base.mark_sent();
-        }
+		match connection.time_manager.try_send_ping(io) {
+			Ok(true) => connection.base.mark_sent(),
+			Ok(false) => {},
+			Err(_) => warn!("Client Error: Cannot send ping packet to Server"),
+		}
     }
 
     fn disconnect_with_events(&mut self) {
