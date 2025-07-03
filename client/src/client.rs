@@ -408,6 +408,6 @@ impl Client {
 	pub fn msg_rx_miss_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_rx_miss_count).unwrap_or(0) }
 	pub fn msg_tx_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_tx_count).unwrap_or(0) }
 	pub fn msg_tx_queue_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_tx_queue_count).unwrap_or(0) }
-	pub fn pkt_rx_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::pkt_rx_count).unwrap_or(0) }
-	pub fn pkt_tx_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::pkt_tx_count).unwrap_or(0) }
+	pub fn pkt_rx_count(&self) -> u64 { self.io.pkt_rx_count() }
+	pub fn pkt_tx_count(&self) -> u64 { self.io.pkt_tx_count() }
 }

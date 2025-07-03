@@ -33,7 +33,7 @@ impl SequencedUnreliableSender {
 
 impl ChannelSender for SequencedUnreliableSender {
     fn send(&mut self, message: MessageContainer) {
-		self.msg_tx_count += 1;
+		self.msg_tx_count = self.msg_tx_count.wrapping_add(1);
         self.outgoing_messages
             .push_back((self.next_send_message_index, message));
         self.next_send_message_index.incr();

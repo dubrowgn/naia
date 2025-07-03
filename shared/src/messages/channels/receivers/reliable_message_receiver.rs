@@ -77,9 +77,9 @@ impl<A: ReceiverArranger> ReliableMessageReceiver<A> {
         message_index: MessageIndex,
         message: MessageContainer,
     ) {
-		self.msg_rx_count += 1;
+		self.msg_rx_count = self.msg_rx_count.wrapping_add(1);
         if !self.reliable_receiver.buffer_message(message_index, message) {
-			self.msg_rx_drop_count += 1;
+			self.msg_rx_drop_count = self.msg_rx_drop_count.wrapping_add(1);
 		}
         let received_messages = self.reliable_receiver.receive_messages();
         for (msg_idx, received_message) in received_messages {

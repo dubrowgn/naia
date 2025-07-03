@@ -12,6 +12,8 @@ pub struct Io {
 	bytes_tx: u64,
     outgoing_encoder: Option<Encoder>,
     incoming_decoder: Option<Decoder>,
+	pkt_rx_count: u64,
+	pkt_tx_count: u64,
 }
 
 impl Io {
@@ -36,6 +38,8 @@ impl Io {
             bytes_tx: 0,
             outgoing_encoder,
             incoming_decoder,
+			pkt_rx_count: 0,
+			pkt_tx_count: 0,
         }
     }
 
@@ -70,6 +74,8 @@ impl Io {
         }
 
 		self.bytes_tx = self.bytes_tx.wrapping_add(payload.len() as u64);
+		self.pkt_tx_count = self.pkt_tx_count.wrapping_add(1);
+
         self.packet_sender
             .as_ref()
             .expect("Cannot call Server.send_packet() until you call Server.listen()!")
@@ -87,6 +93,7 @@ impl Io {
         match receive_result {
             Ok(Some((address, mut payload))) => {
 				self.bytes_rx = self.bytes_rx.wrapping_add(payload.len() as u64);
+				self.pkt_rx_count = self.pkt_rx_count.wrapping_add(1);
 
                 // Decompression
                 if let Some(decoder) = &mut self.incoming_decoder {
@@ -102,4 +109,6 @@ impl Io {
 
     pub fn bytes_rx(&self) -> u64 { self.bytes_rx }
     pub fn bytes_tx(&self) -> u64 { self.bytes_tx }
+	pub fn pkt_rx_count(&self) -> u64 { self.pkt_rx_count }
+	pub fn pkt_tx_count(&self) -> u64 { self.pkt_tx_count }
 }

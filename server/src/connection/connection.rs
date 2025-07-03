@@ -14,8 +14,6 @@ pub struct Connection {
     pub user_key: UserKey,
     pub base: BaseConnection,
     pub ping_manager: PingManager,
-	pkt_rx_count: u64,
-	pkt_tx_count: u64,
 }
 
 impl Connection {
@@ -35,8 +33,6 @@ impl Connection {
                 channel_kinds,
             ),
             ping_manager: PingManager::new(ping_interval),
-			pkt_rx_count: 0,
-			pkt_tx_count: 0,
         }
     }
 
@@ -56,8 +52,6 @@ impl Connection {
         protocol: &Protocol,
         reader: &mut BitReader,
     ) -> Result<(), SerdeErr> {
-		self.pkt_rx_count += 1;
-
         // read common parts of packet (messages & world events)
         self.base.read_packet(protocol, reader)?;
 
@@ -110,7 +104,6 @@ impl Connection {
             let writer = self.write_packet(protocol);
 
             // send packet
-			self.pkt_tx_count += 1;
             if io.send_packet(&self.address, writer.to_packet()).is_err() {
                 // TODO: pass this on and handle above
                 warn!("Server Error: Cannot send data packet to {}", &self.address);
@@ -153,6 +146,4 @@ impl Connection {
 	pub fn msg_rx_miss_count(&self) -> u64 { self.base.msg_rx_miss_count() }
 	pub fn msg_tx_count(&self) -> u64 { self.base.msg_tx_count() }
 	pub fn msg_tx_queue_count(&self) -> u64 { self.base.msg_tx_queue_count() }
-	pub fn pkt_rx_count(&self) -> u64 { self.pkt_rx_count }
-	pub fn pkt_tx_count(&self) -> u64 { self.pkt_tx_count }
 }

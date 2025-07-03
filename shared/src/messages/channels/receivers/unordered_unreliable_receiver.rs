@@ -31,7 +31,7 @@ impl UnorderedUnreliableReceiver {
     }
 
     fn recv_message(&mut self, message: MessageContainer) {
-		self.msg_rx_count += 1;
+		self.msg_rx_count = self.msg_rx_count.wrapping_add(1);
         self.incoming_messages.push_back(message);
     }
 }

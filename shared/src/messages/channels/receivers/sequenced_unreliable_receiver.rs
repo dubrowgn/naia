@@ -36,18 +36,19 @@ impl SequencedUnreliableReceiver {
         message_index: MessageIndex,
         message: MessageContainer,
     ) {
-		self.msg_rx_count += 1;
+		self.msg_rx_count = self.msg_rx_count.wrapping_add(1);
         self.arrange_message(message_index, message);
     }
 
     pub fn arrange_message(&mut self, message_index: MessageIndex, message: MessageContainer) {
         if let Some(most_recent_id) = self.newest_received_message_index {
             if message_index > most_recent_id {
-				self.msg_rx_miss_count += message_index.diff(most_recent_id) as u64 - 1;
+				let missed = message_index.diff(most_recent_id) as u64 - 1;
+				self.msg_rx_miss_count = self.msg_rx_miss_count.wrapping_add(missed);
                 self.incoming_messages.push(message);
                 self.newest_received_message_index = Some(message_index);
             } else {
-				self.msg_rx_drop_count += 1;
+				self.msg_rx_drop_count = self.msg_rx_drop_count.wrapping_add(1);
 			}
         } else {
             self.incoming_messages.push(message);

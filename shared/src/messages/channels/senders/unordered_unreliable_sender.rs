@@ -42,7 +42,7 @@ impl UnorderedUnreliableSender {
 
 impl ChannelSender for UnorderedUnreliableSender {
     fn send(&mut self, message: MessageContainer) {
-		self.msg_tx_count += 1;
+		self.msg_tx_count = self.msg_tx_count.wrapping_add(1);
         self.outgoing_messages.push_back(message);
     }
 
