@@ -130,9 +130,6 @@ impl Client {
 
 			// receive packets, process into events
 			connection.process_packets(&mut self.incoming_events);
-        } else {
-            self.handshake_manager
-                .send(&self.protocol.message_kinds, &mut self.io);
         }
 
         std::mem::take(&mut self.incoming_events)
@@ -141,7 +138,10 @@ impl Client {
 	pub fn send(&mut self) {
 		if let Some(conn) = &mut self.server_connection {
 			conn.send_packets(&self.protocol, &Instant::now(), &mut self.io);
-		};
+		} else {
+			self.handshake_manager
+				.send(&self.protocol.message_kinds, &mut self.io);
+		}
 	}
 
     // Messages
