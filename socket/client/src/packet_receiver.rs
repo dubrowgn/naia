@@ -1,11 +1,12 @@
-use super::{error::NaiaClientSocketError, server_addr::ServerAddr};
+use std::net::SocketAddr;
+use super::error::NaiaClientSocketError;
 
 /// Used to receive packets from the Client Socket
 pub trait PacketReceiver: PacketReceiverClone + Send + Sync {
     /// Receives a packet from the Client Socket
     fn receive(&mut self) -> Result<Option<&[u8]>, NaiaClientSocketError>;
     /// Get the Server's Socket address
-    fn server_addr(&self) -> ServerAddr;
+    fn server_addr(&self) -> Option<SocketAddr>;
 }
 
 /// Used to clone Box<dyn PacketReceiver>
@@ -64,10 +65,10 @@ impl PacketReceiver for PacketReceiverImpl {
     }
 
     /// Get the Server's Socket address
-    fn server_addr(&self) -> ServerAddr {
+    fn server_addr(&self) -> Option<SocketAddr> {
         match self.server_addr.get() {
-            RTCServerAddr::Finding => ServerAddr::Finding,
-            RTCServerAddr::Found(addr) => ServerAddr::Found(addr),
+            RTCServerAddr::Finding => None,
+            RTCServerAddr::Found(addr) => Some(addr),
         }
     }
 }

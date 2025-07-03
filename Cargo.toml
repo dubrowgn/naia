@@ -19,8 +19,6 @@ default-members = [
     "shared/derive",
     "shared/serde",
     "shared/serde/derive",
-    "socket/client",
-    "socket/server",
     "socket/shared",
 ]
 

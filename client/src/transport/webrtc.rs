@@ -1,10 +1,10 @@
 use naia_shared::SocketConfig;
-
-use naia_client_socket::{PacketReceiver, PacketSender, ServerAddr, Socket as ClientSocket};
+use naia_client_socket::{PacketReceiver, PacketSender, Socket as ClientSocket};
+use std::net::SocketAddr;
 
 use super::{
     PacketReceiver as TransportReceiver, PacketSender as TransportSender, RecvError, SendError,
-    ServerAddr as TransportAddr, Socket as TransportSocket,
+    Socket as TransportSocket,
 };
 
 pub struct Socket {
@@ -27,11 +27,8 @@ impl TransportSender for Box<dyn PacketSender> {
         self.as_ref().send(payload).map_err(|_| SendError)
     }
     /// Get the Server's Socket address
-    fn server_addr(&self) -> TransportAddr {
-        match self.as_ref().server_addr() {
-            ServerAddr::Found(addr) => TransportAddr::Found(addr),
-            ServerAddr::Finding => TransportAddr::Finding,
-        }
+    fn server_addr(&self) -> Option<SocketAddr> {
+        self.as_ref().server_addr()
     }
 }
 
@@ -41,11 +38,8 @@ impl TransportReceiver for Box<dyn PacketReceiver> {
         self.as_mut().receive().map_err(|_| RecvError)
     }
     /// Get the Server's Socket address
-    fn server_addr(&self) -> TransportAddr {
-        match self.as_ref().server_addr() {
-            ServerAddr::Found(addr) => TransportAddr::Found(addr),
-            ServerAddr::Finding => TransportAddr::Finding,
-        }
+    fn server_addr(&self) -> Option<SocketAddr> {
+        self.as_ref().server_addr()
     }
 }
 

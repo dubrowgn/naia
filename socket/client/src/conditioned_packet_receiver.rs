@@ -1,7 +1,7 @@
 use naia_socket_shared::{link_condition_logic, LinkConditionerConfig, TimeQueue};
-
+use std::net::SocketAddr;
 use super::{
-    error::NaiaClientSocketError, packet_receiver::PacketReceiver, server_addr::ServerAddr,
+    error::NaiaClientSocketError, packet_receiver::PacketReceiver,
 };
 
 /// Used to receive packets from the Client Socket
@@ -59,7 +59,7 @@ impl PacketReceiver for ConditionedPacketReceiver {
     }
 
     /// Get the Server's Socket address
-    fn server_addr(&self) -> ServerAddr {
+    fn server_addr(&self) -> Option<SocketAddr> {
         self.inner_receiver.server_addr()
     }
 }

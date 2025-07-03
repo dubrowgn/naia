@@ -8,7 +8,7 @@ use naia_shared::LinkConditionerConfig;
 
 use super::{
     conditioner::ConditionedPacketReceiver, PacketReceiver as TransportReceiver,
-    PacketSender as TransportSender, RecvError, SendError, ServerAddr as TransportAddr,
+    PacketSender as TransportSender, RecvError, SendError,
     Socket as TransportSocket,
 };
 
@@ -95,8 +95,8 @@ impl TransportSender for PacketSender {
         return Ok(());
     }
     /// Get the Server's Socket address
-    fn server_addr(&self) -> TransportAddr {
-        TransportAddr::Found(self.server_addr)
+    fn server_addr(&self) -> Option<SocketAddr> {
+        Some(self.server_addr)
     }
 }
 
@@ -150,8 +150,8 @@ impl TransportReceiver for PacketReceiver {
         }
     }
     /// Get the Server's Socket address
-    fn server_addr(&self) -> TransportAddr {
-        TransportAddr::Found(self.server_addr)
+    fn server_addr(&self) -> Option<SocketAddr> {
+        Some(self.server_addr)
     }
 }
 

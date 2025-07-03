@@ -6,7 +6,7 @@ use naia_shared::{
 
 use crate::{
     error::NaiaClientError,
-    transport::{PacketReceiver, PacketSender, ServerAddr},
+    transport::{PacketReceiver, PacketSender},
 };
 
 pub struct Io {
@@ -111,7 +111,7 @@ impl Io {
 
     pub fn server_addr(&self) -> Result<SocketAddr, NaiaClientError> {
         if let Some(packet_sender) = self.packet_sender.as_ref() {
-            if let ServerAddr::Found(server_addr) = packet_sender.server_addr() {
+            if let Some(server_addr) = packet_sender.server_addr() {
                 Ok(server_addr)
             } else {
                 Err(NaiaClientError::from_message("Connection has not yet been established! Make sure you call Client.connect() before calling this."))
