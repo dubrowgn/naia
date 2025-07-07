@@ -1,4 +1,4 @@
-use crate::NaiaServerError;
+use crate::NaiaError;
 use naia_shared::{BitReader, BitWriter, Serde, SerdeErr, StandardHeader, Timer};
 use naia_shared::metrics::*;
 use naia_shared::packet::*;
@@ -28,7 +28,7 @@ impl PingManager {
 	}
 
 	/// Send a ping packet if enough time has passed
-    pub fn try_send_ping(&mut self, dest_addr: &SocketAddr, io: &mut Io) -> Result<bool, NaiaServerError> {
+    pub fn try_send_ping(&mut self, dest_addr: &SocketAddr, io: &mut Io) -> Result<bool, NaiaError> {
 		if !self.ping_timer.try_reset() {
 			return Ok(false);
 		}

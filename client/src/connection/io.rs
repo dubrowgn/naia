@@ -5,7 +5,7 @@ use naia_shared::{
 };
 
 use crate::{
-    error::NaiaClientError,
+    error::NaiaError,
     transport::{PacketReceiver, PacketSender},
 };
 
@@ -56,7 +56,7 @@ impl Io {
         self.packet_sender.is_some()
     }
 
-    pub fn send_packet(&mut self, addr: &SocketAddr, packet: OutgoingPacket) -> Result<(), NaiaClientError> {
+    pub fn send_packet(&mut self, addr: &SocketAddr, packet: OutgoingPacket) -> Result<(), NaiaError> {
         // get payload
         let mut payload = packet.slice();
 
@@ -73,10 +73,10 @@ impl Io {
             .as_mut()
             .expect("Cannot call Client.send_packet() until you call Client.connect()!")
             .send(addr, payload)
-            .map_err(|_| NaiaClientError::SendError)
+            .map_err(|_| NaiaError::SendError)
     }
 
-	pub fn recv_reader(&mut self) -> Result<Option<(SocketAddr, BitReader)>, NaiaClientError> {
+	pub fn recv_reader(&mut self) -> Result<Option<(SocketAddr, BitReader)>, NaiaError> {
         let receive_result = self
             .packet_receiver
             .as_mut()
@@ -96,7 +96,7 @@ impl Io {
 				Ok(Some((address, BitReader::new(payload))))
 			}
 			Ok(None) => Ok(None),
-			Err(_) => Err(NaiaClientError::RecvError),
+			Err(_) => Err(NaiaError::RecvError),
 		}
     }
 

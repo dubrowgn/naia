@@ -29,5 +29,5 @@ mod events;
 
 pub use client::Client;
 pub use client_config::ClientConfig;
-pub use error::NaiaClientError;
+pub use error::NaiaError;
 pub use events::*;

@@ -1,34 +1,34 @@
 use std::{error::Error, fmt, net::SocketAddr};
 
 #[derive(Debug)]
-pub enum NaiaServerError {
+pub enum NaiaError {
     Message(String),
     Wrapped(Box<dyn Error>),
     SendError(SocketAddr),
     RecvError,
 }
 
-impl NaiaServerError {
+impl NaiaError {
     pub fn from_message(message: &str) -> Self {
         Self::Message(message.to_string())
     }
 }
 
-impl fmt::Display for NaiaServerError {
+impl fmt::Display for NaiaError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            NaiaServerError::Message(msg) => write!(f, "Naia Server Error: {}", msg),
-            NaiaServerError::Wrapped(boxed_err) => fmt::Display::fmt(boxed_err.as_ref(), f),
-            NaiaServerError::SendError(address) => {
+            NaiaError::Message(msg) => write!(f, "Naia Server Error: {}", msg),
+            NaiaError::Wrapped(boxed_err) => fmt::Display::fmt(boxed_err.as_ref(), f),
+            NaiaError::SendError(address) => {
                 write!(f, "Naia Server Error: SendError: {}", address)
             }
-            NaiaServerError::RecvError => {
+            NaiaError::RecvError => {
                 write!(f, "Naia Server Error: RecvError")
             }
         }
     }
 }
 
-impl Error for NaiaServerError {}
-unsafe impl Send for NaiaServerError {}
-unsafe impl Sync for NaiaServerError {}
+impl Error for NaiaError {}
+unsafe impl Send for NaiaError {}
+unsafe impl Sync for NaiaError {}

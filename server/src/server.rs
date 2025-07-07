@@ -1,5 +1,5 @@
 use crate::{
-	ConnectContext, error::NaiaServerError, server_config::ServerConfig,
+	ConnectContext, error::NaiaError, server_config::ServerConfig,
 	ServerEvent, transport::Socket,
 };
 use crate::connection::{
@@ -401,7 +401,7 @@ impl Server {
                 }
                 Err(error) => {
 					self.incoming_events
-						.push(ServerEvent::Error(NaiaServerError::Wrapped(Box::new(error))));
+						.push(ServerEvent::Error(NaiaError::Wrapped(Box::new(error))));
                 }
             }
         }

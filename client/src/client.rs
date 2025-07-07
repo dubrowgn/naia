@@ -7,7 +7,7 @@ use naia_shared::{
 };
 
 use std::time::Instant;
-use super::{client_config::ClientConfig, error::NaiaClientError};
+use super::{client_config::ClientConfig, error::NaiaError};
 use crate::{
     connection::{
         connection::Connection,
@@ -263,7 +263,7 @@ impl Client {
                 }
                 Err(error) => {
                     self.incoming_events
-                        .push(ClientEvent::Error(NaiaClientError::Wrapped(Box::new(error))));
+                        .push(ClientEvent::Error(NaiaError::Wrapped(Box::new(error))));
                 }
             }
         }
@@ -354,7 +354,7 @@ impl Client {
                 }
                 Err(error) => {
                     self.incoming_events
-                        .push(ClientEvent::Error(NaiaClientError::Wrapped(Box::new(error))));
+                        .push(ClientEvent::Error(NaiaError::Wrapped(Box::new(error))));
                 }
             }
         }

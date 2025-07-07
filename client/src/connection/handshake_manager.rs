@@ -1,4 +1,4 @@
-use crate::NaiaClientError;
+use crate::NaiaError;
 use log::{trace, warn};
 use naia_shared::{
     BitReader, BitWriter, MessageContainer, MessageKinds, packet::*,
@@ -217,7 +217,7 @@ impl HandshakeManager {
     }
 
     // Send a disconnect packet
-    pub fn write_disconnect(&self, io: &mut Io) -> Result<(), NaiaClientError> {
+    pub fn write_disconnect(&self, io: &mut Io) -> Result<(), NaiaError> {
         let mut writer = BitWriter::new();
         StandardHeader::of_type(PacketType::Disconnect).ser(&mut writer);
 		Disconnect {

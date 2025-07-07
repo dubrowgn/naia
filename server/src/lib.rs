@@ -32,7 +32,7 @@ mod server;
 mod server_config;
 mod user;
 
-pub use error::NaiaServerError;
+pub use error::NaiaError;
 pub use events::*;
 pub use server::Server;
 pub use server_config::ServerConfig;

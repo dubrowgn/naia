@@ -1,30 +1,30 @@
 use std::{error::Error, fmt};
 
 #[derive(Debug)]
-pub enum NaiaClientError {
+pub enum NaiaError {
     Message(String),
     Wrapped(Box<dyn Error + Send>),
     SendError,
     RecvError,
 }
 
-impl NaiaClientError {
+impl NaiaError {
     pub fn from_message(message: &str) -> Self {
         Self::Message(message.to_string())
     }
 }
 
-impl fmt::Display for NaiaClientError {
+impl fmt::Display for NaiaError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            NaiaClientError::Message(msg) => write!(f, "Naia Client Error: {}", msg),
-            NaiaClientError::Wrapped(boxed_err) => fmt::Display::fmt(boxed_err.as_ref(), f),
-            NaiaClientError::SendError => write!(f, "Naia Client Error: Send Error"),
-            NaiaClientError::RecvError => write!(f, "Naia Client Error: Recv Error"),
+            NaiaError::Message(msg) => write!(f, "Naia Client Error: {}", msg),
+            NaiaError::Wrapped(boxed_err) => fmt::Display::fmt(boxed_err.as_ref(), f),
+            NaiaError::SendError => write!(f, "Naia Client Error: Send Error"),
+            NaiaError::RecvError => write!(f, "Naia Client Error: Recv Error"),
         }
     }
 }
 
-impl Error for NaiaClientError {}
-unsafe impl Send for NaiaClientError {}
-unsafe impl Sync for NaiaClientError {}
+impl Error for NaiaError {}
+unsafe impl Send for NaiaError {}
+unsafe impl Sync for NaiaError {}
