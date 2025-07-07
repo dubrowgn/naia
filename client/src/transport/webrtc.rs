@@ -23,23 +23,15 @@ impl Socket {
 
 impl TransportSender for Box<dyn PacketSender> {
     /// Sends a packet from the Client Socket
-    fn send(&self, payload: &[u8]) -> Result<(), SendError> {
+    fn send(&self, _addr: &SocketAddr, payload: &[u8]) -> Result<(), SendError> {
         self.as_ref().send(payload).map_err(|_| SendError)
-    }
-    /// Get the Server's Socket address
-    fn server_addr(&self) -> Option<SocketAddr> {
-        self.as_ref().server_addr()
     }
 }
 
 impl TransportReceiver for Box<dyn PacketReceiver> {
     /// Receives a packet from the Client Socket
-    fn receive(&mut self) -> Result<Option<&[u8]>, RecvError> {
+	fn receive(&mut self) -> Result<Option<(SocketAddr, &[u8])>, RecvError> {
         self.as_mut().receive().map_err(|_| RecvError)
-    }
-    /// Get the Server's Socket address
-    fn server_addr(&self) -> Option<SocketAddr> {
-        self.as_ref().server_addr()
     }
 }
 

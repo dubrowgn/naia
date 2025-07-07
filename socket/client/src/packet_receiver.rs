@@ -4,9 +4,7 @@ use super::error::NaiaClientSocketError;
 /// Used to receive packets from the Client Socket
 pub trait PacketReceiver: PacketReceiverClone + Send + Sync {
     /// Receives a packet from the Client Socket
-    fn receive(&mut self) -> Result<Option<&[u8]>, NaiaClientSocketError>;
-    /// Get the Server's Socket address
-    fn server_addr(&self) -> Option<SocketAddr>;
+	fn receive(&mut self) -> Result<Option<(SocketAddr, &[u8])>, NaiaClientSocketError>;
 }
 
 /// Used to clone Box<dyn PacketReceiver>
@@ -50,19 +48,6 @@ impl PacketReceiverImpl {
             receive_buffer: vec![0; 1472],
         }
     }
-}
-
-impl PacketReceiver for PacketReceiverImpl {
-    fn receive(&mut self) -> Result<Option<&[u8]>, NaiaClientSocketError> {
-        if let Ok(mut receiver) = self.receiver_channel.lock() {
-            if let Ok(bytes) = receiver.try_recv() {
-                let length = bytes.len();
-                self.receive_buffer[..length].clone_from_slice(&bytes);
-                return Ok(Some(&self.receive_buffer[..length]));
-            }
-        }
-        Ok(None)
-    }
 
     /// Get the Server's Socket address
     fn server_addr(&self) -> Option<SocketAddr> {
@@ -70,5 +55,18 @@ impl PacketReceiver for PacketReceiverImpl {
             RTCServerAddr::Finding => None,
             RTCServerAddr::Found(addr) => Some(addr),
         }
+    }
+}
+
+impl PacketReceiver for PacketReceiverImpl {
+    fn receive(&mut self) -> Result<Option<(SocketAddr, &[u8])>, NaiaClientSocketError> {
+        if let Ok(mut receiver) = self.receiver_channel.lock() {
+            if let Ok(bytes) = receiver.try_recv() {
+                let length = bytes.len();
+                self.receive_buffer[..length].clone_from_slice(&bytes);
+                return Ok(Some((self.server_addr().unwrap(), &self.receive_buffer[..length])));
+            }
+        }
+        Ok(None)
     }
 }
