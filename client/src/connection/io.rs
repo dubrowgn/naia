@@ -64,7 +64,7 @@ impl Io {
         self.packet_sender.is_some()
     }
 
-    pub fn send_packet(&mut self, packet: OutgoingPacket) -> Result<(), NaiaClientError> {
+    pub fn send_packet(&mut self, addr: &SocketAddr, packet: OutgoingPacket) -> Result<(), NaiaClientError> {
         // get payload
         let mut payload = packet.slice();
 
@@ -80,45 +80,32 @@ impl Io {
         self.packet_sender
             .as_mut()
             .expect("Cannot call Client.send_packet() until you call Client.connect()!")
-            .send(payload)
+            .send(addr, payload)
             .map_err(|_| NaiaClientError::SendError)
     }
 
-    pub fn recv_reader(&mut self) -> Result<Option<BitReader>, NaiaClientError> {
+	pub fn recv_reader(&mut self) -> Result<Option<(SocketAddr, BitReader)>, NaiaClientError> {
         let receive_result = self
             .packet_receiver
             .as_mut()
             .expect("Cannot call Client.receive_packet() until you call Client.connect()!")
             .receive();
 
-        if let Ok(Some(mut payload)) = receive_result {
-            // Bandwidth monitoring
-			self.bytes_rx = self.bytes_rx.wrapping_add(payload.len() as u64);
-			self.pkt_rx_count = self.pkt_rx_count.wrapping_add(1);
+		match receive_result {
+			Ok(Some((address, mut payload))) => {
+				self.bytes_rx = self.bytes_rx.wrapping_add(payload.len() as u64);
+				self.pkt_rx_count = self.pkt_rx_count.wrapping_add(1);
 
-            // Decompression
-            if let Some(decoder) = &mut self.incoming_decoder {
-                payload = decoder.decode(payload);
-            }
+				// Decompression
+				if let Some(decoder) = &mut self.incoming_decoder {
+					payload = decoder.decode(payload);
+				}
 
-            Ok(Some(BitReader::new(payload)))
-        } else {
-            receive_result
-                .map(|payload_opt| payload_opt.map(BitReader::new))
-                .map_err(|_| NaiaClientError::RecvError)
-        }
-    }
-
-    pub fn server_addr(&self) -> Result<SocketAddr, NaiaClientError> {
-        if let Some(packet_sender) = self.packet_sender.as_ref() {
-            if let Some(server_addr) = packet_sender.server_addr() {
-                Ok(server_addr)
-            } else {
-                Err(NaiaClientError::from_message("Connection has not yet been established! Make sure you call Client.connect() before calling this."))
-            }
-        } else {
-            Err(NaiaClientError::from_message("Connection has not yet been established! Make sure you call Client.connect() before calling this."))
-        }
+				Ok(Some((address, BitReader::new(payload))))
+			}
+			Ok(None) => Ok(None),
+			Err(_) => Err(NaiaClientError::RecvError),
+		}
     }
 
 	// Performance counters

@@ -25,8 +25,9 @@ pub struct Client {
     protocol: Protocol,
     // Connection
     io: Io,
+	server_addr: Option<SocketAddr>,
     server_connection: Option<Connection>,
-    handshake_manager: HandshakeManager,
+    handshake_manager: Option<HandshakeManager>,
     pending_disconnect: bool,
     waitlist_messages: VecDeque<(ChannelKind, Box<dyn Message>)>, // FIXME
     // Events
@@ -39,11 +40,6 @@ impl Client {
         let mut protocol: Protocol = protocol.into();
         protocol.lock();
 
-        let handshake_manager = HandshakeManager::new(
-            client_config.handshake_resend_interval,
-            client_config.ping_interval,
-        );
-
         let compression_config = protocol.compression.clone();
 
         Client {
@@ -52,8 +48,9 @@ impl Client {
             protocol,
             // Connection
 			io: Io::new(&compression_config),
+			server_addr: None,
             server_connection: None,
-            handshake_manager,
+			handshake_manager: None,
             pending_disconnect: false,
             waitlist_messages: VecDeque::new(),
             // Events
@@ -62,12 +59,20 @@ impl Client {
     }
 
     /// Connect to the given server address
-    pub fn connect<S: Into<Box<dyn Socket>>, M: Message>(&mut self, socket: S, msg: M) {
+    pub fn connect<S: Into<Box<dyn Socket>>, M: Message>(&mut self, addr: SocketAddr, socket: S, msg: M) {
         if !self.is_disconnected() {
             panic!("Client has already initiated a connection, cannot initiate a new one. TIP: Check client.is_disconnected() before calling client.connect()");
         }
 
-		self.handshake_manager.set_connect_message(MessageContainer::from_write(Box::new(msg)));
+		self.server_addr = Some(addr);
+
+		let mut handshake_manager = HandshakeManager::new(
+			&addr,
+			self.client_config.handshake_resend_interval,
+			self.client_config.ping_interval,
+		);
+		handshake_manager.set_connect_message(MessageContainer::from_write(Box::new(msg)));
+		self.handshake_manager = Some(handshake_manager);
 
         let boxed_socket: Box<dyn Socket> = socket.into();
         let (packet_sender, packet_receiver) = boxed_socket.connect();
@@ -91,19 +96,22 @@ impl Client {
 
     /// Disconnect from Server
     pub fn disconnect(&mut self) {
+		debug_assert!(self.is_connected(), "Trying to disconnect Client which is not connected yet!");
         if !self.is_connected() {
-            panic!("Trying to disconnect Client which is not connected yet!")
+			return;
         }
 
+		self.pending_disconnect = true;
+		let Some(handshake_manager) = self.handshake_manager.as_mut() else {
+			return;
+		};
+
         for _ in 0..10 {
-            let writer = self.handshake_manager.write_disconnect();
-            if self.io.send_packet(writer.to_packet()).is_err() {
+            if handshake_manager.write_disconnect(&mut self.io).is_err() {
                 // TODO: pass this on and handle above
                 warn!("Client Error: Cannot send disconnect packet to Server");
             }
         }
-
-        self.pending_disconnect = true;
     }
 
     /// Returns socket config
@@ -138,9 +146,8 @@ impl Client {
 	pub fn send(&mut self) {
 		if let Some(conn) = &mut self.server_connection {
 			conn.send_packets(&self.protocol, &Instant::now(), &mut self.io);
-		} else {
-			self.handshake_manager
-				.send(&self.protocol.message_kinds, &mut self.io);
+		} else if let Some(handshake_manager) = self.handshake_manager.as_mut() {
+			handshake_manager.send(&self.protocol.message_kinds, &mut self.io);
 		}
 	}
 
@@ -182,8 +189,8 @@ impl Client {
     // Connection
 
     /// Get the address currently associated with the Server
-    pub fn server_address(&self) -> Result<SocketAddr, NaiaClientError> {
-        self.io.server_addr()
+    pub fn server_address(&self) -> Option<SocketAddr> {
+        self.server_addr
     }
 
     /// Gets the average Round Trip Time measured to the Server
@@ -219,16 +226,21 @@ impl Client {
             return;
         }
 
+		let Some(handshake_manager) = self.handshake_manager.as_mut() else {
+			return;
+		};
+
         // receive from socket
         loop {
             match self.io.recv_reader() {
-                Ok(Some(mut reader)) => {
-                    match self.handshake_manager.recv(&mut reader) {
+                Ok(Some((_, mut reader))) => {
+                    match handshake_manager.recv(&mut reader) {
                         Some(HandshakeResult::Connected(time_manager)) => {
                             // new connect!
                             self.server_connection = Some(Connection::new(
                                 &self.client_config.connection,
                                 &self.protocol.channel_kinds,
+								&handshake_manager.peer_addr,
                                 time_manager,
                             ));
                             self.on_connect();
@@ -238,9 +250,8 @@ impl Client {
 							return;
                         }
                         Some(HandshakeResult::Rejected) => {
-                            let server_addr = self.server_address_unwrapped();
                             self.incoming_events.clear();
-							self.incoming_events.push(ClientEvent::Reject(server_addr));
+							self.incoming_events.push(ClientEvent::Reject(handshake_manager.peer_addr));
                             self.disconnect_reset_connection();
                             return;
                         }
@@ -271,7 +282,7 @@ impl Client {
         // receive from socket
         loop {
             match self.io.recv_reader() {
-                Ok(Some(mut reader)) => {
+                Ok(Some((_, mut reader))) => {
                     connection.base.mark_heard();
 
                     let header = StandardHeader::de(&mut reader)
@@ -321,7 +332,7 @@ impl Client {
 							Pong::from_ping(&ping).ser(&mut writer);
 
 							// send packet
-							if self.io.send_packet(writer.to_packet()).is_err() {
+							if self.io.send_packet(&connection.address, writer.to_packet()).is_err() {
 								// TODO: pass this on and handle above
 								warn!("Client Error: Cannot send pong packet to Server");
 							}
@@ -360,7 +371,7 @@ impl Client {
                 .write_header(PacketType::Heartbeat, &mut writer);
 
             // send packet
-            if io.send_packet(writer.to_packet()).is_err() {
+            if io.send_packet(&connection.address, writer.to_packet()).is_err() {
                 // TODO: pass this on and handle above
                 warn!("Client Error: Cannot send heartbeat packet to Server");
             }
@@ -369,7 +380,7 @@ impl Client {
     }
 
     fn handle_pings(connection: &mut Connection, io: &mut Io) {
-		match connection.time_manager.try_send_ping(io) {
+		match connection.time_manager.try_send_ping(&connection.address, io) {
 			Ok(true) => connection.base.mark_sent(),
 			Ok(false) => {},
 			Err(_) => warn!("Client Error: Cannot send ping packet to Server"),
@@ -389,15 +400,12 @@ impl Client {
     fn disconnect_reset_connection(&mut self) {
         self.server_connection = None;
 		self.io = Io::new(&self.protocol.compression);
-        self.handshake_manager = HandshakeManager::new(
-            self.client_config.handshake_resend_interval,
-            self.client_config.ping_interval,
-        );
+        self.handshake_manager = None;
     }
 
     fn server_address_unwrapped(&self) -> SocketAddr {
         // NOTE: may panic if the connection is not yet established!
-        self.io.server_addr().expect("connection not established!")
+        self.server_addr.expect("connection not established!")
     }
 
 	// performance counters

@@ -9,7 +9,8 @@ use naia_test::Auth;
 
 #[test]
 fn end_to_end_handshake_w_auth() {
-    let mut client = ClientHandshakeManager::new(Duration::new(0, 0), Duration::new(0, 0));
+	let address = "127.0.0.1:4000".parse().unwrap();
+    let mut client = ClientHandshakeManager::new(&address, Duration::new(0, 0), Duration::new(0, 0));
     let mut server = ServerHandshakeManager::new();
     let mut bytes: Box<[u8]>;
     let mut writer: BitWriter;
@@ -49,7 +50,6 @@ fn end_to_end_handshake_w_auth() {
     {
         reader = BitReader::new(&bytes);
         StandardHeader::de(&mut reader).expect("unable to read standard header from stream");
-        let address = "127.0.0.1:4000".parse().unwrap();
         let result = server.recv_connect_request(&message_kinds, &address, &mut reader);
         if let HandshakeResult::Success(_, Some(auth_message)) = result {
             let boxed_any = auth_message.to_boxed_any();

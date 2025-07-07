@@ -61,7 +61,7 @@ struct PacketSender {
 
 impl PacketSender {
     pub fn new(socket: Arc<Mutex<UdpSocket>>) -> Self {
-        return Self { socket };
+		Self { socket }
     }
 }
 

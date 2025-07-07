@@ -8,9 +8,11 @@ use crate::{
     connection::{io::Io, time_manager::TimeManager},
     events::ClientEvent,
 };
+use std::net::SocketAddr;
 use std::time::Instant;
 
 pub struct Connection {
+	pub address: SocketAddr,
     pub base: BaseConnection,
     pub time_manager: TimeManager,
 }
@@ -19,9 +21,11 @@ impl Connection {
     pub fn new(
         connection_config: &ConnectionConfig,
         channel_kinds: &ChannelKinds,
+		peer_addr: &SocketAddr,
         time_manager: TimeManager,
     ) -> Self {
         Connection {
+			address: *peer_addr,
             base: BaseConnection::new(
                 HostType::Client,
                 connection_config,
@@ -76,7 +80,7 @@ impl Connection {
             let writer = self.write_packet(protocol);
 
             // send packet
-            if io.send_packet(writer.to_packet()).is_err() {
+            if io.send_packet(&self.address, writer.to_packet()).is_err() {
                 // TODO: pass this on and handle above
                 warn!("Client Error: Cannot send data packet to Server");
             }

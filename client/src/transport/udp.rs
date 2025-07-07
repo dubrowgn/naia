@@ -14,13 +14,12 @@ use super::{
 
 // Socket
 pub struct Socket {
-    server_addr: SocketAddr,
     socket: Arc<Mutex<UdpSocket>>,
     config: Option<LinkConditionerConfig>,
 }
 
 impl Socket {
-    pub fn new(server_addr: &SocketAddr, config: Option<LinkConditionerConfig>) -> Self {
+    pub fn new(config: Option<LinkConditionerConfig>) -> Self {
         let client_ip_address =
             find_my_ip_address().expect("cannot find host's current IP address");
 
@@ -33,7 +32,6 @@ impl Socket {
             .expect("can't set socket to non-blocking!");
 
         return Self {
-            server_addr: *server_addr,
             socket,
             config,
         };
@@ -48,11 +46,11 @@ impl Into<Box<dyn TransportSocket>> for Socket {
 
 impl TransportSocket for Socket {
     fn connect(self: Box<Self>) -> (Box<dyn TransportSender>, Box<dyn TransportReceiver>) {
-        let sender = Box::new(PacketSender::new(self.socket.clone(), self.server_addr));
+        let sender = Box::new(PacketSender::new(self.socket.clone()));
 
         let receiver: Box<dyn TransportReceiver> = {
             let inner_receiver =
-                Box::new(PacketReceiver::new(self.socket.clone(), self.server_addr));
+                Box::new(PacketReceiver::new(self.socket.clone()));
             if let Some(config) = &self.config {
                 Box::new(ConditionedPacketReceiver::new(inner_receiver, config))
             } else {
@@ -67,36 +65,28 @@ impl TransportSocket for Socket {
 // Packet Sender
 struct PacketSender {
     socket: Arc<Mutex<UdpSocket>>,
-    server_addr: SocketAddr,
 }
 
 impl PacketSender {
-    pub fn new(socket: Arc<Mutex<UdpSocket>>, server_addr: SocketAddr) -> Self {
-        return Self {
-            socket,
-            server_addr,
-        };
+    pub fn new(socket: Arc<Mutex<UdpSocket>>) -> Self {
+        Self { socket }
     }
 }
 
 impl TransportSender for PacketSender {
     /// Sends a packet from the Client Socket
-    fn send(&self, payload: &[u8]) -> Result<(), SendError> {
+    fn send(&self, addr: &SocketAddr, payload: &[u8]) -> Result<(), SendError> {
         if self
             .socket
             .as_ref()
             .lock()
             .unwrap()
-            .send_to(payload, self.server_addr)
+            .send_to(payload, addr)
             .is_err()
         {
             return Err(SendError);
         }
         return Ok(());
-    }
-    /// Get the Server's Socket address
-    fn server_addr(&self) -> Option<SocketAddr> {
-        Some(self.server_addr)
     }
 }
 
@@ -104,23 +94,21 @@ impl TransportSender for PacketSender {
 #[derive(Clone)]
 struct PacketReceiver {
     socket: Arc<Mutex<UdpSocket>>,
-    server_addr: SocketAddr,
     buffer: [u8; 1472],
 }
 
 impl PacketReceiver {
-    pub fn new(socket: Arc<Mutex<UdpSocket>>, server_addr: SocketAddr) -> Self {
-        return Self {
+    pub fn new(socket: Arc<Mutex<UdpSocket>>) -> Self {
+        Self {
             socket,
-            server_addr,
             buffer: [0; 1472],
-        };
+        }
     }
 }
 
 impl TransportReceiver for PacketReceiver {
     /// Receives a packet from the Client Socket
-    fn receive(&mut self) -> Result<Option<&[u8]>, RecvError> {
+	fn receive(&mut self) -> Result<Option<(SocketAddr, &[u8])>, RecvError> {
         match self
             .socket
             .as_ref()
@@ -128,30 +116,13 @@ impl TransportReceiver for PacketReceiver {
             .unwrap()
             .recv_from(&mut self.buffer)
         {
-            Ok((recv_len, address)) => {
-                if address == self.server_addr {
-                    Ok(Some(&self.buffer[..recv_len]))
-                } else {
-                    Err(RecvError)
-                }
-            }
-            Err(ref e) => {
-                let kind = e.kind();
-                match kind {
-                    ErrorKind::WouldBlock => {
-                        //just didn't receive anything this time
-                        return Ok(None);
-                    }
-                    _ => {
-                        return Err(RecvError);
-                    }
-                }
-            }
+            Ok((recv_len, address)) =>
+				Ok(Some((address, &self.buffer[..recv_len]))),
+            Err(ref e) => match e.kind() {
+				ErrorKind::WouldBlock => Ok(None),
+				_ => Err(RecvError),
+			},
         }
-    }
-    /// Get the Server's Socket address
-    fn server_addr(&self) -> Option<SocketAddr> {
-        Some(self.server_addr)
     }
 }
 

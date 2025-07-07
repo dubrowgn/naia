@@ -2,6 +2,7 @@ use crate::NaiaClientError;
 use naia_shared::{BitReader, BitWriter, Serde, SerdeErr, StandardHeader, Timer};
 use naia_shared::metrics::*;
 use naia_shared::packet::*;
+use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use super::io::Io;
 
@@ -28,7 +29,7 @@ impl TimeManager {
 	}
 
 	/// Send a ping packet if enough time has passed
-    pub fn try_send_ping(&mut self, io: &mut Io) -> Result<bool, NaiaClientError> {
+    pub fn try_send_ping(&mut self, addr: &SocketAddr, io: &mut Io) -> Result<bool, NaiaClientError> {
 		if !self.ping_timer.try_reset() {
 			return Ok(false);
 		}
@@ -36,7 +37,7 @@ impl TimeManager {
 		let mut writer = BitWriter::new();
 		StandardHeader::of_type(PacketType::Ping).ser(&mut writer);
 		Ping { timestamp_ns: self.timestamp_ns() }.ser(&mut writer);
-		io.send_packet(writer.to_packet())?;
+		io.send_packet(addr, writer.to_packet())?;
 
 		Ok(true)
     }

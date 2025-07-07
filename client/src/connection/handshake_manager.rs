@@ -1,11 +1,13 @@
-use crate::connection::time_manager::TimeManager;
+use crate::NaiaClientError;
 use log::{trace, warn};
 use naia_shared::{
     BitReader, BitWriter, MessageContainer, MessageKinds, packet::*,
 	Serde, StandardHeader, Timer
 };
+use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
 use super::io::Io;
+use super::time_manager::TimeManager;
 
 #[derive(Debug, PartialEq)]
 pub enum HandshakeState {
@@ -28,10 +30,11 @@ pub struct HandshakeManager {
     connect_message: Option<MessageContainer>,
 	epoch: Instant,
 	time_manager: Option<TimeManager>,
+	pub peer_addr: SocketAddr,
 }
 
 impl HandshakeManager {
-    pub fn new(send_interval: Duration, ping_interval: Duration) -> Self {
+    pub fn new(peer_addr: &SocketAddr, send_interval: Duration, ping_interval: Duration) -> Self {
         let mut handshake_timer = Timer::new(send_interval);
         handshake_timer.ring_manual();
 
@@ -49,6 +52,7 @@ impl HandshakeManager {
             ping_interval,
             epoch: Instant::now(),
             time_manager: None,
+			peer_addr: *peer_addr,
         }
     }
 
@@ -88,14 +92,14 @@ impl HandshakeManager {
             match &mut self.connection_state {
                 HandshakeState::AwaitingChallengeResponse => {
                     let writer = self.write_challenge_request();
-                    if io.send_packet(writer.to_packet()).is_err() {
+                    if io.send_packet(&self.peer_addr, writer.to_packet()).is_err() {
                         // TODO: pass this on and handle above
                         warn!("Client Error: Cannot send challenge request packet to Server");
                     }
                 }
                 HandshakeState::AwaitingConnectResponse => {
                     let writer = self.write_connect_request(message_kinds);
-                    if io.send_packet(writer.to_packet()).is_err() {
+                    if io.send_packet(&self.peer_addr, writer.to_packet()).is_err() {
                         // TODO: pass this on and handle above
                         warn!("Client Error: Cannot send connect request packet to Server");
                     }
@@ -212,14 +216,16 @@ impl HandshakeManager {
 		Some(HandshakeResult::Connected(self.time_manager.take().unwrap()))
     }
 
-    // Send 10 disconnect packets
-    pub fn write_disconnect(&self) -> BitWriter {
+    // Send a disconnect packet
+    pub fn write_disconnect(&self, io: &mut Io) -> Result<(), NaiaClientError> {
         let mut writer = BitWriter::new();
         StandardHeader::of_type(PacketType::Disconnect).ser(&mut writer);
 		Disconnect {
 			timestamp_ns: self.pre_connection_timestamp,
 			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
 		}.ser(&mut writer);
-        writer
+		io.send_packet(&self.peer_addr, writer.to_packet())?;
+
+		Ok(())
     }
 }

@@ -26,16 +26,12 @@ mod inner {
 
     pub trait PacketSender: Send + Sync {
         /// Sends a packet from the Client Socket
-        fn send(&self, payload: &[u8]) -> Result<(), SendError>;
-        /// Get the Server's Socket address
-        fn server_addr(&self) -> Option<SocketAddr>;
+        fn send(&self, addr: &SocketAddr, payload: &[u8]) -> Result<(), SendError>;
     }
 
     pub trait PacketReceiver: PacketReceiverClone + Send + Sync {
         /// Receives a packet from the Client Socket
-        fn receive(&mut self) -> Result<Option<&[u8]>, RecvError>;
-        /// Get the Server's Socket address
-        fn server_addr(&self) -> Option<SocketAddr>;
+        fn receive(&mut self) -> Result<Option<(SocketAddr, &[u8])>, RecvError>;
     }
 
     /// Used to clone Box<dyn PacketReceiver>
