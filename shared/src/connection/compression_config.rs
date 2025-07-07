@@ -1,19 +1,13 @@
 #[derive(Clone)]
 pub struct CompressionConfig {
-    pub server_to_client: Option<CompressionMode>,
-    pub client_to_server: Option<CompressionMode>,
+	pub tx_mode: CompressionMode,
+	pub rx_mode: CompressionMode,
 }
 
 impl CompressionConfig {
-    pub fn new(
-        server_to_client: Option<CompressionMode>,
-        client_to_server: Option<CompressionMode>,
-    ) -> Self {
-        Self {
-            server_to_client,
-            client_to_server,
-        }
-    }
+	pub fn new(tx_mode: CompressionMode, rx_mode: CompressionMode) -> Self {
+		Self { tx_mode, rx_mode }
+	}
 }
 
 #[derive(Clone, Eq, PartialEq)]

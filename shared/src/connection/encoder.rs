@@ -15,7 +15,7 @@ cfg_if! {
         }
 
         impl Encoder {
-            pub fn new(compression_mode: CompressionMode) -> Self {
+            pub fn new(compression_mode: &CompressionMode) -> Self {
                 let encoder = match compression_mode {
                     CompressionMode::Training(sample_size) => {
                         EncoderType::DictionaryTrainer(DictionaryTrainer::new(sample_size))
@@ -126,21 +126,11 @@ cfg_if! {
     {
         use super::compression_config::CompressionMode;
 
-        pub struct Encoder {
-            result: Vec<u8>
-        }
+		pub struct Encoder;
 
         impl Encoder {
-            pub fn new(_: CompressionMode) -> Self {
-                Self {
-                    result: Vec::new(),
-                }
-            }
-
-            pub fn encode(&mut self, payload: &[u8]) -> &[u8] {
-                self.result = payload.to_vec();
-                &self.result
-            }
+			pub fn new(_: &CompressionMode) -> Self { Self }
+			pub fn encode<'a>(&mut self, payload: &'a[u8]) -> &'a[u8] { payload }
         }
     }
 }

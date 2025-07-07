@@ -18,18 +18,10 @@ pub struct Io {
 
 impl Io {
     pub fn new(compression_config: &Option<CompressionConfig>) -> Self {
-        let outgoing_encoder = compression_config.as_ref().and_then(|config| {
-            config
-                .server_to_client
-                .as_ref()
-                .map(|mode| Encoder::new(mode.clone()))
-        });
-        let incoming_decoder = compression_config.as_ref().and_then(|config| {
-            config
-                .client_to_server
-                .as_ref()
-                .map(|mode| Decoder::new(mode.clone()))
-        });
+		let outgoing_encoder = compression_config.as_ref()
+			.map(|conf| Encoder::new(&conf.tx_mode));
+		let incoming_decoder = compression_config.as_ref()
+			.map(|conf| Decoder::new(&conf.rx_mode));
 
         Io {
             packet_sender: None,
