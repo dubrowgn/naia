@@ -1,5 +1,4 @@
-use crate::NaiaError;
-use naia_shared::MessageContainer;
+use naia_shared::{MessageContainer, NaiaError};
 use std::net::SocketAddr;
 
 pub enum ClientEvent {

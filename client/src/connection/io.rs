@@ -1,13 +1,8 @@
-use std::net::SocketAddr;
-
+use crate::transport::{PacketReceiver, PacketSender};
 use naia_shared::{
-    BitReader, CompressionConfig, Decoder, Encoder, OutgoingPacket,
+    BitReader, CompressionConfig, Decoder, Encoder, NaiaError, OutgoingPacket,
 };
-
-use crate::{
-    error::NaiaError,
-    transport::{PacketReceiver, PacketSender},
-};
+use std::net::SocketAddr;
 
 pub struct Io {
     packet_sender: Option<Box<dyn PacketSender>>,
@@ -73,7 +68,7 @@ impl Io {
             .as_mut()
             .expect("Cannot call Client.send_packet() until you call Client.connect()!")
             .send(addr, payload)
-            .map_err(|_| NaiaError::SendError)
+            .map_err(|_| NaiaError::SendError(*addr))
     }
 
 	pub fn recv_reader(&mut self) -> Result<Option<(SocketAddr, BitReader)>, NaiaError> {

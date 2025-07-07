@@ -1,5 +1,4 @@
-use crate::NaiaError;
-use naia_shared::{BitReader, BitWriter, Serde, SerdeErr, StandardHeader, Timer};
+use naia_shared::{BitReader, BitWriter, NaiaError, Serde, SerdeErr, StandardHeader, Timer};
 use naia_shared::metrics::*;
 use naia_shared::packet::*;
 use std::{net::SocketAddr, time::{Duration, Instant}};

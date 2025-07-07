@@ -22,6 +22,7 @@ pub use naia_socket_shared::{
 
 mod connection;
 mod constants;
+mod error;
 mod id_pool;
 mod index_buffer;
 mod messages;
@@ -40,6 +41,7 @@ pub use connection::{
     packet,
     standard_header::StandardHeader,
 };
+pub use error::NaiaError;
 pub use messages::{
     channels::{
         channel::{Channel, ChannelDirection, ChannelMode, ReliableSettings},

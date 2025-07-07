@@ -1,5 +1,4 @@
-use crate::NaiaError;
-use naia_shared::{packet::ClientConnectRequest, MessageContainer};
+use naia_shared::{packet::ClientConnectRequest, MessageContainer, NaiaError};
 use super::user::{User, UserKey};
 
 pub struct ConnectContext {

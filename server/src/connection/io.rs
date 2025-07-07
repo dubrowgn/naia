@@ -1,8 +1,7 @@
-use crate::{
-    error::NaiaError,
-    transport::{PacketReceiver, PacketSender},
+use crate::transport::{PacketReceiver, PacketSender};
+use naia_shared::{
+	CompressionConfig, Decoder, Encoder, NaiaError, OutgoingPacket, OwnedBitReader,
 };
-use naia_shared::{CompressionConfig, Decoder, Encoder, OutgoingPacket, OwnedBitReader};
 use std::net::SocketAddr;
 
 pub struct Io {

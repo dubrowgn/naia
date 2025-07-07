@@ -1,6 +1,5 @@
 use crate::{
-	ConnectContext, error::NaiaError, server_config::ServerConfig,
-	ServerEvent, transport::Socket,
+	ConnectContext, server_config::ServerConfig, ServerEvent, transport::Socket,
 };
 use crate::connection::{
 	connection::Connection,
@@ -10,7 +9,7 @@ use crate::connection::{
 use crate::user::{User, UserKey, UserMut, UserRef};
 use naia_shared::{
 	BitReader, BitWriter, Channel, ChannelKind, IdPool, Message, MessageContainer,
-	packet::*, Protocol, Serde, SerdeErr, SocketConfig, StandardHeader, Timer,
+	NaiaError, packet::*, Protocol, Serde, SerdeErr, SocketConfig, StandardHeader, Timer,
 };
 use log::{trace, warn};
 use std::{collections::{HashMap, HashSet}, net::SocketAddr, panic, time::Instant};

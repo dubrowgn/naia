@@ -1,8 +1,7 @@
-use crate::NaiaError;
 use log::{trace, warn};
 use naia_shared::{
-    BitReader, BitWriter, MessageContainer, MessageKinds, packet::*,
-	Serde, StandardHeader, Timer
+	BitReader, BitWriter, MessageContainer, MessageKinds, NaiaError,
+	packet::*, Serde, StandardHeader, Timer
 };
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};

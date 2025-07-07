@@ -24,10 +24,8 @@ pub mod internal {
 mod client;
 mod client_config;
 mod connection;
-mod error;
 mod events;
 
 pub use client::Client;
 pub use client_config::ClientConfig;
-pub use error::NaiaError;
 pub use events::*;

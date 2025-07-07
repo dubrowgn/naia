@@ -1,13 +1,10 @@
-use std::{collections::VecDeque, net::SocketAddr};
-
 use log::warn;
 use naia_shared::{
-    BitWriter, Channel, ChannelKind, Message, MessageContainer,
+	BitWriter, Channel, ChannelKind, Message, MessageContainer, NaiaError,
 	packet::*, Protocol, Serde, SocketConfig, StandardHeader,
 };
-
-use std::time::Instant;
-use super::{client_config::ClientConfig, error::NaiaError};
+use std::{collections::VecDeque, net::SocketAddr, time::Instant};
+use super::client_config::ClientConfig;
 use crate::{
     connection::{
         connection::Connection,

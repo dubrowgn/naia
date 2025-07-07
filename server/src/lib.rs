@@ -26,13 +26,11 @@ pub mod internal {
 
 mod cache_map;
 mod connection;
-mod error;
 mod events;
 mod server;
 mod server_config;
 mod user;
 
-pub use error::NaiaError;
 pub use events::*;
 pub use server::Server;
 pub use server_config::ServerConfig;
