@@ -52,7 +52,7 @@ impl TransportSocket for Socket {
             let inner_receiver =
                 Box::new(PacketReceiver::new(self.socket.clone()));
             if let Some(config) = &self.config {
-                Box::new(ConditionedPacketReceiver::new(inner_receiver, config))
+                Box::new(ConditionedPacketReceiver::new(inner_receiver, config.clone()))
             } else {
                 inner_receiver
             }

@@ -29,8 +29,10 @@ mod messages;
 pub mod metrics;
 mod protocol;
 mod timer;
+mod transport;
 mod types;
 
+pub use transport::*;
 pub use connection::{
     ack_manager::AckManager,
     base_connection::BaseConnection,
