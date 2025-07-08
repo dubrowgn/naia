@@ -16,6 +16,7 @@ use specifically with deterministic lockstep applications.
   removes a large amount of special casing in naia, and can be implemented
   at the application level more robustly with a fraction of the code. (~2.5k LoC)
 * Removed WASM
+* Removed webrtc (~1.2k LoC)
 
 ## Major Additions
 

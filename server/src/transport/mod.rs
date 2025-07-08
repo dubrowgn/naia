@@ -1,9 +1,4 @@
 cfg_if! {
-    if #[cfg(feature = "transport_webrtc")] {
-        pub mod webrtc;
-    } else {}
-}
-cfg_if! {
     if #[cfg(feature = "transport_udp")] {
         pub mod udp;
         mod conditioner;

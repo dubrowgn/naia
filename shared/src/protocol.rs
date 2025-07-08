@@ -36,7 +36,7 @@ impl Default for Protocol {
         Self {
             channel_kinds: ChannelKinds::new(),
             message_kinds,
-            socket: SocketConfig::new(None, None),
+            socket: SocketConfig::default(),
             tick_interval: Duration::from_millis(50),
             compression: None,
             locked: false,
@@ -52,12 +52,6 @@ impl Protocol {
     pub fn link_condition(&mut self, config: LinkConditionerConfig) -> &mut Self {
         self.check_lock();
         self.socket.link_condition = Some(config);
-        self
-    }
-
-    pub fn rtc_endpoint(&mut self, path: String) -> &mut Self {
-        self.check_lock();
-        self.socket.rtc_endpoint_path = path;
         self
     }
 
