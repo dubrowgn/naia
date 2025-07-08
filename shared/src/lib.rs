@@ -21,8 +21,6 @@ pub use naia_socket_shared::LinkConditionerConfig;
 mod connection;
 mod constants;
 mod error;
-mod id_pool;
-mod index_buffer;
 mod messages;
 pub mod metrics;
 mod protocol;
@@ -59,8 +57,6 @@ pub use messages::{
     named::Named,
 };
 
-pub use id_pool::*;
-pub use index_buffer::*;
 pub use protocol::Protocol;
 pub use timer::Timer;
 pub use types::*;

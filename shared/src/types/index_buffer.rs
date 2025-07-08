@@ -1,5 +1,5 @@
-use crate::SeqNum;
 use std::collections::VecDeque;
+use super::SeqNum;
 
 /// A circular buffer of sequenced values. It stores a minimum sequence number which
 /// increases over time. Buffer indexes represent offsets from this number.
