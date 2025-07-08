@@ -40,10 +40,10 @@ use specifically with deterministic lockstep applications.
 	* command history
 	* BigMap
 	* PingStore
+	* SocketConfig
 	* and a lot more
 
 ## To do (As of 2025-06-25)
 
-* Fully expose server configuration
 * Fix server drops data packets race condition on connect
 * Add encryption

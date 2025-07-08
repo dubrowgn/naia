@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use naia_socket_shared::{LinkConditionerConfig, SocketConfig};
+use naia_socket_shared::LinkConditionerConfig;
 
 use crate::{
     connection::compression_config::CompressionConfig,
@@ -19,8 +19,7 @@ use crate::{
 pub struct Protocol {
     pub channel_kinds: ChannelKinds,
     pub message_kinds: MessageKinds,
-    /// Used to configure the underlying socket
-    pub socket: SocketConfig,
+	pub conditioner_config: Option<LinkConditionerConfig>,
     /// The duration between each tick
     pub tick_interval: Duration,
     /// Configuration used to control compression parameters
@@ -36,7 +35,7 @@ impl Default for Protocol {
         Self {
             channel_kinds: ChannelKinds::new(),
             message_kinds,
-            socket: SocketConfig::default(),
+            conditioner_config: None,
             tick_interval: Duration::from_millis(50),
             compression: None,
             locked: false,
@@ -51,7 +50,7 @@ impl Protocol {
 
     pub fn link_condition(&mut self, config: LinkConditionerConfig) -> &mut Self {
         self.check_lock();
-        self.socket.link_condition = Some(config);
+        self.conditioner_config = Some(config);
         self
     }
 

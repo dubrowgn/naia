@@ -15,9 +15,8 @@ extern crate cfg_if;
 pub mod transport;
 pub mod shared {
     pub use naia_shared::{
-        BitReader, BitWrite, BitWriter, ConstBitLength,
-        FileBitWriter, Serde, SerdeErr, SignedInteger, SignedVariableInteger, SocketConfig,
-        UnsignedInteger, UnsignedVariableInteger,
+		BitReader, BitWrite, BitWriter, ConstBitLength, FileBitWriter, Serde, SerdeErr,
+		SignedInteger, SignedVariableInteger, UnsignedInteger, UnsignedVariableInteger,
     };
 }
 pub mod internal {

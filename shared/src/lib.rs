@@ -16,7 +16,7 @@ pub use naia_serde::{
     SerdeIntegerConversion, SerdeInternal, SignedInteger, SignedVariableInteger, UnsignedInteger,
     UnsignedVariableInteger, MTU_SIZE_BITS, MTU_SIZE_BYTES,
 };
-pub use naia_socket_shared::{LinkConditionerConfig, SocketConfig, TimeQueue};
+pub use naia_socket_shared::{LinkConditionerConfig, TimeQueue};
 
 mod connection;
 mod constants;

@@ -8,8 +8,9 @@ use crate::connection::{
 };
 use crate::user::{User, UserKey, UserMut, UserRef};
 use naia_shared::{
-	BitReader, BitWriter, Channel, ChannelKind, IdPool, Message, MessageContainer,
-	NaiaError, packet::*, Protocol, Serde, SerdeErr, SocketConfig, StandardHeader, Timer,
+	BitReader, BitWriter, Channel, ChannelKind, IdPool, LinkConditionerConfig, Message,
+	MessageContainer, NaiaError, packet::*, Protocol, Serde, SerdeErr, StandardHeader,
+	Timer,
 };
 use log::{trace, warn};
 use std::{collections::{HashMap, HashSet}, net::SocketAddr, panic, time::Instant};
@@ -115,10 +116,10 @@ impl Server {
         self.io.is_loaded()
     }
 
-    /// Returns socket config
-    pub fn socket_config(&self) -> &SocketConfig {
-        &self.protocol.socket
-    }
+	/// Returns conditioner config
+	pub fn conditioner_config(&self) -> &Option<LinkConditionerConfig> {
+		&self.protocol.conditioner_config
+	}
 
     /// Must be called regularly, maintains connection to and receives messages
     /// from all Clients

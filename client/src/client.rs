@@ -1,7 +1,7 @@
 use log::warn;
 use naia_shared::{
-	BitWriter, Channel, ChannelKind, Message, MessageContainer, NaiaError,
-	packet::*, Protocol, Serde, SocketConfig, StandardHeader,
+	BitWriter, Channel, ChannelKind, LinkConditionerConfig, Message, MessageContainer,
+	NaiaError, packet::*, Protocol, Serde, StandardHeader,
 };
 use std::{collections::VecDeque, net::SocketAddr, time::Instant};
 use super::client_config::ClientConfig;
@@ -111,10 +111,10 @@ impl Client {
         }
     }
 
-    /// Returns socket config
-    pub fn socket_config(&self) -> &SocketConfig {
-        &self.protocol.socket
-    }
+    /// Returns conditioner config
+	pub fn conditioner_config(&self) -> &Option<LinkConditionerConfig> {
+		&self.protocol.conditioner_config
+	}
 
     // Receive Data from Server! Very important!
 
