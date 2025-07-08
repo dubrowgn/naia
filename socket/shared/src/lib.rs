@@ -9,10 +9,6 @@
     unused_qualifications
 )]
 
-/// Logic shared between client & server sockets related to simulating network
-/// conditions
-pub mod link_condition_logic;
-
 mod link_conditioner_config;
 mod socket_config;
 mod time_queue;
