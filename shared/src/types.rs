@@ -7,8 +7,6 @@ pub type MessageIndex = SeqNum;
 /// packet-level sequence number
 pub type PacketIndex = SeqNum;
 
-pub type Tick = SeqNum;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HostType {
     Server,
