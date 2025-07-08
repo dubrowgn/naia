@@ -1,4 +1,5 @@
-use naia_socket_shared::{LinkConditionerConfig, TimeQueue};
+use crate::TimeQueue;
+use naia_socket_shared::LinkConditionerConfig;
 use rand::Rng;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};

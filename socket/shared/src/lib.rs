@@ -10,10 +10,8 @@
 )]
 
 mod link_conditioner_config;
-mod time_queue;
 
 pub use link_conditioner_config::LinkConditionerConfig;
-pub use time_queue::TimeQueue;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct ChannelClosedError<T>(pub T);
