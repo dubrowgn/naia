@@ -11,11 +11,9 @@
 
 mod link_conditioner_config;
 mod time_queue;
-mod url_parse;
 
 pub use link_conditioner_config::LinkConditionerConfig;
 pub use time_queue::TimeQueue;
-pub use url_parse::{parse_server_url, url_to_socket_addr};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct ChannelClosedError<T>(pub T);
