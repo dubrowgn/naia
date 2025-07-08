@@ -7,7 +7,6 @@ members = [
     "shared/derive",
     "shared/serde",
     "shared/serde/derive",
-    "socket/shared",
     "test",
 ]
 default-members = [
@@ -17,7 +16,6 @@ default-members = [
     "shared/derive",
     "shared/serde",
     "shared/serde/derive",
-    "socket/shared",
 ]
 
 [profile.release]

@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use naia_socket_shared::LinkConditionerConfig;
-
 use crate::{
     connection::compression_config::CompressionConfig,
     messages::{
@@ -13,6 +11,7 @@ use crate::{
         message::Message,
         message_kinds::MessageKinds,
     },
+	LinkConditionerConfig,
 };
 
 // Protocol

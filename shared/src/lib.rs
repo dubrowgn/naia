@@ -16,7 +16,6 @@ pub use naia_serde::{
     SerdeIntegerConversion, SerdeInternal, SignedInteger, SignedVariableInteger, UnsignedInteger,
     UnsignedVariableInteger, MTU_SIZE_BITS, MTU_SIZE_BYTES,
 };
-pub use naia_socket_shared::LinkConditionerConfig;
 
 mod connection;
 mod constants;
@@ -25,10 +24,8 @@ mod messages;
 pub mod metrics;
 mod protocol;
 mod timer;
-mod transport;
 mod types;
 
-pub use transport::*;
 pub use connection::{
     ack_manager::AckManager,
     base_connection::BaseConnection,

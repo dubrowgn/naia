@@ -20,7 +20,6 @@ maintenance = { status = "actively-developed" }
 zstd_support = [ "zstd" ]
 
 [dependencies]
-naia-socket-shared = { version = "0.22", path = "../socket/shared" }
 naia-derive = { version = "0.22", path = "derive" }
 naia-serde = { version = "0.22", path = "serde" }
 log = { version = "0.4" }
