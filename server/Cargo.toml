@@ -3,14 +3,14 @@ name = "naia-server"
 version = "0.22.0"
 authors = ["connorcarpenter <connorcarpenter@gmail.com>"]
 workspace = ".."
-description = "A server that uses either UDP or WebRTC communication to send/receive messages to/from connected clients, and syncs registered Entities/Components to clients to whom they are in-scope."
+description = "A server that uses UDP to send/receive messages to/from connected clients."
 documentation = "https://docs.rs/naia-server"
 homepage = "https://github.com/naia-lib/naia"
 repository = "https://github.com/naia-lib/naia"
 readme = "../README.md"
 keywords = ["udp", "server", "networking", "gamedev"]
 categories = ["network-programming", "game-development", "web-programming"]
-license = "MIT OR Apache-2.0"
+license = "MIT"
 edition = "2021"
 
 [badges]
@@ -18,7 +18,6 @@ maintenance = { status = "actively-developed" }
 
 [features]
 zstd_support = ["naia-shared/zstd_support"]
-transport_udp = []
 
 [dependencies]
 naia-shared = { version = "0.22", path = "../shared" }

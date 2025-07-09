@@ -10,7 +10,7 @@ repository = "https://github.com/naia-lib/naia"
 readme = "../README.md"
 keywords = ["udp", "networking", "gamedev"]
 categories = ["network-programming", "game-development", "web-programming"]
-license = "MIT OR Apache-2.0"
+license = "MIT"
 edition = "2021"
 
 [badges]

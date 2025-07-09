@@ -3,7 +3,7 @@ name = "naia-test"
 version = "0.1.0"
 authors = ["connorcarpenter <connorcarpenter@gmail.com>"]
 workspace = ".."
-license = "MIT OR Apache-2.0"
+license = "MIT"
 edition = "2021"
 publish = false
 
