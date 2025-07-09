@@ -1,14 +1,12 @@
-// BitReader
-
 use crate::SerdeErr;
 
-pub struct BitReader<'b> {
+pub struct BitReader {
     state: BitReaderState,
-    buffer: &'b [u8],
+    buffer: Box<[u8]>,
 }
 
-impl<'b> BitReader<'b> {
-    pub fn new(buffer: &'b [u8]) -> Self {
+impl BitReader {
+    pub fn new(buffer: Box<[u8]>) -> Self {
         Self {
             state: BitReaderState {
                 scratch: 0,
@@ -21,13 +19,6 @@ impl<'b> BitReader<'b> {
 
     pub fn bytes_len(&self) -> usize {
         self.buffer.len()
-    }
-
-    pub fn to_owned(&self) -> OwnedBitReader {
-        OwnedBitReader {
-            state: self.state,
-            buffer: self.buffer.into(),
-        }
     }
 
     pub fn read_bit(&mut self) -> Result<bool, SerdeErr> {
@@ -63,33 +54,6 @@ impl<'b> BitReader<'b> {
             output |= 128;
         }
         Ok(output)
-    }
-}
-
-// OwnedBitReader
-
-pub struct OwnedBitReader {
-    state: BitReaderState,
-    buffer: Box<[u8]>,
-}
-
-impl OwnedBitReader {
-    pub fn new(buffer: &[u8]) -> Self {
-        Self {
-            state: BitReaderState {
-                scratch: 0,
-                scratch_index: 0,
-                buffer_index: 0,
-            },
-            buffer: buffer.into(),
-        }
-    }
-
-    pub fn borrow(&self) -> BitReader {
-        BitReader {
-            state: self.state,
-            buffer: &self.buffer,
-        }
     }
 }
 

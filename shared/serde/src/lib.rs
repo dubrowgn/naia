@@ -14,7 +14,7 @@ mod outgoing_packet;
 mod serde;
 
 pub use bit_counter::BitCounter;
-pub use bit_reader::{BitReader, OwnedBitReader};
+pub use bit_reader::BitReader;
 pub use bit_writer::{BitWrite, BitWriter};
 pub use constants::{MTU_SIZE_BITS, MTU_SIZE_BYTES};
 pub use error::SerdeErr;

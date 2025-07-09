@@ -88,7 +88,7 @@ impl Io {
 					payload = decoder.decode(payload);
 				}
 
-				Ok(Some((address, BitReader::new(payload))))
+				Ok(Some((address, BitReader::new(payload.into()))))
 			}
 			Ok(None) => Ok(None),
 			Err(_) => Err(NaiaError::RecvError),

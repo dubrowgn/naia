@@ -367,9 +367,7 @@ impl Server {
         // receive socket events
         loop {
             match self.io.recv_reader() {
-                Ok(Some((address, owned_reader))) => {
-                    let mut reader = owned_reader.borrow();
-
+                Ok(Some((address, mut reader))) => {
                     // Read header
                     let Ok(header) = StandardHeader::de(&mut reader) else {
                         // Received a malformed packet

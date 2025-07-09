@@ -21,7 +21,7 @@ fn read_write_unit_struct() {
 
     // Read
 
-    let mut reader = BitReader::new(&bytes);
+    let mut reader = BitReader::new(bytes);
 
     let out_1 = Serde::de(&mut reader).unwrap();
 

@@ -1,6 +1,6 @@
 use crate::{
     constants::{MTU_SIZE_BITS, MTU_SIZE_BYTES},
-    BitCounter, OutgoingPacket, OwnedBitReader,
+    BitCounter, OutgoingPacket,
 };
 
 // BitWrite
@@ -57,11 +57,6 @@ impl BitWriter {
     pub fn to_packet(mut self) -> OutgoingPacket {
         self.finalize();
         OutgoingPacket::new(self.buffer_index, self.buffer)
-    }
-
-    pub fn to_owned_reader(mut self) -> OwnedBitReader {
-        self.finalize();
-        OwnedBitReader::new(&self.buffer[0..self.buffer_index])
     }
 
     pub fn to_bytes(mut self) -> Box<[u8]> {
@@ -141,7 +136,7 @@ mod tests {
 
         let buffer = writer.to_bytes();
 
-        let mut reader = BitReader::new(&buffer);
+        let mut reader = BitReader::new(buffer);
 
         assert!(reader.read_bit().unwrap());
     }
@@ -161,7 +156,7 @@ mod tests {
 
         let buffer = writer.to_bytes();
 
-        let mut reader = BitReader::new(&buffer);
+        let mut reader = BitReader::new(buffer);
 
         assert!(!reader.read_bit().unwrap());
         assert!(reader.read_bit().unwrap());
@@ -189,7 +184,7 @@ mod tests {
 
         let buffer = writer.to_bytes();
 
-        let mut reader = BitReader::new(&buffer);
+        let mut reader = BitReader::new(buffer);
 
         assert!(!reader.read_bit().unwrap());
         assert!(reader.read_bit().unwrap());
@@ -230,7 +225,7 @@ mod tests {
 
         let buffer = writer.to_bytes();
 
-        let mut reader = BitReader::new(&buffer);
+        let mut reader = BitReader::new(buffer);
 
         assert!(!reader.read_bit().unwrap());
         assert!(reader.read_bit().unwrap());
@@ -281,7 +276,7 @@ mod tests {
 
         let buffer = writer.to_bytes();
 
-        let mut reader = BitReader::new(&buffer);
+        let mut reader = BitReader::new(buffer);
 
         assert!(!reader.read_bit().unwrap());
         assert!(reader.read_bit().unwrap());
@@ -317,7 +312,7 @@ mod tests {
 
         let buffer = writer.to_bytes();
 
-        let mut reader = BitReader::new(&buffer);
+        let mut reader = BitReader::new(buffer);
 
         assert_eq!(123, reader.read_byte().unwrap());
     }
@@ -339,7 +334,7 @@ mod tests {
 
         let buffer = writer.to_bytes();
 
-        let mut reader = BitReader::new(&buffer);
+        let mut reader = BitReader::new(buffer);
 
         assert_eq!(48, reader.read_byte().unwrap());
         assert_eq!(151, reader.read_byte().unwrap());

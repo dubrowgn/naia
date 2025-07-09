@@ -1,6 +1,6 @@
 use crate::transport::{PacketReceiver, PacketSender};
 use naia_shared::{
-	CompressionConfig, Decoder, Encoder, NaiaError, OutgoingPacket, OwnedBitReader,
+	BitReader, CompressionConfig, Decoder, Encoder, NaiaError, OutgoingPacket,
 };
 use std::net::SocketAddr;
 
@@ -74,7 +74,7 @@ impl Io {
             .map_err(|_| NaiaError::SendError(*address))
     }
 
-    pub fn recv_reader(&mut self) -> Result<Option<(SocketAddr, OwnedBitReader)>, NaiaError> {
+    pub fn recv_reader(&mut self) -> Result<Option<(SocketAddr, BitReader)>, NaiaError> {
         let receive_result = self
             .packet_receiver
             .as_mut()
@@ -91,7 +91,7 @@ impl Io {
                     payload = decoder.decode(payload);
                 }
 
-                Ok(Some((address, OwnedBitReader::new(payload))))
+                Ok(Some((address, BitReader::new(payload.into()))))
             }
             Ok(None) => Ok(None),
             Err(_) => Err(NaiaError::RecvError),

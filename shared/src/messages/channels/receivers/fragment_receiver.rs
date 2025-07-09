@@ -48,7 +48,7 @@ impl FragmentReceiver {
         // we have received all fragments! put it all together
         let (_, fragment_list) = self.map.remove(&fragment_id).unwrap();
         let concat_list = fragment_list.concat();
-        let mut reader = BitReader::new(&concat_list);
+        let mut reader = BitReader::new(concat_list.into());
         let full_message_result = message_kinds.read(&mut reader);
         if full_message_result.is_err() {
             // TODO: bubble up error instead of panicking here

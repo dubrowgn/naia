@@ -58,7 +58,7 @@ mod tests {
         let buffer = writer.to_bytes();
 
         //Read
-        let mut reader = BitReader::new(&buffer);
+        let mut reader = BitReader::new(buffer);
 
         let out_1 = Option::<u8>::de(&mut reader).unwrap();
         let out_2 = Option::<f32>::de(&mut reader).unwrap();

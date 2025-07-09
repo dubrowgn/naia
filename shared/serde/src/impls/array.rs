@@ -78,7 +78,7 @@ mod tests {
         let buffer = writer.to_bytes();
 
         //Read
-        let mut reader = BitReader::new(&buffer);
+        let mut reader = BitReader::new(buffer);
 
         let out_1: [i32; 4] = Serde::de(&mut reader).unwrap();
         let out_2: [bool; 3] = Serde::de(&mut reader).unwrap();

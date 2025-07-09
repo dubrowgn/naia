@@ -54,7 +54,7 @@ mod tests {
         let buffer = writer.to_bytes();
 
         // Read
-        let mut reader = BitReader::new(&buffer);
+        let mut reader = BitReader::new(buffer);
 
         let out_1: String = Serde::de(&mut reader).unwrap();
         let out_2: String = Serde::de(&mut reader).unwrap();
