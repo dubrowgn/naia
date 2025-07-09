@@ -194,7 +194,7 @@ impl Client {
         self.server_connection
             .as_ref()
             .expect("it is expected that you should verify whether the client is connected before calling this method")
-            .time_manager.rtt_ms()
+            .ping_manager.rtt_ms()
     }
 
     /// Gets the average Jitter measured in connection to the Server
@@ -202,7 +202,7 @@ impl Client {
         self.server_connection
             .as_ref()
             .expect("it is expected that you should verify whether the client is connected before calling this method")
-            .time_manager.jitter_ms()
+            .ping_manager.jitter_ms()
     }
 
     // Private methods
@@ -231,13 +231,13 @@ impl Client {
             match self.io.recv_reader() {
                 Ok(Some((_, mut reader))) => {
                     match handshake_manager.recv(&mut reader) {
-                        Some(HandshakeResult::Connected(time_manager)) => {
+                        Some(HandshakeResult::Connected(ping_manager)) => {
                             // new connect!
                             self.server_connection = Some(Connection::new(
                                 &self.client_config.connection,
                                 &self.protocol.channel_kinds,
 								&handshake_manager.peer_addr,
-                                time_manager,
+                                ping_manager,
                             ));
                             self.on_connect();
 
@@ -335,7 +335,7 @@ impl Client {
 							connection.base.mark_sent();
                         }
                         PacketType::Pong => {
-                            if connection.time_manager.read_pong(&mut reader).is_err() {
+                            if connection.ping_manager.read_pong(&mut reader).is_err() {
                                 // TODO: pass this on and handle above
                                 warn!("Client Error: Cannot process pong packet from Server");
                             }
@@ -376,7 +376,7 @@ impl Client {
     }
 
     fn handle_pings(connection: &mut Connection, io: &mut Io) {
-		match connection.time_manager.try_send_ping(&connection.address, io) {
+		match connection.ping_manager.try_send_ping(&connection.address, io) {
 			Ok(true) => connection.base.mark_sent(),
 			Ok(false) => {},
 			Err(_) => warn!("Client Error: Cannot send ping packet to Server"),

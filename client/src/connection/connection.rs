@@ -1,12 +1,8 @@
+use crate::events::ClientEvent;
 use log::warn;
 use naia_shared::{
 	BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig,
-	HostType, Io, packet::*, Protocol, SerdeErr, StandardHeader,
-};
-
-use crate::{
-    connection::time_manager::TimeManager,
-    events::ClientEvent,
+	HostType, Io, packet::*, PingManager, Protocol, SerdeErr, StandardHeader,
 };
 use std::net::SocketAddr;
 use std::time::Instant;
@@ -14,7 +10,7 @@ use std::time::Instant;
 pub struct Connection {
 	pub address: SocketAddr,
     pub base: BaseConnection,
-    pub time_manager: TimeManager,
+    pub ping_manager: PingManager,
 }
 
 impl Connection {
@@ -22,7 +18,7 @@ impl Connection {
         connection_config: &ConnectionConfig,
         channel_kinds: &ChannelKinds,
 		peer_addr: &SocketAddr,
-        time_manager: TimeManager,
+        ping_manager: PingManager,
     ) -> Self {
         Connection {
 			address: *peer_addr,
@@ -31,7 +27,7 @@ impl Connection {
                 connection_config,
                 channel_kinds,
             ),
-            time_manager,
+            ping_manager,
         }
     }
 
@@ -62,7 +58,7 @@ impl Connection {
 
     /// Collect and send any outgoing packets from client to server
     pub fn send_packets(&mut self, protocol: &Protocol, now: &Instant, io: &mut Io) {
-        let rtt_millis = self.time_manager.rtt_ms();
+        let rtt_millis = self.ping_manager.rtt_ms();
         self.base.collect_messages(now, &rtt_millis);
 
         let mut any_sent = false;

@@ -1,9 +1,10 @@
-use naia_shared::{
+use crate::{
 	BitReader, BitWriter, Io, NaiaError, Serde, SerdeErr, StandardHeader, Timer,
 };
-use naia_shared::metrics::*;
-use naia_shared::packet::*;
-use std::{net::SocketAddr, time::{Duration, Instant}};
+use crate::metrics::*;
+use crate::packet::*;
+use std::net::SocketAddr;
+use std::time::{Duration, Instant};
 
 /// Tracks ping and pong related info to estimate link quality metrics like rtt and jitter
 pub struct PingManager {
@@ -59,11 +60,11 @@ impl PingManager {
 
 	// Stats
 
-	pub(crate) fn rtt_ms(&self) -> f32 {
+	pub fn rtt_ms(&self) -> f32 {
 		self.rtt_ms.mean()
 	}
 
-	pub(crate) fn jitter_ms(&self) -> f32 {
+	pub fn jitter_ms(&self) -> f32 {
 		let mean = self.rtt_ms.mean();
 		f32::max(self.rtt_ms.max() - mean, mean - self.rtt_ms.min())
 	}

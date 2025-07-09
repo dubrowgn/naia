@@ -5,7 +5,7 @@ use specifically with deterministic lockstep applications.
 
 ## Major Removals
 
-* Code base reduced from ~39k lines of rust to ~9.1k (as of 2025-07-09)
+* Code base reduced from ~39k lines of rust to ~9k (as of 2025-07-09)
 * Removed bevy, hecs, and miniquad from naia core (no more naia changes necessary
   after new bevy/hecs/miniquad releases)
 * Removed entity replication; Entity replication is a huge chunk of the naia
@@ -17,7 +17,7 @@ use specifically with deterministic lockstep applications.
   at the application level more robustly with a fraction of the code. (~2.5k LoC)
 * Removed WASM
 * Removed webrtc (~1.3k LoC)
-* Combined client/server datapaths (~500 LoC)
+* Combined client/server datapaths and time managers (~600 LoC)
 
 ## Major Additions
 
@@ -44,7 +44,7 @@ use specifically with deterministic lockstep applications.
 	* SocketConfig
 	* and a lot more
 
-## To do (As of 2025-06-25)
+## To do
 
 * Fix server drops data packets race condition on connect
 * Add encryption (and remove ring)

@@ -1,11 +1,10 @@
 use log::{trace, warn};
 use naia_shared::{
 	BitReader, BitWriter, MessageContainer, MessageKinds, NaiaError,
-	Io, packet::*, Serde, StandardHeader, Timer
+	Io, packet::*, PingManager, Serde, StandardHeader, Timer
 };
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
-use super::time_manager::TimeManager;
 
 #[derive(Debug, PartialEq)]
 pub enum HandshakeState {
@@ -15,7 +14,7 @@ pub enum HandshakeState {
 }
 
 pub enum HandshakeResult {
-    Connected(TimeManager),
+    Connected(PingManager),
     Rejected,
 }
 
@@ -27,7 +26,7 @@ pub struct HandshakeManager {
     pre_connection_digest: Option<Vec<u8>>,
     connect_message: Option<MessageContainer>,
 	epoch: Instant,
-	time_manager: Option<TimeManager>,
+	ping_manager: Option<PingManager>,
 	pub peer_addr: SocketAddr,
 }
 
@@ -49,7 +48,7 @@ impl HandshakeManager {
             connect_message: None,
             ping_interval,
             epoch: Instant::now(),
-            time_manager: None,
+            ping_manager: None,
 			peer_addr: *peer_addr,
         }
     }
@@ -62,8 +61,8 @@ impl HandshakeManager {
 		let now_ns = self.timestamp_ns();
 		let rtt_ms = (now_ns - start_timestamp_ns) as f32 / 1_000_000.0;
 
-		self.time_manager
-			.get_or_insert_with(|| TimeManager::new(self.ping_interval))
+		self.ping_manager
+			.get_or_insert_with(|| PingManager::new(self.ping_interval))
 			.sample_rtt_ms(rtt_ms);
 	}
 
@@ -211,7 +210,7 @@ impl HandshakeManager {
 		self.sample_rtt(resp.client_timestamp_ns);
 
 		self.set_state(HandshakeState::Connected);
-		Some(HandshakeResult::Connected(self.time_manager.take().unwrap()))
+		Some(HandshakeResult::Connected(self.ping_manager.take().unwrap()))
     }
 
     // Send a disconnect packet

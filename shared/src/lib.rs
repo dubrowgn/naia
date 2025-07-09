@@ -34,6 +34,7 @@ pub use connection::{
     encoder::Encoder,
     io::Io,
     packet,
+	ping_manager::PingManager,
     standard_header::StandardHeader,
 };
 pub use error::NaiaError;
