@@ -18,13 +18,13 @@ cfg_if! {
             pub fn new(compression_mode: &CompressionMode) -> Self {
                 let encoder = match compression_mode {
                     CompressionMode::Training(sample_size) => {
-                        EncoderType::DictionaryTrainer(DictionaryTrainer::new(sample_size))
+                        EncoderType::DictionaryTrainer(DictionaryTrainer::new(*sample_size))
                     }
                     CompressionMode::Default(compression_level) => EncoderType::Compressor(
-                        Compressor::new(compression_level).expect("error creating Compressor"),
+                        Compressor::new(*compression_level).expect("error creating Compressor"),
                     ),
                     CompressionMode::Dictionary(compression_level, dictionary) => EncoderType::Compressor(
-                        Compressor::with_dictionary(compression_level, &dictionary)
+                        Compressor::with_dictionary(*compression_level, &dictionary)
                             .expect("error creating Compressor with dictionary"),
                     ),
                 };
