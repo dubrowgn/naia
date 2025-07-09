@@ -1,4 +1,4 @@
-use naia_shared::{
+use crate::{
 	BitReader, CompressionConfig, Decoder, Encoder, LinkConditionerConfig, NaiaError,
 	PacketConditioner, OutgoingPacket, MTU_SIZE_BYTES
 };

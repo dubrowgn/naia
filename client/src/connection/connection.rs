@@ -1,11 +1,11 @@
 use log::warn;
 use naia_shared::{
 	BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig,
-	HostType, packet::*, Protocol, SerdeErr, StandardHeader,
+	HostType, Io, packet::*, Protocol, SerdeErr, StandardHeader,
 };
 
 use crate::{
-    connection::{io::Io, time_manager::TimeManager},
+    connection::time_manager::TimeManager,
     events::ClientEvent,
 };
 use std::net::SocketAddr;

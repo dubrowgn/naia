@@ -1,9 +1,10 @@
-use naia_shared::{BitReader, BitWriter, NaiaError, Serde, SerdeErr, StandardHeader, Timer};
+use naia_shared::{
+	BitReader, BitWriter, Io, NaiaError, Serde, SerdeErr, StandardHeader, Timer,
+};
 use naia_shared::metrics::*;
 use naia_shared::packet::*;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
-use super::io::Io;
 
 /// Tracks ping and pong related info to estimate link quality metrics like rtt and jitter
 pub struct TimeManager {

@@ -32,6 +32,7 @@ pub use connection::{
     connection_config::ConnectionConfig,
     decoder::Decoder,
     encoder::Encoder,
+    io::Io,
     packet,
     standard_header::StandardHeader,
 };

@@ -1,6 +1,6 @@
 use log::warn;
 use naia_shared::{
-	BitWriter, Channel, ChannelKind, LinkConditionerConfig, Message, MessageContainer,
+	BitWriter, Channel, ChannelKind, Io, LinkConditionerConfig, Message, MessageContainer,
 	NaiaError, packet::*, Protocol, Serde, StandardHeader,
 };
 use std::{collections::VecDeque, io, net::SocketAddr, time::Instant};
@@ -9,7 +9,6 @@ use crate::{
     connection::{
         connection::Connection,
         handshake_manager::{HandshakeManager, HandshakeResult},
-        io::Io,
     },
 	ClientEvent,
 };

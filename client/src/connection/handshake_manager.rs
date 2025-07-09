@@ -1,11 +1,10 @@
 use log::{trace, warn};
 use naia_shared::{
 	BitReader, BitWriter, MessageContainer, MessageKinds, NaiaError,
-	packet::*, Serde, StandardHeader, Timer
+	Io, packet::*, Serde, StandardHeader, Timer
 };
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
-use super::io::Io;
 use super::time_manager::TimeManager;
 
 #[derive(Debug, PartialEq)]
