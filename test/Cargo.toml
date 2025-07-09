@@ -7,9 +7,6 @@ license = "MIT"
 edition = "2021"
 publish = false
 
-[features]
-
-
 [dependencies]
 naia-server = { path = "../server" }
 naia-client = { path = "../client" }

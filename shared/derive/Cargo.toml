@@ -18,8 +18,6 @@ maintenance = { status = "actively-developed" }
 [lib]
 proc-macro = true
 
-[features]
-
 [dependencies]
 naia-serde-derive = { version = "0.22", path = "../serde/derive" }
 proc-macro2 = "1.0"
