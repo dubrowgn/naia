@@ -2,11 +2,10 @@ use crate::{ events::ServerEvent, user::UserKey };
 use log::warn;
 use naia_shared::{
     BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig,
-	HostType, packet::*, Protocol, SerdeErr, StandardHeader,
+	HostType, Io, packet::*, Protocol, SerdeErr, StandardHeader,
 };
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
-use super::io::Io;
 use super::ping_manager::PingManager;
 
 pub struct Connection {

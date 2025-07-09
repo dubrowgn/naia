@@ -9,10 +9,6 @@
     unused_import_braces
 )]
 
-#[macro_use]
-extern crate cfg_if;
-
-pub mod transport;
 pub mod shared {
     pub use naia_shared::{
 		BitReader, BitWrite, BitWriter, ConstBitLength, FileBitWriter, Serde, SerdeErr,

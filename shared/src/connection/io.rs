@@ -79,6 +79,19 @@ impl Io {
 		Ok(())
     }
 
+	pub fn listen(&mut self, server_addr: SocketAddr) -> Result<(), NaiaError> {
+		debug_assert!(self.socket.is_none());
+		if self.socket.is_some() {
+			return Err(io::ErrorKind::AlreadyExists.into());
+		}
+
+		let socket = UdpSocket::bind(server_addr)?;
+		socket.set_nonblocking(true)?;
+		self.socket = Some(socket);
+
+		Ok(())
+	}
+
     pub fn is_loaded(&self) -> bool {
         self.socket.is_some()
     }

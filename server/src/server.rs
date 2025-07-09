@@ -1,19 +1,16 @@
-use crate::{
-	ConnectContext, server_config::ServerConfig, ServerEvent, transport::Socket,
-};
+use crate::{ConnectContext, server_config::ServerConfig, ServerEvent};
 use crate::connection::{
 	connection::Connection,
 	handshake_manager::{HandshakeManager, HandshakeResult},
-	io::Io,
 };
 use crate::user::{User, UserKey, UserMut, UserRef};
 use naia_shared::{
-	BitReader, BitWriter, Channel, ChannelKind, IdPool, LinkConditionerConfig, Message,
-	MessageContainer, NaiaError, packet::*, Protocol, Serde, SerdeErr, StandardHeader,
-	Timer,
+	BitReader, BitWriter, Channel, ChannelKind, IdPool, LinkConditionerConfig, Io,
+	Message, MessageContainer, NaiaError, packet::*, Protocol, Serde, SerdeErr,
+	StandardHeader, Timer,
 };
 use log::{trace, warn};
-use std::{collections::{HashMap, HashSet}, net::SocketAddr, panic, time::Instant};
+use std::{collections::{HashMap, HashSet}, io, net::SocketAddr, panic, time::Instant};
 
 /// A server that uses either UDP or WebRTC communication to send/receive
 /// messages to/from connected clients, and syncs registered entities to
@@ -42,7 +39,7 @@ impl Server {
         let mut protocol: Protocol = protocol.into();
         protocol.lock();
 
-        let io = Io::new(&protocol.compression);
+        let io = Io::new(&protocol.compression, &protocol.conditioner_config);
 
         Server {
             // Config
@@ -69,11 +66,14 @@ impl Server {
 	}
 
     /// Listen at the given addresses
-    pub fn listen<S: Into<Box<dyn Socket>>>(&mut self, socket: S) {
+    pub fn listen(&mut self, addr: SocketAddr) -> Result<(), NaiaError> {
 		debug_assert!(!self.is_listening(), "Server is already listening");
-        let boxed_socket: Box<dyn Socket> = socket.into();
-        let (packet_sender, packet_receiver) = boxed_socket.listen();
-        self.io.load(packet_sender, packet_receiver);
+		if self.is_listening() {
+			return Err(io::ErrorKind::AlreadyExists.into());
+		}
+
+		self.io.listen(addr)?;
+		Ok(())
     }
 
 	/// Disconnect from all connected clients and stop listening
@@ -107,7 +107,7 @@ impl Server {
 	}
 
 	fn reset_connection(&mut self) {
-		self.io = Io::new(&self.protocol.compression);
+		self.io = Io::new(&self.protocol.compression, &self.protocol.conditioner_config);
 	}
 
     /// Returns whether or not the Server has initialized correctly and is
