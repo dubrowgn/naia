@@ -3,7 +3,7 @@ use naia_shared::{
 	BitWriter, Channel, ChannelKind, LinkConditionerConfig, Message, MessageContainer,
 	NaiaError, packet::*, Protocol, Serde, StandardHeader,
 };
-use std::{collections::VecDeque, net::SocketAddr, time::Instant};
+use std::{collections::VecDeque, io, net::SocketAddr, time::Instant};
 use super::client_config::ClientConfig;
 use crate::{
     connection::{
@@ -11,7 +11,7 @@ use crate::{
         handshake_manager::{HandshakeManager, HandshakeResult},
         io::Io,
     },
-    transport::Socket, ClientEvent,
+	ClientEvent,
 };
 
 /// Client can send/receive messages to/from a server, and has a pool of
@@ -37,14 +37,14 @@ impl Client {
         let mut protocol: Protocol = protocol.into();
         protocol.lock();
 
-        let compression_config = protocol.compression.clone();
+		let io = Io::new(&protocol.compression, &protocol.conditioner_config);
 
         Client {
             // Config
             client_config: client_config.clone(),
             protocol,
             // Connection
-			io: Io::new(&compression_config),
+			io,
 			server_addr: None,
             server_connection: None,
 			handshake_manager: None,
@@ -56,9 +56,11 @@ impl Client {
     }
 
     /// Connect to the given server address
-    pub fn connect<S: Into<Box<dyn Socket>>, M: Message>(&mut self, addr: SocketAddr, socket: S, msg: M) {
+    pub fn connect<M: Message>(&mut self, addr: SocketAddr, msg: M) -> Result<(), NaiaError> {
+		debug_assert!(self.is_disconnected());
         if !self.is_disconnected() {
-            panic!("Client has already initiated a connection, cannot initiate a new one. TIP: Check client.is_disconnected() before calling client.connect()");
+            warn!("Client is already connected");
+			return Err(io::ErrorKind::AlreadyExists.into());
         }
 
 		self.server_addr = Some(addr);
@@ -71,9 +73,7 @@ impl Client {
 		handshake_manager.set_connect_message(MessageContainer::from_write(Box::new(msg)));
 		self.handshake_manager = Some(handshake_manager);
 
-        let boxed_socket: Box<dyn Socket> = socket.into();
-        let (packet_sender, packet_receiver) = boxed_socket.connect();
-        self.io.load(packet_sender, packet_receiver);
+		self.io.connect(addr)
     }
 
     /// Returns whether or not the client is disconnected
@@ -396,7 +396,7 @@ impl Client {
 
     fn disconnect_reset_connection(&mut self) {
         self.server_connection = None;
-		self.io = Io::new(&self.protocol.compression);
+		self.io = Io::new(&self.protocol.compression, &self.protocol.conditioner_config);
         self.handshake_manager = None;
     }
 
