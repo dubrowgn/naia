@@ -32,16 +32,13 @@ pub struct HandshakeManager {
 
 impl HandshakeManager {
     pub fn new(peer_addr: &SocketAddr, send_interval: Duration, ping_interval: Duration) -> Self {
-        let mut handshake_timer = Timer::new(send_interval);
-        handshake_timer.ring_manual();
-
         let pre_connection_timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("timing error!")
             .as_nanos() as TimestampNs;
 
         Self {
-            handshake_timer,
+            handshake_timer: Timer::new_ringing(send_interval),
             pre_connection_timestamp,
             pre_connection_digest: None,
             connection_state: HandshakeState::AwaitingChallengeResponse,

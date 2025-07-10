@@ -18,7 +18,7 @@ const METRICS_WINDOW_SIZE: Duration = Duration::from_secs(7);
 impl PingManager {
 	pub fn new(ping_interval: Duration) -> Self {
 		Self {
-			ping_timer: Timer::new(ping_interval),
+			ping_timer: Timer::new_ringing(ping_interval),
 			epoch: Instant::now(),
 			rtt_ms: RollingWindow::new(METRICS_WINDOW_SIZE),
 		}

@@ -565,9 +565,7 @@ impl Server {
 
     fn handle_heartbeats(&mut self) {
         // heartbeats
-        if self.heartbeat_timer.ringing() {
-            self.heartbeat_timer.reset();
-
+        if self.heartbeat_timer.try_reset() {
             for (user_address, connection) in &mut self.user_connections.iter_mut() {
                 // user heartbeats
                 if connection.base.should_send_heartbeat() {
