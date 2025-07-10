@@ -44,6 +44,8 @@ pub struct ServerChallengeResponse {
 	pub signature: Vec<u8>,
 	/// client's transmission timestamp from ClientChallengeRequest (verbatim)
 	pub client_timestamp_ns: TimestampNs,
+	/// server's transmission timestamp (monotonic nanoseconds since an arbitrary epoch)
+	pub server_timestamp_ns: TimestampNs,
 }
 
 #[derive(Clone, PartialEq, SerdeInternal)]
@@ -52,6 +54,8 @@ pub struct ClientConnectRequest {
 	pub signature: Vec<u8>,
 	/// client's transmission timestamp (monotonic nanoseconds since an arbitrary epoch)
 	pub client_timestamp_ns: TimestampNs,
+	/// server's transmission timestamp from ClientChallengeRequest (verbatim)
+	pub server_timestamp_ns: TimestampNs,
 	// optional message; can't derive Serde
 }
 

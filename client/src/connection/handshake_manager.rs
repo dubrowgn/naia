@@ -9,7 +9,7 @@ use std::time::{Duration, Instant, SystemTime};
 #[derive(Debug, PartialEq)]
 pub enum HandshakeState {
     AwaitingChallengeResponse,
-    AwaitingConnectResponse,
+    AwaitingConnectResponse{ server_timestamp_ns: TimestampNs },
     Connected,
 }
 
@@ -94,8 +94,9 @@ impl HandshakeManager {
                         warn!("Client Error: Cannot send challenge request packet to Server");
                     }
                 }
-                HandshakeState::AwaitingConnectResponse => {
-                    let writer = self.write_connect_request(message_kinds);
+                HandshakeState::AwaitingConnectResponse{ server_timestamp_ns } => {
+					let server_timestamp_ns = *server_timestamp_ns;
+					let writer = self.write_connect_request(message_kinds, server_timestamp_ns);
                     if io.send_packet(&self.peer_addr, writer.to_packet()).is_err() {
                         // TODO: pass this on and handle above
                         warn!("Client Error: Cannot send connect request packet to Server");
@@ -169,12 +170,14 @@ impl HandshakeManager {
 		self.sample_rtt(resp.client_timestamp_ns);
 
         self.pre_connection_digest = Some(resp.signature);
-		self.set_state(HandshakeState::AwaitingConnectResponse);
+		self.set_state(HandshakeState::AwaitingConnectResponse{
+			server_timestamp_ns: resp.server_timestamp_ns,
+		});
     }
 
     // Step 3 of Handshake
-    pub fn write_connect_request(&self, message_kinds: &MessageKinds) -> BitWriter {
-		debug_assert!(self.connection_state == HandshakeState::AwaitingConnectResponse);
+    pub fn write_connect_request(&self, message_kinds: &MessageKinds, server_timestamp_ns: TimestampNs) -> BitWriter {
+		debug_assert!(matches!(self.connection_state, HandshakeState::AwaitingConnectResponse{..}));
 
         let mut writer = BitWriter::new();
         StandardHeader::of_type(PacketType::ClientConnectRequest).ser(&mut writer);
@@ -182,6 +185,7 @@ impl HandshakeManager {
 			timestamp_ns: self.pre_connection_timestamp,
 			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
 			client_timestamp_ns: self.timestamp_ns(),
+			server_timestamp_ns,
 		}.ser(&mut writer);
 
 		if let Some(connect_message) = &self.connect_message {
@@ -198,9 +202,9 @@ impl HandshakeManager {
 
     // Step 4 of Handshake
     pub fn recv_connect_response(&mut self, reader: &mut BitReader) -> Option<HandshakeResult> {
-		if self.connection_state != HandshakeState::AwaitingConnectResponse {
+		let HandshakeState::AwaitingConnectResponse { .. } = self.connection_state else {
 			return None;
-		}
+		};
 
 		let Ok(resp) = ServerConnectResponse::de(reader) else {
 			trace!("Dropping malformed ServerConnectResponse");

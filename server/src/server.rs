@@ -22,7 +22,6 @@ pub struct Server {
     io: Io,
     heartbeat_timer: Timer,
     timeout_timer: Timer,
-    ping_timer: Timer,
     handshake_manager: HandshakeManager,
     // Users
     users: HashMap<UserKey, User>,
@@ -49,7 +48,6 @@ impl Server {
             io,
             heartbeat_timer: Timer::new(server_config.connection.heartbeat_interval),
             timeout_timer: Timer::new(server_config.connection.disconnection_timeout_duration),
-            ping_timer: Timer::new(server_config.ping_interval),
             handshake_manager: HandshakeManager::new(),
             // Users
             users: HashMap::new(),
@@ -156,13 +154,15 @@ impl Server {
             );
         }
 
-        self.user_connections.insert(user.address, Connection::new(
+		let mut connection = Connection::new(
             &self.server_config.connection,
             self.server_config.ping_interval,
             &user.address,
             user_key,
             &self.protocol.channel_kinds,
-        ));
+        );
+		connection.ping_manager.sample_rtt_ms(ctx.rtt_ms);
+        self.user_connections.insert(user.address, connection);
     }
 
     /// Rejects an incoming Client User, terminating their attempt to establish
@@ -435,7 +435,7 @@ impl Server {
 					address,
 					reader,
 				) {
-					HandshakeResult::Success(req, msg) => {
+					HandshakeResult::Success(req, msg, rtt_ms) => {
 						if self.user_connections.contains_key(address) {
 							// already connected, resend connect response
 							let writer = self.handshake_manager.write_connect_response(&req);
@@ -453,7 +453,7 @@ impl Server {
 							self.user_keys.insert(*address, user_key);
 							self.users.insert(user_key, User::new(*address));
 
-							let ctx = ConnectContext { req };
+							let ctx = ConnectContext { req, rtt_ms };
 							self.incoming_events.push(ServerEvent::Connect { user_key, msg, ctx });
 						} else {
 							// too many connected users; reject request
@@ -599,10 +599,6 @@ impl Server {
     }
 
     fn handle_pings(&mut self) {
-		if !self.ping_timer.try_reset() {
-			return;
-		}
-
 		for (addr, conn) in &mut self.user_connections.iter_mut() {
 			match conn.ping_manager.try_send_ping(&addr, &mut self.io) {
 				Ok(true) => conn.base.mark_sent(),

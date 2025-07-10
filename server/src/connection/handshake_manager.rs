@@ -4,17 +4,18 @@ pub use naia_shared::{
 	Serde, SerdeErr, StandardHeader
 };
 use ring::{hmac, rand};
-use std::{collections::HashMap, net::SocketAddr};
+use std::{collections::HashMap, net::SocketAddr, time::Instant};
 
 pub enum HandshakeResult {
     Invalid,
-    Success(ClientConnectRequest, Option<MessageContainer>),
+    Success(ClientConnectRequest, Option<MessageContainer>, f32),
 }
 
 pub struct HandshakeManager {
     connection_hash_key: hmac::Key,
     address_to_timestamp_map: HashMap<SocketAddr, TimestampNs>,
     timestamp_digest_map: CacheMap<TimestampNs, Vec<u8>>,
+	epoch: Instant,
 }
 
 impl HandshakeManager {
@@ -26,8 +27,13 @@ impl HandshakeManager {
             connection_hash_key,
             address_to_timestamp_map: HashMap::new(),
             timestamp_digest_map: CacheMap::with_capacity(64),
+			epoch: Instant::now(),
         }
     }
+
+	fn timestamp_ns(&self) -> TimestampNs {
+		self.epoch.elapsed().as_nanos() as TimestampNs
+	}
 
     // Step 1 of Handshake
     pub fn recv_challenge_request(
@@ -53,6 +59,7 @@ impl HandshakeManager {
 			timestamp_ns: req.timestamp_ns,
 			signature: self.timestamp_digest_map.get_unchecked(&req.timestamp_ns).clone(),
 			client_timestamp_ns: req.client_timestamp_ns,
+			server_timestamp_ns: self.timestamp_ns(),
 		}.ser(&mut writer);
 
         writer
@@ -88,7 +95,8 @@ impl HandshakeManager {
 
         self.address_to_timestamp_map.insert(*address, req.timestamp_ns);
 
-        return HandshakeResult::Success(req, connect_msg);
+		let rtt_ns = self.timestamp_ns() - req.server_timestamp_ns;
+        HandshakeResult::Success(req, connect_msg, rtt_ns as f32 / 1_000_000.0)
     }
 
     // Step 4 of Handshake
