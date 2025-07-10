@@ -78,17 +78,12 @@ impl Connection {
 		let resend_ms = self.ping_manager.rtt_ms() + 1.5 * self.ping_manager.jitter_ms();
 		self.base.collect_messages(now, &resend_ms);
 
-        let mut any_sent = false;
-        loop {
-            if self.send_packet(protocol, io) {
-                any_sent = true;
-            } else {
-                break;
-            }
-        }
-        if any_sent {
-            self.base.mark_sent();
-        }
+		if !self.send_packet(protocol, io) {
+			return;
+		}
+
+		while self.send_packet(protocol, io) { }
+        self.base.mark_sent();
     }
 
     /// Send any message, component actions and component updates to the client
