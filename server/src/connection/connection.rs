@@ -60,7 +60,7 @@ impl Connection {
     pub fn process_packets(&mut self, incoming_events: &mut Vec<ServerEvent>) {
         // Receive Message Events
         let messages =
-            self.base.message_manager.receive_messages();
+            self.base.receive_messages();
         for (_, messages) in messages {
 			for message in messages {
 				incoming_events.push(ServerEvent::Message { user_key: self.user_key, msg: message });
@@ -98,7 +98,7 @@ impl Connection {
         protocol: &Protocol,
         io: &mut Io,
     ) -> bool {
-        if self.base.message_manager.has_outgoing_messages() {
+        if self.base.has_outgoing_messages() {
             let writer = self.write_packet(protocol);
 
             // send packet

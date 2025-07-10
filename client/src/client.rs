@@ -163,7 +163,7 @@ impl Client {
 
         if let Some(connection) = &mut self.server_connection {
             let message = MessageContainer::from_write(message_box);
-            connection.base.message_manager.send_message(
+            connection.base.queue_message(
                 &self.protocol.message_kinds,
                 channel_kind,
                 message,

@@ -1,22 +1,19 @@
-use naia_serde::{BitReader, BitWriter, Serde, SerdeErr};
-
-use crate::{
-    messages::{channels::channel_kinds::ChannelKinds, message_manager::MessageManager},
-    types::{HostType, PacketIndex},
-    Protocol,
-    Timer,
+use crate::{ChannelKind, MessageContainer, MessageKinds, Protocol, Timer};
+use crate::messages::{
+	channels::channel_kinds::ChannelKinds, message_manager::MessageManager,
 };
-
+use crate::types::{HostType, PacketIndex};
+use naia_serde::{BitReader, BitWriter, Serde, SerdeErr};
+use std::time::Instant;
 use super::{
     ack_manager::AckManager, connection_config::ConnectionConfig,
     packet::PacketType, standard_header::StandardHeader,
 };
-use std::time::Instant;
 
 /// Represents a connection to a remote host, and provides functionality to
 /// manage the connection and the communications to it
 pub struct BaseConnection {
-    pub message_manager: MessageManager,
+    message_manager: MessageManager,
     heartbeat_timer: Timer,
     timeout_timer: Timer,
     ack_manager: AckManager,
@@ -89,8 +86,25 @@ impl BaseConnection {
     }
 
     pub fn collect_messages(&mut self, now: &Instant, rtt_millis: &f32) {
-        self.message_manager.collect_outgoing_messages(now, rtt_millis);
+        self.message_manager.collect_messages(now, rtt_millis);
     }
+
+	pub fn has_outgoing_messages(&self) -> bool {
+		self.message_manager.has_outgoing_messages()
+	}
+
+	pub fn queue_message(
+		&mut self,
+		message_kinds: &MessageKinds,
+		channel_kind: &ChannelKind,
+		message: MessageContainer,
+	) {
+        self.message_manager.queue_message(message_kinds, channel_kind, message);
+    }
+
+	pub fn receive_messages(&mut self) -> Vec<(ChannelKind, Vec<MessageContainer>)> {
+		self.message_manager.receive_messages()
+	}
 
     pub fn write_packet(
         &mut self,

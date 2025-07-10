@@ -48,3 +48,4 @@ use specifically with deterministic lockstep applications.
 
 * Fix server drops data packets race condition on connect
 * Add encryption (and remove ring)
+* Fix or remove fragmentation logic

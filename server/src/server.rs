@@ -212,7 +212,7 @@ impl Server {
         if let Some(user) = self.users.get(user_key) {
             if let Some(connection) = self.user_connections.get_mut(&user.address) {
                 let message = MessageContainer::from_write(message_box);
-                connection.base.message_manager.send_message(
+                connection.base.queue_message(
                     &self.protocol.message_kinds,
                     channel_kind,
                     message,

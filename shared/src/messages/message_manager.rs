@@ -160,7 +160,7 @@ impl MessageManager {
     // Outgoing Messages
 
     /// Queues an Message to be transmitted to the remote host
-    pub fn send_message(
+    pub fn queue_message(
         &mut self,
         message_kinds: &MessageKinds,
         channel_kind: &ChannelKind,
@@ -194,7 +194,7 @@ impl MessageManager {
         }
     }
 
-    pub fn collect_outgoing_messages(&mut self, now: &Instant, rtt_millis: &f32) {
+    pub fn collect_messages(&mut self, now: &Instant, rtt_millis: &f32) {
         for channel in self.channel_senders.values_mut() {
             channel.collect_messages(now, rtt_millis);
         }
