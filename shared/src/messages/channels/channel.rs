@@ -17,9 +17,9 @@ impl ChannelSettings {
         match &self.mode {
             ChannelMode::UnorderedUnreliable => false,
             ChannelMode::SequencedUnreliable => false,
-            ChannelMode::UnorderedReliable(_) => true,
-            ChannelMode::SequencedReliable(_) => true,
-            ChannelMode::OrderedReliable(_) => true,
+            ChannelMode::UnorderedReliable => true,
+            ChannelMode::SequencedReliable => true,
+            ChannelMode::OrderedReliable => true,
         }
     }
 
@@ -41,20 +41,6 @@ impl ChannelSettings {
 }
 
 #[derive(Clone)]
-pub struct ReliableSettings {
-    /// Resend un-ACK'd messages after (rtt_resend_factor * currently_measured_round_trip_time).
-    pub rtt_resend_factor: f32,
-}
-
-impl ReliableSettings {
-    pub const fn default() -> Self {
-        Self {
-            rtt_resend_factor: 1.5,
-        }
-    }
-}
-
-#[derive(Clone)]
 pub enum ChannelMode {
     /// Messages can be dropped, duplicated and/or arrive in any order.
     /// Resend=no, Dedupe=no, Order=no
@@ -67,17 +53,17 @@ pub enum ChannelMode {
 
     /// Messages arrive without duplicates, but in any order.
     /// Resend=yes, Dedupe=yes, Order=no
-    UnorderedReliable(ReliableSettings),
+    UnorderedReliable,
 
     /// Messages arrive without duplicates and in order, but only the most recent gets
     /// delivered. For example, given messages sent A->B->C and received in order A->C->B,
     /// only A->C gets delivered. B gets dropped because it is not the most recent.
     /// Resend=yes, Dedupe=yes, Order=yes
-    SequencedReliable(ReliableSettings),
+    SequencedReliable,
 
     /// Messages arrive in order and without duplicates.
     /// Resend=yes, Dedupe=yes, Order=yes
-    OrderedReliable(ReliableSettings),
+    OrderedReliable,
 }
 
 // ChannelDirection

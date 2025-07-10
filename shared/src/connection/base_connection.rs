@@ -85,8 +85,8 @@ impl BaseConnection {
         self.ack_manager.next_sender_packet_index()
     }
 
-    pub fn collect_messages(&mut self, now: &Instant, rtt_millis: &f32) {
-        self.message_manager.collect_messages(now, rtt_millis);
+    pub fn collect_messages(&mut self, now: &Instant, resend_ms: &f32) {
+        self.message_manager.collect_messages(now, resend_ms);
     }
 
 	pub fn has_outgoing_messages(&self) -> bool {

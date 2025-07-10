@@ -40,7 +40,7 @@ pub use connection::{
 pub use error::NaiaError;
 pub use messages::{
     channels::{
-        channel::{Channel, ChannelDirection, ChannelMode, ReliableSettings},
+        channel::{Channel, ChannelDirection, ChannelMode},
         channel_kinds::{ChannelKind, ChannelKinds},
         receivers::{
             channel_receiver::ChannelReceiver, ordered_reliable_receiver::OrderedReliableReceiver,

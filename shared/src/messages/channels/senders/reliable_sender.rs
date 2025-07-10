@@ -13,7 +13,6 @@ use naia_serde::BitWriter;
 use std::{collections::VecDeque, time::{Duration, Instant}};
 
 pub struct ReliableSender {
-    rtt_resend_factor: f32,
     sending_messages: VecDeque<Option<(MessageIndex, Option<Instant>, MessageContainer)>>,
     next_send_message_index: MessageIndex,
     outgoing_messages: VecDeque<(MessageIndex, MessageContainer)>,
@@ -22,9 +21,8 @@ pub struct ReliableSender {
 }
 
 impl ReliableSender {
-    pub fn new(rtt_resend_factor: f32) -> Self {
+    pub fn new() -> Self {
         Self {
-            rtt_resend_factor,
             next_send_message_index: MessageIndex::ZERO,
             sending_messages: VecDeque::new(),
             outgoing_messages: VecDeque::new(),
@@ -48,24 +46,20 @@ impl ChannelSender for ReliableSender {
         self.next_send_message_index.incr();
     }
 
-    fn collect_messages(&mut self, now: &Instant, rtt_millis: &f32) {
-        let resend_duration = Duration::from_millis((self.rtt_resend_factor * rtt_millis) as u64);
+    fn collect_messages(&mut self, now: &Instant, resend_ms: &f32) {
+        let resend_duration = Duration::from_secs_f32(resend_ms / 1000.0);
 
         for (message_index, last_sent_opt, message) in self.sending_messages.iter_mut().flatten() {
-            let mut should_send = false;
-            if let Some(last_sent) = last_sent_opt {
-                if last_sent.elapsed() >= resend_duration {
-                    should_send = true;
-                }
-            } else {
-                should_send = true;
-            }
-            if should_send {
-				self.msg_tx_count = self.msg_tx_count.wrapping_add(1);
-                self.outgoing_messages
-                    .push_back((*message_index, message.clone()));
-                *last_sent_opt = Some(now.clone());
-            }
+			if let Some(last_sent) = last_sent_opt {
+				if last_sent.elapsed() < resend_duration {
+					continue;
+				}
+			}
+
+			self.msg_tx_count = self.msg_tx_count.wrapping_add(1);
+			self.outgoing_messages
+				.push_back((*message_index, message.clone()));
+			*last_sent_opt = Some(now.clone());
         }
     }
 

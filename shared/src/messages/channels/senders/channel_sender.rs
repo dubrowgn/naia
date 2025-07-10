@@ -7,7 +7,7 @@ pub trait ChannelSender: Send + Sync {
     fn send(&mut self, message: MessageContainer);
 
     /// For reliable channels, will collect any Messages that need to be resent
-    fn collect_messages(&mut self, now: &Instant, rtt_millis: &f32);
+    fn collect_messages(&mut self, now: &Instant, resend_ms: &f32);
 
     /// Returns true if there are queued Messages ready to be written
     fn has_messages(&self) -> bool;

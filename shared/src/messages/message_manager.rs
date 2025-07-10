@@ -71,15 +71,11 @@ impl MessageManager {
                     channel_senders
                         .insert(channel_kind, Box::new(SequencedUnreliableSender::new()));
                 }
-                ChannelMode::UnorderedReliable(settings)
-                | ChannelMode::SequencedReliable(settings)
-                | ChannelMode::OrderedReliable(settings) => {
-                    channel_senders.insert(
-                        channel_kind,
-                        Box::new(ReliableSender::new(
-                            settings.rtt_resend_factor,
-                        )),
-                    );
+                ChannelMode::UnorderedReliable
+                | ChannelMode::SequencedReliable
+                | ChannelMode::OrderedReliable => {
+                    channel_senders
+						.insert(channel_kind, Box::new(ReliableSender::new()));
                 }
             };
         }
@@ -113,19 +109,19 @@ impl MessageManager {
                         Box::new(SequencedUnreliableReceiver::new()),
                     );
                 }
-                ChannelMode::UnorderedReliable(_) => {
+                ChannelMode::UnorderedReliable => {
                     channel_receivers.insert(
                         channel_kind.clone(),
                         Box::new(UnorderedReliableReceiver::new()),
                     );
                 }
-                ChannelMode::SequencedReliable(_) => {
+                ChannelMode::SequencedReliable => {
                     channel_receivers.insert(
                         channel_kind.clone(),
                         Box::new(SequencedReliableReceiver::new()),
                     );
                 }
-                ChannelMode::OrderedReliable(_) => {
+                ChannelMode::OrderedReliable => {
                     channel_receivers.insert(
                         channel_kind.clone(),
                         Box::new(OrderedReliableReceiver::new()),
@@ -194,9 +190,9 @@ impl MessageManager {
         }
     }
 
-    pub fn collect_messages(&mut self, now: &Instant, rtt_millis: &f32) {
+    pub fn collect_messages(&mut self, now: &Instant, resend_ms: &f32) {
         for channel in self.channel_senders.values_mut() {
-            channel.collect_messages(now, rtt_millis);
+            channel.collect_messages(now, resend_ms);
         }
     }
 

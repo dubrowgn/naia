@@ -75,8 +75,8 @@ impl Connection {
         now: &Instant,
         io: &mut Io,
     ) {
-		let rtt_ms = self.ping_manager.rtt_ms();
-		self.base.collect_messages(now, &rtt_ms);
+		let resend_ms = self.ping_manager.rtt_ms() + 1.5 * self.ping_manager.jitter_ms();
+		self.base.collect_messages(now, &resend_ms);
 
         let mut any_sent = false;
         loop {

@@ -58,8 +58,8 @@ impl Connection {
 
     /// Collect and send any outgoing packets from client to server
     pub fn send_packets(&mut self, protocol: &Protocol, now: &Instant, io: &mut Io) {
-        let rtt_millis = self.ping_manager.rtt_ms();
-        self.base.collect_messages(now, &rtt_millis);
+        let resend_ms = self.ping_manager.rtt_ms() + 1.5 * self.ping_manager.jitter_ms();
+        self.base.collect_messages(now, &resend_ms);
 
         let mut any_sent = false;
         while self.send_packet(protocol, io) {
