@@ -1,4 +1,5 @@
 use crate::TimeQueue;
+use log::trace;
 use rand::Rng;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
@@ -57,9 +58,11 @@ impl PacketConditioner {
 		let mut packets = 1;
 		if rand::thread_rng().gen_range(0.0..=1.0) < self.config.loss_frac {
 			packets -= 1;
+			trace!("Conditioner dropped packet");
 		}
 		if rand::thread_rng().gen_range(0.0..=1.0) < self.config.duplication_frac {
 			packets += 1;
+			trace!("Conditioner duplicated packet");
 		}
 
 		let min = f32::max(0.0, self.config.half_rtt_ms - self.config.jitter_ms);
