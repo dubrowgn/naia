@@ -190,13 +190,13 @@ impl Client {
     }
 
     /// Gets the average Round Trip Time measured to the Server
-    pub fn rtt(&self) -> f32 {
+    pub fn rtt_ms(&self) -> f32 {
 		debug_assert!(self.is_connected());
 		self.server_connection.as_ref().map(Connection::rtt_ms).unwrap_or(0.0)
     }
 
     /// Gets the average Jitter measured in connection to the Server
-    pub fn jitter(&self) -> f32 {
+    pub fn jitter_ms(&self) -> f32 {
 		debug_assert!(self.is_connected());
 		self.server_connection.as_ref().map(Connection::jitter_ms).unwrap_or(0.0)
     }

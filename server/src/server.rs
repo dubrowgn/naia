@@ -302,7 +302,7 @@ impl Server {
 
     // Ping
     /// Gets the average Round Trip Time measured to the given User's Client
-    pub fn rtt(&self, user_key: &UserKey) -> Option<f32> {
+    pub fn rtt_ms(&self, user_key: &UserKey) -> Option<f32> {
 		debug_assert!(self.users.contains_key(user_key));
 		self.users.get(user_key)
 			.and_then(|user| self.user_connections.get(&user.address))
@@ -311,7 +311,7 @@ impl Server {
 
     /// Gets the average Jitter measured in connection to the given User's
     /// Client
-    pub fn jitter(&self, user_key: &UserKey) -> Option<f32> {
+    pub fn jitter_ms(&self, user_key: &UserKey) -> Option<f32> {
 		debug_assert!(self.users.contains_key(user_key));
 		self.users.get(user_key)
 			.and_then(|user| self.user_connections.get(&user.address))
