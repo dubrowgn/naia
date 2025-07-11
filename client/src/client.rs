@@ -254,8 +254,7 @@ impl Client {
                     break;
                 }
                 Err(error) => {
-                    self.incoming_events
-                        .push(ClientEvent::Error(NaiaError::Wrapped(Box::new(error))));
+                    self.incoming_events.push(ClientEvent::Error(error));
                 }
             }
         }
@@ -331,8 +330,7 @@ impl Client {
                     break;
                 }
                 Err(error) => {
-                    self.incoming_events
-                        .push(ClientEvent::Error(NaiaError::Wrapped(Box::new(error))));
+                    self.incoming_events.push(ClientEvent::Error(error));
                 }
             }
         }

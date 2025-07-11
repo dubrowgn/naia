@@ -387,8 +387,7 @@ impl Server {
                     break;
                 }
                 Err(error) => {
-					self.incoming_events
-						.push(ServerEvent::Error(NaiaError::Wrapped(Box::new(error))));
+					self.incoming_events.push(ServerEvent::Error(error));
                 }
             }
         }
