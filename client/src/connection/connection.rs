@@ -29,8 +29,6 @@ impl Connection {
         }
     }
 
-	pub fn address(&self) -> &SocketAddr { self.base.address() }
-
     // Incoming data
 
     pub fn process_incoming_header(&mut self, header: &StandardHeader) {
@@ -110,7 +108,11 @@ impl Connection {
         writer
     }
 
-	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), SerdeErr> {
+	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> Result<(), NaiaError> {
+		self.base.ping_pong(reader, io)
+	}
+
+	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), NaiaError> {
 		self.base.read_pong(reader)
 	}
 

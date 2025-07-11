@@ -1,6 +1,6 @@
 use log::warn;
 use naia_shared::{
-	BitWriter, Channel, ChannelKind, Io, LinkConditionerConfig, Message, MessageContainer,
+	Channel, ChannelKind, Io, LinkConditionerConfig, Message, MessageContainer,
 	NaiaError, packet::*, Protocol, Serde, StandardHeader,
 };
 use std::{collections::VecDeque, io, net::SocketAddr, time::Instant};
@@ -305,35 +305,21 @@ impl Client {
                     // Handle based on PacketType
                     match header.packet_type {
                         PacketType::Data => {
-							if connection.read_packet(&self.protocol, &mut reader).is_err() {
-                                warn!("unable to parse data packet");
-                                continue;
+							if let Err(e) = connection.read_packet(&self.protocol, &mut reader) {
+								warn!("Client Error: failed to read data packet from Server: {e}");
                             }
                         }
                         PacketType::Heartbeat => {
                             // already marked as heard, job done
                         }
                         PacketType::Ping => {
-                            let Ok(ping) = Ping::de(&mut reader) else {
-                                panic!("unable to read ping index");
-                            };
-
-							// write
-							let mut writer = BitWriter::new();
-							connection.base.write_header(PacketType::Pong, &mut writer);
-							Pong::from_ping(&ping).ser(&mut writer);
-
-							// send packet
-							if self.io.send_packet(connection.address(), writer.to_packet()).is_err() {
-								// TODO: pass this on and handle above
-								warn!("Client Error: Cannot send pong packet to Server");
+							if let Err(e) = connection.ping_pong(&mut reader, &mut self.io) {
+								warn!("Client Error: failed to handle ping from Server: {e}");
 							}
-							connection.base.mark_sent();
                         }
                         PacketType::Pong => {
-                            if connection.read_pong(&mut reader).is_err() {
-                                // TODO: pass this on and handle above
-                                warn!("Client Error: Cannot process pong packet from Server");
+							if let Err(e) = connection.read_pong(&mut reader) {
+								warn!("Client Error: failed to handle pong from Server: {e}");
                             }
                         }
                         _ => {

@@ -459,23 +459,15 @@ impl Server {
                 return Ok(true);
             }
             PacketType::Ping => {
-				let Ok(ping) = Ping::de(reader) else {
-					warn!("Server Error: dropping malformed ping packet");
+				let Some(conn) = self.user_connections.get_mut(address) else {
+					trace!("Dropping ping from {address}, which is not connected");
 					return Ok(true);
 				};
 
-				let mut writer = BitWriter::new();
-				StandardHeader::of_type(PacketType::Pong).ser(&mut writer);
-				Pong::from_ping(&ping).ser(&mut writer);
+				if let Err(e) = conn.ping_pong(reader, &mut self.io) {
+					warn!("Server Error: failed to handle ping from {address}: {e}");
+				}
 
-                // send packet
-                if self.io.send_packet(address, writer.to_packet()).is_err() {
-                    // TODO: pass this on and handle above
-                    warn!("Server Error: Cannot send pong packet to {}", address);
-                };
-                if let Some(connection) = self.user_connections.get_mut(address) {
-                    connection.base.mark_sent();
-                }
                 return Ok(true);
             }
             _ => {}

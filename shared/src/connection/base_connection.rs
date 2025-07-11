@@ -11,7 +11,7 @@ use std::net::SocketAddr;
 use std::time::Instant;
 use super::{
     ack_manager::AckManager, connection_config::ConnectionConfig,
-    packet::PacketType, standard_header::StandardHeader,
+    packet::*, standard_header::StandardHeader,
 };
 
 /// Represents a connection to a remote host, and provides functionality to
@@ -143,12 +143,27 @@ impl BaseConnection {
         Ok(())
     }
 
+	fn send(&mut self, io: &mut Io, writer: BitWriter) -> Result<(), NaiaError> {
+		io.send_packet(&self.address, writer.to_packet())?;
+		self.mark_sent();
+		Ok(())
+	}
+
 	pub fn sample_rtt_ms(&mut self, rtt_ms: f32) {
 		self.ping_manager.sample_rtt_ms(rtt_ms);
 	}
 
-	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), SerdeErr> {
+	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), NaiaError> {
 		self.ping_manager.read_pong(reader)
+	}
+
+	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> Result<(), NaiaError> {
+		let ping = Ping::de(reader)?;
+
+		let mut writer = BitWriter::new();
+		StandardHeader::of_type(PacketType::Pong).ser(&mut writer);
+		Pong { timestamp_ns: ping.timestamp_ns }.ser(&mut writer);
+		self.send(io, writer)
 	}
 
 	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
@@ -158,9 +173,7 @@ impl BaseConnection {
 
 		let mut writer = BitWriter::new();
 		self.write_header(PacketType::Heartbeat, &mut writer);
-		io.send_packet(&self.address, writer.to_packet())?;
-
-		self.mark_sent();
+		self.send(io, writer)?;
 
 		Ok(true)
 	}

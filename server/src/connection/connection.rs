@@ -129,11 +129,15 @@ impl Connection {
         writer
     }
 
+	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> Result<(), NaiaError> {
+		self.base.ping_pong(reader, io)
+	}
+
 	pub fn sample_rtt_ms(&mut self, rtt_ms: f32) {
 		self.base.sample_rtt_ms(rtt_ms);
 	}
 
-	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), SerdeErr> {
+	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), NaiaError> {
 		self.base.read_pong(reader)
 	}
 
