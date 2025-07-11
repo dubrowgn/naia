@@ -353,27 +353,14 @@ impl Client {
     }
 
     fn handle_heartbeats(connection: &mut Connection, io: &mut Io) {
-        // send heartbeats
-        if connection.base.should_send_heartbeat() {
-            let mut writer = BitWriter::new();
-
-            // write header
-            connection
-                .base
-                .write_header(PacketType::Heartbeat, &mut writer);
-
-            // send packet
-            if io.send_packet(&connection.address, writer.to_packet()).is_err() {
-                // TODO: pass this on and handle above
-                warn!("Client Error: Cannot send heartbeat packet to Server");
-            }
-            connection.base.mark_sent();
-        }
+		if let Err(e) = connection.try_send_heartbeat(io) {
+			warn!("Client Error: Cannot send heartbeat to Server: {e}");
+		}
     }
 
     fn handle_pings(connection: &mut Connection, io: &mut Io) {
 		if let Err(e) = connection.try_send_ping(io) {
-			warn!("Client Error: Cannot send ping packet to Server: {e}");
+			warn!("Client Error: Cannot send ping to Server: {e}");
 		}
     }
 

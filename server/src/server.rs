@@ -20,7 +20,6 @@ pub struct Server {
     server_config: ServerConfig,
     protocol: Protocol,
     io: Io,
-    heartbeat_timer: Timer,
     timeout_timer: Timer,
     handshake_manager: HandshakeManager,
     // Users
@@ -46,7 +45,6 @@ impl Server {
             protocol,
             // Connection
             io,
-            heartbeat_timer: Timer::new(server_config.connection.heartbeat_interval),
             timeout_timer: Timer::new(server_config.connection.disconnection_timeout_duration),
             handshake_manager: HandshakeManager::new(),
             // Users
@@ -557,36 +555,11 @@ impl Server {
     }
 
     fn handle_heartbeats(&mut self) {
-        // heartbeats
-        if self.heartbeat_timer.try_reset() {
-            for (user_address, connection) in &mut self.user_connections.iter_mut() {
-                // user heartbeats
-                if connection.base.should_send_heartbeat() {
-                    // Don't try to refactor this to self.internal_send, doesn't seem to
-                    // work cause of iter_mut()
-                    let mut writer = BitWriter::new();
-
-                    // write header
-                    connection
-                        .base
-                        .write_header(PacketType::Heartbeat, &mut writer);
-
-                    // send packet
-                    if self
-                        .io
-                        .send_packet(user_address, writer.to_packet())
-                        .is_err()
-                    {
-                        // TODO: pass this on and handle above
-                        warn!(
-                            "Server Error: Cannot send heartbeat packet to {}",
-                            user_address
-                        );
-                    }
-                    connection.base.mark_sent();
-                }
-            }
-        }
+		for (addr, connection) in &mut self.user_connections.iter_mut() {
+			if let Err(e) = connection.try_send_heartbeat(&mut self.io) {
+				warn!("Server Error: Cannot send heartbeat packet to {addr}: {e}");
+			}
+		}
     }
 
     fn handle_pings(&mut self) {

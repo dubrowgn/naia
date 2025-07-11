@@ -112,6 +112,11 @@ impl Connection {
 	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), SerdeErr> {
 		self.base.read_pong(reader)
 	}
+
+	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
+		self.base.try_send_heartbeat(&self.address, io)
+	}
+
 	pub fn try_send_ping(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
 		self.base.try_send_ping(&self.address, io)
 	}

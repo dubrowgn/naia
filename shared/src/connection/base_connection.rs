@@ -150,12 +150,27 @@ impl BaseConnection {
 	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), SerdeErr> {
 		self.ping_manager.read_pong(reader)
 	}
+
+	pub fn try_send_heartbeat(&mut self, dest_addr: &SocketAddr, io: &mut Io) -> Result<bool, NaiaError> {
+		if !self.heartbeat_timer.try_reset() {
+			return Ok(false);
+		}
+
+		let mut writer = BitWriter::new();
+		self.write_header(PacketType::Heartbeat, &mut writer);
+		io.send_packet(dest_addr, writer.to_packet())?;
+
+		self.mark_sent();
+
+		Ok(true)
+	}
+
 	pub fn try_send_ping(&mut self, dest_addr: &SocketAddr, io: &mut Io) -> Result<bool, NaiaError> {
-		let result = self.ping_manager.try_send_ping(dest_addr, io);
-		if result.is_ok() {
+		let sent = self.ping_manager.try_send_ping(dest_addr, io)?;
+		if sent {
 			self.mark_sent();
 		}
-		result
+		Ok(sent)
 	}
 
 	pub fn rtt_ms(&self) -> f32 { self.ping_manager.rtt_ms() }
