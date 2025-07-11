@@ -31,14 +31,14 @@ pub enum PacketType {
     Disconnect,
 }
 
-#[derive(Clone, PartialEq, SerdeInternal)]
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub struct ClientChallengeRequest {
 	pub timestamp_ns: TimestampNs,
 	/// client's transmission timestamp (monotonic nanoseconds since an arbitrary epoch)
 	pub client_timestamp_ns: TimestampNs,
 }
 
-#[derive(Clone, PartialEq, SerdeInternal)]
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub struct ServerChallengeResponse {
 	pub timestamp_ns: TimestampNs,
 	pub signature: Vec<u8>,
@@ -48,7 +48,7 @@ pub struct ServerChallengeResponse {
 	pub server_timestamp_ns: TimestampNs,
 }
 
-#[derive(Clone, PartialEq, SerdeInternal)]
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub struct ClientConnectRequest {
 	pub timestamp_ns: TimestampNs,
 	pub signature: Vec<u8>,
@@ -59,23 +59,23 @@ pub struct ClientConnectRequest {
 	// optional message; can't derive Serde
 }
 
-#[derive(Clone, PartialEq, SerdeInternal)]
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub struct ServerConnectResponse {
 	/// client's transmission timestamp from ClientConnectRequest (verbatim)
 	pub client_timestamp_ns: TimestampNs,
 }
 
-#[derive(Clone, PartialEq, SerdeInternal)]
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub struct Ping {
 	pub timestamp_ns: TimestampNs,
 }
 
-#[derive(Clone, PartialEq, SerdeInternal)]
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub struct Pong {
 	pub timestamp_ns: TimestampNs,
 }
 
-#[derive(Clone, PartialEq, SerdeInternal)]
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub struct Disconnect {
 	pub timestamp_ns: TimestampNs,
 	pub signature: Vec<u8>,

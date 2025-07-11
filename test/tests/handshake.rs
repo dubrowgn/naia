@@ -37,12 +37,16 @@ fn end_to_end_handshake_w_auth() {
     {
         reader = BitReader::new(bytes);
         StandardHeader::de(&mut reader).expect("unable to read standard header from stream");
-        server.recv_challenge_request(&mut reader).unwrap();
+		let writer = server.recv_challenge_request(&mut reader).unwrap();
+		bytes = writer.to_bytes();
     }
 
     // 3. Client send connect request
     {
-        writer = client.write_connect_request(&message_kinds);
+		reader = BitReader::new(bytes);
+		StandardHeader::de(&mut reader).expect("unable to read standard header from stream");
+		client.recv_challenge_response(&mut reader);
+		writer = client.write_connect_request(&message_kinds, 0);
         bytes = writer.to_bytes();
     }
 
@@ -51,7 +55,7 @@ fn end_to_end_handshake_w_auth() {
         reader = BitReader::new(bytes);
         StandardHeader::de(&mut reader).expect("unable to read standard header from stream");
         let result = server.recv_connect_request(&message_kinds, &address, &mut reader);
-        if let HandshakeResult::Success(_, Some(auth_message)) = result {
+        if let HandshakeResult::Success(_, Some(auth_message), _) = result {
             let boxed_any = auth_message.to_boxed_any();
             let auth_replica = boxed_any
                 .downcast_ref::<Auth>()
