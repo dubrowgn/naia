@@ -191,18 +191,14 @@ impl Client {
 
     /// Gets the average Round Trip Time measured to the Server
     pub fn rtt(&self) -> f32 {
-        self.server_connection
-            .as_ref()
-            .expect("it is expected that you should verify whether the client is connected before calling this method")
-            .ping_manager.rtt_ms()
+		debug_assert!(self.is_connected());
+		self.server_connection.as_ref().map(Connection::rtt_ms).unwrap_or(0.0)
     }
 
     /// Gets the average Jitter measured in connection to the Server
     pub fn jitter(&self) -> f32 {
-        self.server_connection
-            .as_ref()
-            .expect("it is expected that you should verify whether the client is connected before calling this method")
-            .ping_manager.jitter_ms()
+		debug_assert!(self.is_connected());
+		self.server_connection.as_ref().map(Connection::jitter_ms).unwrap_or(0.0)
     }
 
     // Private methods
@@ -335,7 +331,7 @@ impl Client {
 							connection.base.mark_sent();
                         }
                         PacketType::Pong => {
-                            if connection.ping_manager.read_pong(&mut reader).is_err() {
+                            if connection.read_pong(&mut reader).is_err() {
                                 // TODO: pass this on and handle above
                                 warn!("Client Error: Cannot process pong packet from Server");
                             }
@@ -376,10 +372,8 @@ impl Client {
     }
 
     fn handle_pings(connection: &mut Connection, io: &mut Io) {
-		match connection.ping_manager.try_send_ping(&connection.address, io) {
-			Ok(true) => connection.base.mark_sent(),
-			Ok(false) => {},
-			Err(_) => warn!("Client Error: Cannot send ping packet to Server"),
+		if let Err(e) = connection.try_send_ping(io) {
+			warn!("Client Error: Cannot send ping packet to Server: {e}");
 		}
     }
 

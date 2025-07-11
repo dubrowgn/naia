@@ -2,7 +2,7 @@ use crate::{ events::ServerEvent, user::UserKey };
 use log::warn;
 use naia_shared::{
     BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig,
-	HostType, Io, packet::*, PingManager, Protocol, SerdeErr, StandardHeader,
+	HostType, Io, NaiaError, packet::*, PingManager, Protocol, SerdeErr, StandardHeader,
 };
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
@@ -11,7 +11,6 @@ pub struct Connection {
     pub address: SocketAddr,
     pub user_key: UserKey,
     pub base: BaseConnection,
-    pub ping_manager: PingManager,
 }
 
 impl Connection {
@@ -29,8 +28,8 @@ impl Connection {
                 HostType::Server,
                 connection_config,
                 channel_kinds,
+                PingManager::new(ping_interval),
             ),
-            ping_manager: PingManager::new(ping_interval),
         }
     }
 
@@ -75,7 +74,7 @@ impl Connection {
         now: &Instant,
         io: &mut Io,
     ) {
-		let resend_ms = self.ping_manager.rtt_ms() + 1.5 * self.ping_manager.jitter_ms();
+		let resend_ms = self.base.rtt_ms() + 1.5 * self.base.jitter_ms();
 		self.base.collect_messages(now, &resend_ms);
 
 		if !self.send_packet(protocol, io) {
@@ -83,7 +82,7 @@ impl Connection {
 		}
 
 		while self.send_packet(protocol, io) { }
-        self.base.mark_sent();
+		self.base.mark_sent();
     }
 
     /// Send any message, component actions and component updates to the client
@@ -131,6 +130,20 @@ impl Connection {
 
         writer
     }
+
+	pub fn sample_rtt_ms(&mut self, rtt_ms: f32) {
+		self.base.sample_rtt_ms(rtt_ms);
+	}
+
+	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), SerdeErr> {
+		self.base.read_pong(reader)
+	}
+	pub fn try_send_ping(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
+		self.base.try_send_ping(&self.address, io)
+	}
+
+	pub fn rtt_ms(&self) -> f32 { self.base.rtt_ms() }
+	pub fn jitter_ms(&self) -> f32 { self.base.jitter_ms() }
 
 	// performance counters
 

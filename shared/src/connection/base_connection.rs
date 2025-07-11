@@ -1,9 +1,13 @@
-use crate::{ChannelKind, MessageContainer, MessageKinds, Protocol, Timer};
+use crate::{
+	ChannelKind, Io, MessageContainer, MessageKinds, NaiaError, PingManager, Protocol,
+	Timer,
+};
 use crate::messages::{
 	channels::channel_kinds::ChannelKinds, message_manager::MessageManager,
 };
 use crate::types::{HostType, PacketIndex};
 use naia_serde::{BitReader, BitWriter, Serde, SerdeErr};
+use std::net::SocketAddr;
 use std::time::Instant;
 use super::{
     ack_manager::AckManager, connection_config::ConnectionConfig,
@@ -13,10 +17,11 @@ use super::{
 /// Represents a connection to a remote host, and provides functionality to
 /// manage the connection and the communications to it
 pub struct BaseConnection {
-    message_manager: MessageManager,
-    heartbeat_timer: Timer,
-    timeout_timer: Timer,
     ack_manager: AckManager,
+    heartbeat_timer: Timer,
+    message_manager: MessageManager,
+    ping_manager: PingManager,
+    timeout_timer: Timer,
 }
 
 impl BaseConnection {
@@ -25,12 +30,14 @@ impl BaseConnection {
         host_type: HostType,
         connection_config: &ConnectionConfig,
         channel_kinds: &ChannelKinds,
+        ping_manager: PingManager,
     ) -> Self {
         BaseConnection {
             heartbeat_timer: Timer::new(connection_config.heartbeat_interval),
             timeout_timer: Timer::new(connection_config.disconnection_timeout_duration),
             ack_manager: AckManager::new(),
             message_manager: MessageManager::new(host_type, channel_kinds),
+            ping_manager,
         }
     }
 
@@ -135,6 +142,24 @@ impl BaseConnection {
 
         Ok(())
     }
+
+	pub fn sample_rtt_ms(&mut self, rtt_ms: f32) {
+		self.ping_manager.sample_rtt_ms(rtt_ms);
+	}
+
+	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), SerdeErr> {
+		self.ping_manager.read_pong(reader)
+	}
+	pub fn try_send_ping(&mut self, dest_addr: &SocketAddr, io: &mut Io) -> Result<bool, NaiaError> {
+		let result = self.ping_manager.try_send_ping(dest_addr, io);
+		if result.is_ok() {
+			self.mark_sent();
+		}
+		result
+	}
+
+	pub fn rtt_ms(&self) -> f32 { self.ping_manager.rtt_ms() }
+	pub fn jitter_ms(&self) -> f32 { self.ping_manager.jitter_ms() }
 
 	// performance counters
 

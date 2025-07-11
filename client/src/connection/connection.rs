@@ -2,7 +2,7 @@ use crate::events::ClientEvent;
 use log::warn;
 use naia_shared::{
 	BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig,
-	HostType, Io, packet::*, PingManager, Protocol, SerdeErr, StandardHeader,
+	HostType, Io, NaiaError, packet::*, PingManager, Protocol, SerdeErr, StandardHeader,
 };
 use std::net::SocketAddr;
 use std::time::Instant;
@@ -10,7 +10,6 @@ use std::time::Instant;
 pub struct Connection {
 	pub address: SocketAddr,
     pub base: BaseConnection,
-    pub ping_manager: PingManager,
 }
 
 impl Connection {
@@ -26,8 +25,8 @@ impl Connection {
                 HostType::Client,
                 connection_config,
                 channel_kinds,
+				ping_manager,
             ),
-            ping_manager,
         }
     }
 
@@ -58,7 +57,7 @@ impl Connection {
 
     /// Collect and send any outgoing packets from client to server
     pub fn send_packets(&mut self, protocol: &Protocol, now: &Instant, io: &mut Io) {
-        let resend_ms = self.ping_manager.rtt_ms() + 1.5 * self.ping_manager.jitter_ms();
+        let resend_ms = self.base.rtt_ms() + 1.5 * self.base.jitter_ms();
         self.base.collect_messages(now, &resend_ms);
 
 		if !self.send_packet(protocol, io) {
@@ -109,6 +108,16 @@ impl Connection {
 
         writer
     }
+
+	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), SerdeErr> {
+		self.base.read_pong(reader)
+	}
+	pub fn try_send_ping(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
+		self.base.try_send_ping(&self.address, io)
+	}
+
+	pub fn rtt_ms(&self) -> f32 { self.base.rtt_ms() }
+	pub fn jitter_ms(&self) -> f32 { self.base.jitter_ms() }
 
 	// performance counters
 

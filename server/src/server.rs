@@ -161,7 +161,7 @@ impl Server {
             user_key,
             &self.protocol.channel_kinds,
         );
-		connection.ping_manager.sample_rtt_ms(ctx.rtt_ms);
+		connection.sample_rtt_ms(ctx.rtt_ms);
         self.user_connections.insert(user.address, connection);
     }
 
@@ -303,23 +303,19 @@ impl Server {
     // Ping
     /// Gets the average Round Trip Time measured to the given User's Client
     pub fn rtt(&self, user_key: &UserKey) -> Option<f32> {
-        if let Some(user) = self.users.get(user_key) {
-            if let Some(connection) = self.user_connections.get(&user.address) {
-                return Some(connection.ping_manager.rtt_ms());
-            }
-        }
-        None
+		debug_assert!(self.users.contains_key(user_key));
+		self.users.get(user_key)
+			.and_then(|user| self.user_connections.get(&user.address))
+			.map(Connection::rtt_ms)
     }
 
     /// Gets the average Jitter measured in connection to the given User's
     /// Client
     pub fn jitter(&self, user_key: &UserKey) -> Option<f32> {
-        if let Some(user) = self.users.get(user_key) {
-            if let Some(connection) = self.user_connections.get(&user.address) {
-                return Some(connection.ping_manager.jitter_ms());
-            }
-        }
-        None
+		debug_assert!(self.users.contains_key(user_key));
+		self.users.get(user_key)
+			.and_then(|user| self.user_connections.get(&user.address))
+			.map(Connection::jitter_ms)
     }
 
     // Crate-Public methods
@@ -328,10 +324,7 @@ impl Server {
 
     /// Get a User's Socket Address, given the associated UserKey
     pub(crate) fn user_address(&self, user_key: &UserKey) -> Option<SocketAddr> {
-        if let Some(user) = self.users.get(user_key) {
-            return Some(user.address);
-        }
-        None
+		self.users.get(user_key).map(|user| user.address)
     }
 
     pub(crate) fn user_disconnect(&mut self, user_key: &UserKey) {
@@ -527,7 +520,7 @@ impl Server {
                 // already marked heard above
             }
             PacketType::Pong => {
-				if connection.ping_manager.read_pong(reader).is_err() {
+				if connection.read_pong(reader).is_err() {
 					trace!("Dropping malformed pong");
 				}
             }
@@ -598,13 +591,8 @@ impl Server {
 
     fn handle_pings(&mut self) {
 		for (addr, conn) in &mut self.user_connections.iter_mut() {
-			match conn.ping_manager.try_send_ping(&addr, &mut self.io) {
-				Ok(true) => conn.base.mark_sent(),
-				Ok(false) => {},
-				Err(_) => {
-					// TODO: pass this on and handle above
-					warn!("Server Error: Cannot send ping packet to {}", addr);
-				},
+			if let Err(e) = conn.try_send_ping(&mut self.io) {
+				warn!("Server Error: Cannot send ping packet to {addr}: {e}");
 			}
 		}
     }
