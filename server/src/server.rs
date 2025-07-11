@@ -7,7 +7,7 @@ use crate::user::{User, UserKey, UserMut, UserRef};
 use naia_shared::{
 	BitReader, BitWriter, Channel, ChannelKind, IdPool, LinkConditionerConfig, Io,
 	Message, MessageContainer, NaiaError, packet::*, Protocol, Serde, SerdeErr,
-	StandardHeader, Timer,
+	StandardHeader,
 };
 use log::{trace, warn};
 use std::{collections::{HashMap, HashSet}, io, net::SocketAddr, panic, time::Instant};
@@ -20,7 +20,6 @@ pub struct Server {
     server_config: ServerConfig,
     protocol: Protocol,
     io: Io,
-    timeout_timer: Timer,
     handshake_manager: HandshakeManager,
     // Users
     users: HashMap<UserKey, User>,
@@ -45,7 +44,6 @@ impl Server {
             protocol,
             // Connection
             io,
-            timeout_timer: Timer::new(server_config.connection.disconnection_timeout_duration),
             handshake_manager: HandshakeManager::new(),
             // Users
             users: HashMap::new(),
@@ -529,21 +527,18 @@ impl Server {
     }
 
     fn handle_timeouts(&mut self) {
-        // disconnects
-        if self.timeout_timer.try_reset() {
-            let mut user_disconnects: Vec<UserKey> = Vec::new();
+		let mut user_disconnects: Vec<UserKey> = Vec::new();
 
-            for connection in self.connections() {
-                // user disconnects
-                if connection.base.should_drop() {
-                    user_disconnects.push(connection.user_key);
-                }
-            }
+		for connection in self.connections() {
+			// user disconnects
+			if connection.timed_out() {
+				user_disconnects.push(connection.user_key);
+			}
+		}
 
-            for user_key in user_disconnects {
-                self.user_disconnect(&user_key);
-            }
-        }
+		for user_key in user_disconnects {
+			self.user_disconnect(&user_key);
+		}
     }
 
     fn handle_heartbeats(&mut self) {

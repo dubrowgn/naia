@@ -127,7 +127,7 @@ impl Client {
 
         // all other operations
         if let Some(connection) = &mut self.server_connection {
-            if connection.base.should_drop() || self.pending_disconnect {
+            if connection.timed_out() || self.pending_disconnect {
                 self.disconnect_with_events();
                 return std::mem::take(&mut self.incoming_events);
             }

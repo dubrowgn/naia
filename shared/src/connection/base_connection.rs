@@ -58,15 +58,10 @@ impl BaseConnection {
 
     /// Record that a message has been received from a remote host (to prevent
     /// disconnecting from the remote host)
-    pub fn mark_heard(&mut self) {
-        self.timeout_timer.reset()
-    }
+	pub fn mark_heard(&mut self) { self.timeout_timer.reset() }
 
-    /// Returns whether this connection should be dropped as a result of a
-    /// timeout
-    pub fn should_drop(&self) -> bool {
-        self.timeout_timer.ringing()
-    }
+    /// Returns whether this connection has timed out
+	pub fn timed_out(&self) -> bool { self.timeout_timer.ringing() }
 
     // Acks & Headers
 

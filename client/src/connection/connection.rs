@@ -116,6 +116,8 @@ impl Connection {
 		self.base.read_pong(reader)
 	}
 
+	pub fn timed_out(&self) -> bool { self.base.timed_out() }
+
 	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
 		self.base.try_send_heartbeat(io)
 	}
