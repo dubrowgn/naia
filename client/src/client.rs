@@ -324,7 +324,7 @@ impl Client {
 							Pong::from_ping(&ping).ser(&mut writer);
 
 							// send packet
-							if self.io.send_packet(&connection.address, writer.to_packet()).is_err() {
+							if self.io.send_packet(connection.address(), writer.to_packet()).is_err() {
 								// TODO: pass this on and handle above
 								warn!("Client Error: Cannot send pong packet to Server");
 							}

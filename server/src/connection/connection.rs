@@ -8,7 +8,6 @@ use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 pub struct Connection {
-    pub address: SocketAddr,
     pub user_key: UserKey,
     pub base: BaseConnection,
 }
@@ -17,14 +16,14 @@ impl Connection {
     pub fn new(
         connection_config: &ConnectionConfig,
         ping_interval: Duration,
-        user_address: &SocketAddr,
+        address: &SocketAddr,
         user_key: &UserKey,
         channel_kinds: &ChannelKinds,
     ) -> Self {
         Connection {
-            address: *user_address,
             user_key: *user_key,
             base: BaseConnection::new(
+				address,
                 HostType::Server,
                 connection_config,
                 channel_kinds,
@@ -33,9 +32,8 @@ impl Connection {
         }
     }
 
-    pub fn user_key(&self) -> UserKey {
-        self.user_key
-    }
+	pub fn address(&self) -> &SocketAddr { self.base.address() }
+	pub fn user_key(&self) -> UserKey { self.user_key }
 
     // Incoming Data
 
@@ -96,9 +94,9 @@ impl Connection {
             let writer = self.write_packet(protocol);
 
             // send packet
-            if io.send_packet(&self.address, writer.to_packet()).is_err() {
+            if io.send_packet(self.base.address(), writer.to_packet()).is_err() {
                 // TODO: pass this on and handle above
-                warn!("Server Error: Cannot send data packet to {}", &self.address);
+                warn!("Server Error: Cannot send data packet to {}", self.base.address());
             }
 
             return true;
@@ -140,11 +138,11 @@ impl Connection {
 	}
 
 	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
-		self.base.try_send_heartbeat(&self.address, io)
+		self.base.try_send_heartbeat(io)
 	}
 
 	pub fn try_send_ping(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
-		self.base.try_send_ping(&self.address, io)
+		self.base.try_send_ping(io)
 	}
 
 	pub fn rtt_ms(&self) -> f32 { self.base.rtt_ms() }

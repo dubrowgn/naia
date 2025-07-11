@@ -8,7 +8,6 @@ use std::net::SocketAddr;
 use std::time::Instant;
 
 pub struct Connection {
-	pub address: SocketAddr,
     pub base: BaseConnection,
 }
 
@@ -16,12 +15,12 @@ impl Connection {
     pub fn new(
         connection_config: &ConnectionConfig,
         channel_kinds: &ChannelKinds,
-		peer_addr: &SocketAddr,
+		address: &SocketAddr,
         ping_manager: PingManager,
     ) -> Self {
         Connection {
-			address: *peer_addr,
             base: BaseConnection::new(
+				address,
                 HostType::Client,
                 connection_config,
                 channel_kinds,
@@ -29,6 +28,8 @@ impl Connection {
             ),
         }
     }
+
+	pub fn address(&self) -> &SocketAddr { self.base.address() }
 
     // Incoming data
 
@@ -74,7 +75,7 @@ impl Connection {
             let writer = self.write_packet(protocol);
 
             // send packet
-            if io.send_packet(&self.address, writer.to_packet()).is_err() {
+            if io.send_packet(self.base.address(), writer.to_packet()).is_err() {
                 // TODO: pass this on and handle above
                 warn!("Client Error: Cannot send data packet to Server");
             }
@@ -114,11 +115,11 @@ impl Connection {
 	}
 
 	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
-		self.base.try_send_heartbeat(&self.address, io)
+		self.base.try_send_heartbeat(io)
 	}
 
 	pub fn try_send_ping(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
-		self.base.try_send_ping(&self.address, io)
+		self.base.try_send_ping(io)
 	}
 
 	pub fn rtt_ms(&self) -> f32 { self.base.rtt_ms() }

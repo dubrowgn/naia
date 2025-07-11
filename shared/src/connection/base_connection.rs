@@ -18,6 +18,7 @@ use super::{
 /// manage the connection and the communications to it
 pub struct BaseConnection {
     ack_manager: AckManager,
+	address: SocketAddr,
     heartbeat_timer: Timer,
     message_manager: MessageManager,
     ping_manager: PingManager,
@@ -27,19 +28,23 @@ pub struct BaseConnection {
 impl BaseConnection {
     /// Create a new BaseConnection, given the appropriate underlying managers
     pub fn new(
+		address: &SocketAddr,
         host_type: HostType,
-        connection_config: &ConnectionConfig,
+        config: &ConnectionConfig,
         channel_kinds: &ChannelKinds,
         ping_manager: PingManager,
     ) -> Self {
         BaseConnection {
-            heartbeat_timer: Timer::new(connection_config.heartbeat_interval),
-            timeout_timer: Timer::new(connection_config.disconnection_timeout_duration),
-            ack_manager: AckManager::new(),
-            message_manager: MessageManager::new(host_type, channel_kinds),
-            ping_manager,
+			address: *address,
+			ack_manager: AckManager::new(),
+			heartbeat_timer: Timer::new(config.heartbeat_interval),
+			message_manager: MessageManager::new(host_type, channel_kinds),
+			ping_manager,
+			timeout_timer: Timer::new(config.disconnection_timeout_duration),
         }
     }
+
+	pub fn address(&self) -> &SocketAddr { &self.address }
 
     // Heartbeats
 
@@ -47,11 +52,6 @@ impl BaseConnection {
     /// heartbeat)
     pub fn mark_sent(&mut self) {
         self.heartbeat_timer.reset()
-    }
-
-    /// Returns whether a heartbeat message should be sent
-    pub fn should_send_heartbeat(&self) -> bool {
-        self.heartbeat_timer.ringing()
     }
 
     // Timeouts
@@ -151,22 +151,22 @@ impl BaseConnection {
 		self.ping_manager.read_pong(reader)
 	}
 
-	pub fn try_send_heartbeat(&mut self, dest_addr: &SocketAddr, io: &mut Io) -> Result<bool, NaiaError> {
+	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
 		if !self.heartbeat_timer.try_reset() {
 			return Ok(false);
 		}
 
 		let mut writer = BitWriter::new();
 		self.write_header(PacketType::Heartbeat, &mut writer);
-		io.send_packet(dest_addr, writer.to_packet())?;
+		io.send_packet(&self.address, writer.to_packet())?;
 
 		self.mark_sent();
 
 		Ok(true)
 	}
 
-	pub fn try_send_ping(&mut self, dest_addr: &SocketAddr, io: &mut Io) -> Result<bool, NaiaError> {
-		let sent = self.ping_manager.try_send_ping(dest_addr, io)?;
+	pub fn try_send_ping(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
+		let sent = self.ping_manager.try_send_ping(&self.address, io)?;
 		if sent {
 			self.mark_sent();
 		}

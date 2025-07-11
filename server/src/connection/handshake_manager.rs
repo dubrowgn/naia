@@ -123,7 +123,7 @@ impl HandshakeManager {
 			return false;
 		}
 
-		match self.address_to_timestamp_map.get(&connection.address) {
+		match self.address_to_timestamp_map.get(connection.address()) {
 			Some(old_timestamp) => *old_timestamp == req.timestamp_ns,
 			None => false,
 		}
