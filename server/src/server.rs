@@ -3,7 +3,7 @@ use crate::connection::{
 	connection::Connection,
 	handshake_manager::{HandshakeManager, HandshakeResult},
 };
-use crate::user::{User, UserKey, UserMut, UserRef};
+use crate::user::{User, UserKey};
 use naia_shared::{
 	BitReader, BitWriter, Channel, ChannelKind, IdPool, LinkConditionerConfig, Io,
 	Message, MessageContainer, NaiaError, packet::*, Protocol, Serde, SerdeErr,
@@ -266,26 +266,6 @@ impl Server {
         self.users.contains_key(user_key)
     }
 
-    /// Retrieves an UserRef that exposes read-only operations for the User
-    /// associated with the given UserKey.
-    /// Panics if the user does not exist.
-    pub fn user(&self, user_key: &UserKey) -> UserRef {
-        if self.users.contains_key(user_key) {
-            return UserRef::new(self, user_key);
-        }
-        panic!("No User exists for given Key!");
-    }
-
-    /// Retrieves an UserMut that exposes read and write operations for the User
-    /// associated with the given UserKey.
-    /// Returns None if the user does not exist.
-    pub fn user_mut(&mut self, user_key: &UserKey) -> UserMut {
-        if self.users.contains_key(user_key) {
-            return UserMut::new(self, user_key);
-        }
-        panic!("No User exists for given Key!");
-    }
-
     /// Return a list of all currently connected Users' keys
     pub fn user_keys(&self) -> Vec<UserKey> {
 		return self.connections().map(Connection::user_key).collect()
@@ -319,16 +299,16 @@ impl Server {
     //// Users
 
     /// Get a User's Socket Address, given the associated UserKey
-    pub(crate) fn user_address(&self, user_key: &UserKey) -> Option<SocketAddr> {
+    pub fn user_address(&self, user_key: &UserKey) -> Option<SocketAddr> {
 		self.users.get(user_key).map(|user| user.address)
     }
 
-    pub(crate) fn user_disconnect(&mut self, user_key: &UserKey) {
+    pub fn user_disconnect(&mut self, user_key: &UserKey) {
         let user = self.user_delete(user_key);
         self.incoming_events.push(ServerEvent::Disconnect { user_key:*user_key, user });
     }
 
-    pub(crate) fn user_delete(&mut self, user_key: &UserKey) -> User {
+    fn user_delete(&mut self, user_key: &UserKey) -> User {
         let Some(user) = self.users.remove(user_key) else {
             panic!("Attempting to delete non-existant user!");
         };
