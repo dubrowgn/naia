@@ -2,7 +2,7 @@ use crate::events::ClientEvent;
 use log::warn;
 use naia_shared::{
 	BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig,
-	HostType, Io, NaiaError, packet::*, PingManager, Protocol, SerdeErr, StandardHeader,
+	HostType, Io, NaiaError, packet::*, PingManager, Protocol, StandardHeader,
 };
 use std::net::SocketAddr;
 use std::time::Instant;
@@ -31,14 +31,14 @@ impl Connection {
 
     // Incoming data
 
-    pub fn process_incoming_header(&mut self, header: &StandardHeader) {
-        self.base.process_incoming_header(header);
+    pub fn note_receipt(&mut self, header: &StandardHeader) {
+        self.base.note_receipt(header);
     }
 
 	/// Read packet data received from a client, storing necessary data in an internal buffer
 	pub fn read_packet(
 		&mut self, protocol: &Protocol, reader: &mut BitReader
-	) -> Result<(), SerdeErr> {
+	) -> Result<(), NaiaError> {
 		self.base.read_packet(protocol, reader)
 	}
 

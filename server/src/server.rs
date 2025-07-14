@@ -6,8 +6,7 @@ use crate::connection::{
 use crate::user::{User, UserKey};
 use naia_shared::{
 	BitReader, BitWriter, Channel, ChannelKind, IdPool, LinkConditionerConfig, Io,
-	Message, MessageContainer, NaiaError, packet::*, Protocol, Serde, SerdeErr,
-	StandardHeader,
+	Message, MessageContainer, NaiaError, packet::*, Protocol, Serde, StandardHeader,
 };
 use log::{trace, warn};
 use std::{collections::{HashMap, HashSet}, io, net::SocketAddr, panic, time::Instant};
@@ -382,7 +381,7 @@ impl Server {
         address: &SocketAddr,
         header: &StandardHeader,
         reader: &mut BitReader,
-    ) -> Result<bool, SerdeErr> {
+    ) -> Result<bool, NaiaError> {
         // Handshake stuff
         match header.packet_type {
             PacketType::ClientChallengeRequest => {
@@ -458,7 +457,7 @@ impl Server {
         address: &SocketAddr,
         header: &StandardHeader,
         reader: &mut BitReader,
-    ) -> Result<(), SerdeErr> {
+    ) -> Result<(), NaiaError> {
         // Packets requiring established connection
         let Some(connection) = self.user_connections.get_mut(address) else {
             return Ok(());
@@ -468,7 +467,7 @@ impl Server {
         connection.base.mark_heard();
 
         // Process incoming header
-        connection.process_incoming_header(header);
+        connection.note_receipt(header);
 
         match header.packet_type {
             PacketType::Data => {

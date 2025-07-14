@@ -6,7 +6,7 @@ use crate::messages::{
 	channels::channel_kinds::ChannelKinds, message_manager::MessageManager,
 };
 use crate::types::{HostType, PacketIndex};
-use naia_serde::{BitReader, BitWriter, Serde, SerdeErr};
+use naia_serde::{BitReader, BitWriter, Serde};
 use std::net::SocketAddr;
 use std::time::Instant;
 use super::{
@@ -68,7 +68,7 @@ impl BaseConnection {
     /// Process an incoming packet, pulling out the packet index number to keep
     /// track of the current RTT, and sending the packet to the AckManager to
     /// handle packet notification events
-    pub fn process_incoming_header(&mut self, header: &StandardHeader) {
+    pub fn note_receipt(&mut self, header: &StandardHeader) {
         self.ack_manager.process_incoming_header(header, &mut self.message_manager);
     }
 
@@ -128,7 +128,7 @@ impl BaseConnection {
         &mut self,
         protocol: &Protocol,
         reader: &mut BitReader,
-    ) -> Result<(), SerdeErr> {
+    ) -> Result<(), NaiaError> {
         // read messages
         self.message_manager.read_messages(
             protocol,

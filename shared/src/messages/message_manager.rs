@@ -1,13 +1,13 @@
-use naia_serde::{BitReader, BitWrite, BitWriter, ConstBitLength, Serde, SerdeErr};
+use crate::{MessageKinds, NaiaError, Protocol};
+use naia_serde::{BitReader, BitWrite, BitWriter, ConstBitLength, Serde};
 use std::collections::HashMap;
 use std::time::Instant;
 
 use crate::{
     constants::FRAGMENTATION_LIMIT_BITS,
-    messages::{
+	messages::{
         channels::{
-            channel::ChannelMode,
-            channel::ChannelSettings,
+            channel::{ChannelMode, ChannelSettings},
             channel_kinds::{ChannelKind, ChannelKinds},
             receivers::{
                 channel_receiver::ChannelReceiver,
@@ -26,9 +26,7 @@ use crate::{
         },
         message_container::MessageContainer,
     },
-    types::{HostType, MessageIndex, PacketIndex},
-    MessageKinds,
-    Protocol,
+	types::{HostType, MessageIndex, PacketIndex},
 };
 
 /// Handles incoming/outgoing messages, tracks the delivery status of Messages
@@ -259,7 +257,7 @@ impl MessageManager {
         &mut self,
         protocol: &Protocol,
         reader: &mut BitReader,
-    ) -> Result<(), SerdeErr> {
+    ) -> Result<(), NaiaError> {
         loop {
             let message_continue = bool::de(reader)?;
             if !message_continue {

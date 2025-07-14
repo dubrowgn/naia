@@ -8,12 +8,6 @@ pub enum NaiaError {
 	Serde(SerdeErr),
 }
 
-impl NaiaError {
-    pub fn from_message(message: &str) -> Self {
-        Self::Message(message.to_string())
-    }
-}
-
 impl fmt::Display for NaiaError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
@@ -22,6 +16,14 @@ impl fmt::Display for NaiaError {
 			NaiaError::Serde(err) => SerdeErr::fmt(err, f),
         }
     }
+}
+
+impl From<&str> for NaiaError {
+	fn from(err: &str) -> Self { Self::Message(err.to_string()) }
+}
+
+impl From<String> for NaiaError {
+	fn from(err: String) -> Self { Self::Message(err) }
 }
 
 impl From<io::Error> for NaiaError {

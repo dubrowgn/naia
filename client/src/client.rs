@@ -25,7 +25,7 @@ pub struct Client {
     server_connection: Option<Connection>,
     handshake_manager: Option<HandshakeManager>,
     pending_disconnect: bool,
-    waitlist_messages: VecDeque<(ChannelKind, Box<dyn Message>)>, // FIXME
+    waitlist_messages: VecDeque<(ChannelKind, Box<dyn Message>)>,
     // Events
     incoming_events: Vec::<ClientEvent>,
 }
@@ -274,51 +274,41 @@ impl Client {
         loop {
             match self.io.recv_reader() {
                 Ok(Some((_, mut reader))) => {
+					use PacketType::*;
+
                     connection.base.mark_heard();
 
-                    let header = StandardHeader::de(&mut reader)
-                        .expect("unable to parse header from incoming packet");
+                    let Ok(header) = StandardHeader::de(&mut reader) else {
+						self.incoming_events.push(ClientEvent::Error("Received malformed packet header".into()));
+						continue;
+					};
 
-                    match header.packet_type {
-						PacketType::Disconnect => {
-							self.pending_disconnect = true;
-							return;
-						}
-                        PacketType::Data
-                        | PacketType::Heartbeat
-                        | PacketType::Ping
-                        | PacketType::Pong => {
-                            // continue, these packet types are allowed when
-                            // connection is established
-                        }
-                        _ => {
-                            // short-circuit, do not need to handle other packet types at this
-                            // point
-                            continue;
-                        }
-                    }
-
-                    // Read incoming header
-                    connection.process_incoming_header(&header);
+					if matches!(header.packet_type, Data | Heartbeat | Ping | Pong) {
+						connection.note_receipt(&header);
+					}
 
                     // Handle based on PacketType
                     match header.packet_type {
-                        PacketType::Data => {
+						Data => {
 							if let Err(e) = connection.read_packet(&self.protocol, &mut reader) {
-								warn!("Client Error: failed to read data packet from Server: {e}");
+								self.incoming_events.push(ClientEvent::Error(format!("Failed to read packet: {e}").into()));
                             }
                         }
-                        PacketType::Heartbeat => {
+						Disconnect => {
+							self.pending_disconnect = true;
+							return;
+						}
+						Heartbeat => {
                             // already marked as heard, job done
                         }
-                        PacketType::Ping => {
+						Ping => {
 							if let Err(e) = connection.ping_pong(&mut reader, &mut self.io) {
-								warn!("Client Error: failed to handle ping from Server: {e}");
+								self.incoming_events.push(ClientEvent::Error(format!("Failed to handle ping: {e}").into()));
 							}
                         }
-                        PacketType::Pong => {
+						Pong => {
 							if let Err(e) = connection.read_pong(&mut reader) {
-								warn!("Client Error: failed to handle pong from Server: {e}");
+								self.incoming_events.push(ClientEvent::Error(format!("Failed to handle pong: {e}").into()));
                             }
                         }
                         _ => {
