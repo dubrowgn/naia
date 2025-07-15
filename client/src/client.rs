@@ -1,7 +1,7 @@
 use log::warn;
 use naia_shared::{
 	Channel, ChannelKind, Io, LinkConditionerConfig, Message, MessageContainer,
-	NaiaError, packet::*, Protocol, Serde, StandardHeader,
+	NaiaError, packet::*, Protocol, Serde,
 };
 use std::{collections::VecDeque, io, net::SocketAddr, time::Instant};
 use super::client_config::ClientConfig;
@@ -276,15 +276,15 @@ impl Client {
                 Ok(Some((_, mut reader))) => {
                     connection.base.mark_heard();
 
-                    let Ok(header) = StandardHeader::de(&mut reader) else {
-						self.incoming_events.push(ClientEvent::Error("Received malformed packet header".into()));
+                    let Ok(packet_type) = PacketType::de(&mut reader) else {
+						self.incoming_events.push(ClientEvent::Error("Received malformed packet type".into()));
 						continue;
 					};
 
                     // Handle based on PacketType
-                    match header.packet_type {
+                    match packet_type {
 						PacketType::Data => {
-							if let Err(e) = connection.read_data_packet(&self.protocol, &header, &mut reader) {
+							if let Err(e) = connection.read_data_packet(&self.protocol, &mut reader) {
 								self.incoming_events.push(ClientEvent::Error(format!("Failed to read packet: {e}").into()));
                             }
                         }

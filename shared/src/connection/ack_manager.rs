@@ -1,8 +1,7 @@
-use crate::{messages::message_manager::MessageManager, types::PacketIndex};
-use std::collections::HashMap;
-use super::{
-    packet::PacketType, sequence_buffer::SequenceBuffer, standard_header::StandardHeader,
-};
+use crate::MessageManager;
+use std::collections::HashSet;
+use super::packet::*;
+use super::sequence_buffer::SequenceBuffer;
 
 pub const REDUNDANT_PACKET_ACKS_SIZE: u16 = 32;
 const DEFAULT_SEND_PACKETS_SIZE: usize = 256;
@@ -16,7 +15,7 @@ pub struct AckManager {
     last_recv_packet_index: PacketIndex,
     // Using a `Hashmap` to track every packet we send out so we can ensure that we can resend when
     // dropped.
-    sent_packets: HashMap<PacketIndex, SentPacket>,
+    sent_packets: HashSet<PacketIndex>,
     // However, we can only reasonably ack up to `REDUNDANT_PACKET_ACKS_SIZE + 1` packets on each
     // message we send so this should be that large.
     received_packets: SequenceBuffer,
@@ -27,7 +26,7 @@ impl AckManager {
         Self {
             next_packet_index: PacketIndex::ZERO,
             last_recv_packet_index: PacketIndex::MAX,
-            sent_packets: HashMap::with_capacity(DEFAULT_SEND_PACKETS_SIZE),
+            sent_packets: HashSet::with_capacity(DEFAULT_SEND_PACKETS_SIZE),
             received_packets: SequenceBuffer::with_capacity(REDUNDANT_PACKET_ACKS_SIZE + 1),
         }
     }
@@ -36,12 +35,12 @@ impl AckManager {
     /// packets
     pub fn process_incoming_header(
         &mut self,
-        header: &StandardHeader,
+        data_header: &packet::Data,
         message_manager: &mut MessageManager,
     ) {
-        let sender_packet_index = header.sender_packet_index;
-        let sender_ack_index = header.sender_ack_index;
-        let mut sender_ack_bitfield = header.sender_ack_bitfield;
+        let sender_packet_index = data_header.packet_index;
+        let sender_ack_index = data_header.ack_index;
+        let mut sender_ack_bitfield = data_header.ack_bitfield;
 
         self.received_packets
             .set(sender_packet_index.into());
@@ -52,55 +51,40 @@ impl AckManager {
         }
 
         // the current `sender_ack_index` was (clearly) received so we should remove it
-        if let Some(sent_packet) = self.sent_packets.get(&sender_ack_index) {
-            if sent_packet.packet_type == PacketType::Data {
-				message_manager.notify_packet_delivered(sender_ack_index);
-            }
-
-            self.sent_packets.remove(&sender_ack_index);
-        }
+		if self.sent_packets.remove(&sender_ack_index) {
+			message_manager.notify_packet_delivered(sender_ack_index);
+		}
 
         // The `sender_ack_bitfield` is going to include whether or not the past 32
         // packets have been received successfully.
         // If so, we have no need to resend old packets.
         for i in 1..=REDUNDANT_PACKET_ACKS_SIZE {
-            let sent_packet_index = sender_ack_index - i;
-            if let Some(sent_packet) = self.sent_packets.get(&sent_packet_index) {
-                if sender_ack_bitfield & 1 == 1 {
-                    if sent_packet.packet_type == PacketType::Data {
-						message_manager.notify_packet_delivered(sent_packet_index);
-                    }
-
-                    self.sent_packets.remove(&sent_packet_index);
-                } else {
-                    self.sent_packets.remove(&sent_packet_index);
-                }
-            }
+			if sender_ack_bitfield & 1 == 1 {
+				let sent_packet_index = sender_ack_index - i;
+				if self.sent_packets.remove(&sent_packet_index) {
+					message_manager.notify_packet_delivered(sent_packet_index);
+				}
+			}
 
             sender_ack_bitfield >>= 1;
         }
     }
 
     /// Records the packet with the given packet index
-    fn track_packet(&mut self, packet_type: PacketType, packet_index: PacketIndex) {
-        self.sent_packets
-            .insert(packet_index, SentPacket { packet_type });
+    fn track_packet(&mut self, packet_index: PacketIndex) {
+        self.sent_packets.insert(packet_index);
     }
 
-    pub fn next_outgoing_packet_header(&mut self, packet_type: PacketType) -> StandardHeader {
-        let next_packet_index = self.next_packet_index;
-
-        let outgoing = StandardHeader::new(
-            packet_type,
-            next_packet_index,
-            self.last_received_packet_index(),
-            self.ack_bitfield(),
-        );
-
-        self.track_packet(packet_type, next_packet_index);
+    pub fn next_outgoing_data_header(&mut self) -> packet::Data {
+		let packet_index = self.next_packet_index;
+        self.track_packet(packet_index);
         self.next_packet_index.incr();
 
-        outgoing
+        packet::Data {
+            packet_index,
+            ack_index: self.last_received_packet_index(),
+            ack_bitfield: self.ack_bitfield(),
+        }
     }
 
     fn last_received_packet_index(&self) -> PacketIndex {
@@ -124,9 +108,4 @@ impl AckManager {
 
         ack_bitfield
     }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SentPacket {
-    pub packet_type: PacketType,
 }

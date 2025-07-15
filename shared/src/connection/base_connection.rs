@@ -9,10 +9,7 @@ use crate::types::HostType;
 use naia_serde::{BitReader, BitWriter, Serde};
 use std::net::SocketAddr;
 use std::time::Instant;
-use super::{
-    ack_manager::AckManager, connection_config::ConnectionConfig,
-    packet::*, standard_header::StandardHeader,
-};
+use super::{ack_manager::AckManager, connection_config::ConnectionConfig, packet::*};
 
 /// Represents a connection to a remote host, and provides functionality to
 /// manage the connection and the communications to it
@@ -87,12 +84,12 @@ impl BaseConnection {
 	}
 
 	pub fn write_data_packet(&mut self, protocol: &Protocol) -> BitWriter {
-		let header = self.ack_manager.next_outgoing_packet_header(PacketType::Data);
-		let packet_index = header.sender_packet_index;
+		let header = self.ack_manager.next_outgoing_data_header();
 
 		let mut writer = BitWriter::new();
+		PacketType::Data.ser(&mut writer);
 		header.ser(&mut writer);
-		self.message_manager.write_messages(&protocol, &mut writer, packet_index);
+		self.message_manager.write_messages(&protocol, &mut writer, header.packet_index);
 
 		writer
 	}
@@ -100,10 +97,10 @@ impl BaseConnection {
     pub fn read_data_packet(
         &mut self,
         protocol: &Protocol,
-        header: &StandardHeader,
         reader: &mut BitReader,
     ) -> Result<(), NaiaError> {
-        self.ack_manager.process_incoming_header(header, &mut self.message_manager);
+		let data_header = packet::Data::de(reader)?;
+        self.ack_manager.process_incoming_header(&data_header, &mut self.message_manager);
         self.message_manager.read_messages(protocol, reader)
     }
 
@@ -122,11 +119,11 @@ impl BaseConnection {
 	}
 
 	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> Result<(), NaiaError> {
-		let ping = Ping::de(reader)?;
+		let ping = packet::Ping::de(reader)?;
 
 		let mut writer = BitWriter::new();
-		StandardHeader::of_type(PacketType::Pong).ser(&mut writer);
-		Pong { timestamp_ns: ping.timestamp_ns }.ser(&mut writer);
+		PacketType::Pong.ser(&mut writer);
+		packet::Pong { timestamp_ns: ping.timestamp_ns }.ser(&mut writer);
 		self.send(io, writer)
 	}
 
@@ -136,7 +133,7 @@ impl BaseConnection {
 		}
 
 		let mut writer = BitWriter::new();
-		StandardHeader::of_type(PacketType::Heartbeat).ser(&mut writer);
+		PacketType::Heartbeat.ser(&mut writer);
 		self.send(io, writer)?;
 
 		Ok(true)

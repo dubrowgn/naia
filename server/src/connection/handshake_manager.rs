@@ -1,14 +1,13 @@
 use crate::{cache_map::CacheMap, connection::connection::Connection};
-pub use naia_shared::{
-    BitReader, BitWriter, MessageContainer, MessageKinds, packet::*,
-	Serde, SerdeErr, StandardHeader
+use naia_shared::{
+	BitReader, BitWriter, MessageContainer, MessageKinds, packet::*, Serde, SerdeErr,
 };
 use ring::{hmac, rand};
 use std::{collections::HashMap, net::SocketAddr, time::Instant};
 
 pub enum HandshakeResult {
     Invalid,
-    Success(ClientConnectRequest, Option<MessageContainer>, f32),
+    Success(packet::ClientConnectRequest, Option<MessageContainer>, f32),
 }
 
 pub struct HandshakeManager {
@@ -40,12 +39,12 @@ impl HandshakeManager {
         &mut self,
         reader: &mut BitReader,
     ) -> Result<BitWriter, SerdeErr> {
-		let req = ClientChallengeRequest::de(reader)?;
+		let req = packet::ClientChallengeRequest::de(reader)?;
         Ok(self.write_challenge_response(&req))
     }
 
     // Step 2 of Handshake
-    pub fn write_challenge_response(&mut self, req: &ClientChallengeRequest) -> BitWriter {
+    pub fn write_challenge_response(&mut self, req: &packet::ClientChallengeRequest) -> BitWriter {
         if !self.timestamp_digest_map.contains_key(&req.timestamp_ns) {
             let tag = hmac::sign(&self.connection_hash_key, &req.timestamp_ns.to_le_bytes());
             let tag_vec = Vec::from(tag.as_ref());
@@ -54,8 +53,8 @@ impl HandshakeManager {
 
         let mut writer = BitWriter::new();
 
-        StandardHeader::of_type(PacketType::ServerChallengeResponse).ser(&mut writer);
-		ServerChallengeResponse {
+        PacketType::ServerChallengeResponse.ser(&mut writer);
+		packet::ServerChallengeResponse {
 			timestamp_ns: req.timestamp_ns,
 			signature: self.timestamp_digest_map.get_unchecked(&req.timestamp_ns).clone(),
 			client_timestamp_ns: req.client_timestamp_ns,
@@ -72,7 +71,7 @@ impl HandshakeManager {
         address: &SocketAddr,
         reader: &mut BitReader,
     ) -> HandshakeResult {
-		let Ok(req) = ClientConnectRequest::de(reader) else {
+		let Ok(req) = packet::ClientConnectRequest::de(reader) else {
 			return HandshakeResult::Invalid;
 		};
 
@@ -100,10 +99,10 @@ impl HandshakeManager {
     }
 
     // Step 4 of Handshake
-    pub(crate) fn write_connect_response(&self, req: &ClientConnectRequest) -> BitWriter {
+    pub(crate) fn write_connect_response(&self, req: &packet::ClientConnectRequest) -> BitWriter {
         let mut writer = BitWriter::new();
-        StandardHeader::of_type(PacketType::ServerConnectResponse).ser(&mut writer);
-		ServerConnectResponse {
+        PacketType::ServerConnectResponse.ser(&mut writer);
+		packet::ServerConnectResponse {
 			client_timestamp_ns: req.client_timestamp_ns,
 		}.ser(&mut writer);
         writer
@@ -114,7 +113,7 @@ impl HandshakeManager {
         connection: &Connection,
         reader: &mut BitReader,
     ) -> bool {
-		let Ok(req) = Disconnect::de(reader) else {
+		let Ok(req) = packet::Disconnect::de(reader) else {
 			return false;
 		};
 
@@ -131,7 +130,7 @@ impl HandshakeManager {
 
     pub fn write_reject_response(&self) -> BitWriter {
         let mut writer = BitWriter::new();
-        StandardHeader::of_type(PacketType::ServerRejectResponse).ser(&mut writer);
+        PacketType::ServerRejectResponse.ser(&mut writer);
         writer
     }
 

@@ -1,4 +1,9 @@
+
+use crate::SeqNum;
 use naia_serde::*;
+
+/// packet-level sequence number
+pub type PacketIndex = SeqNum;
 
 // u64 is enough for ~584 years of nanoseconds
 pub type TimestampNs = u64;
@@ -29,6 +34,28 @@ pub enum PacketType {
     Pong,
     // Used to request a graceful Client disconnect from the Server
     Disconnect,
+}
+
+pub mod packet {
+use super::*;
+
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
+pub struct Data {
+	/// Packet index identifying this packet
+	pub packet_index: PacketIndex,
+	/// This is the last acknowledged packet index.
+	pub ack_index: PacketIndex,
+	/// This is an bitfield of all last 32 acknowledged packets
+	pub ack_bitfield: u32,
+
+	// each channel with messages:
+	//   true bit (channel continuation)
+	//   channel kind
+	//   each message:
+	//     true bit (message continuation)
+	//     message (can't derive Serde)
+	//   false bit (message continuation)
+	// false bit (channel continuation)
 }
 
 #[derive(Clone, Debug, PartialEq, SerdeInternal)]
@@ -79,4 +106,6 @@ pub struct Pong {
 pub struct Disconnect {
 	pub timestamp_ns: TimestampNs,
 	pub signature: Vec<u8>,
+}
+
 }

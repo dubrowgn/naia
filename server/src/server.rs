@@ -6,7 +6,7 @@ use crate::connection::{
 use crate::user::{User, UserKey};
 use naia_shared::{
 	BitReader, BitWriter, Channel, ChannelKind, IdPool, LinkConditionerConfig, Io,
-	Message, MessageContainer, NaiaError, packet::*, Protocol, Serde, StandardHeader,
+	Message, MessageContainer, NaiaError, packet::*, Protocol, Serde,
 };
 use log::{trace, warn};
 use std::{collections::{HashMap, HashSet}, io, net::SocketAddr, panic, time::Instant};
@@ -80,8 +80,8 @@ impl Server {
 		for _ in 0..3 {
 			for (addr, conn) in self.user_connections.iter_mut() {
 				let mut writer = BitWriter::new();
-				StandardHeader::of_type(PacketType::Disconnect).ser(&mut writer);
-				Disconnect { timestamp_ns: 0, signature: vec![] }.ser(&mut writer);
+				PacketType::Disconnect.ser(&mut writer);
+				packet::Disconnect { timestamp_ns: 0, signature: vec![] }.ser(&mut writer);
 
 				if self.io.send_packet(addr, writer.to_packet()).is_err() {
 					warn!("Failed to send disconnect to {:?} @ {addr}", conn.user_key);
@@ -337,13 +337,13 @@ impl Server {
             match self.io.recv_reader() {
                 Ok(Some((address, mut reader))) => {
                     // Read header
-                    let Ok(header) = StandardHeader::de(&mut reader) else {
+                    let Ok(packet_type) = PacketType::de(&mut reader) else {
                         // Received a malformed packet
                         // TODO: increase suspicion against packet sender
                         continue;
                     };
 
-                    let Ok(should_continue) = self.maintain_handshake(&address, &header, &mut reader) else {
+                    let Ok(should_continue) = self.maintain_handshake(&address, &packet_type, &mut reader) else {
                         warn!("Server Error: cannot read malformed packet");
                         continue;
                     };
@@ -354,7 +354,7 @@ impl Server {
                     addresses.insert(address);
 
                     if self
-                        .read_packet(&address, &header, &mut reader)
+                        .read_packet(&address, &packet_type, &mut reader)
                         .is_err()
                     {
                         warn!("Server Error: cannot read malformed packet");
@@ -379,11 +379,11 @@ impl Server {
     fn maintain_handshake(
         &mut self,
         address: &SocketAddr,
-        header: &StandardHeader,
+        packet_type: &PacketType,
         reader: &mut BitReader,
     ) -> Result<bool, NaiaError> {
         // Handshake stuff
-        match header.packet_type {
+        match packet_type {
             PacketType::ClientChallengeRequest => {
                 if let Ok(writer) = self.handshake_manager.recv_challenge_request(reader) {
                     if self.io.send_packet(&address, writer.to_packet()).is_err() {
@@ -455,7 +455,7 @@ impl Server {
     fn read_packet(
         &mut self,
         address: &SocketAddr,
-        header: &StandardHeader,
+        packet_type: &PacketType,
         reader: &mut BitReader,
     ) -> Result<(), NaiaError> {
         // Packets requiring established connection
@@ -466,9 +466,9 @@ impl Server {
         // Mark that we've heard from the client
         connection.base.mark_heard();
 
-        match header.packet_type {
+        match packet_type {
             PacketType::Data => {
-                connection.read_data_packet(&self.protocol, header, reader)?;
+                connection.read_data_packet(&self.protocol, reader)?;
             }
             PacketType::Disconnect => {
                 if self

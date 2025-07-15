@@ -4,9 +4,6 @@ use std::{cmp::Ordering, fmt::Display, ops::{Add, AddAssign, Sub, SubAssign}};
 /// message-level sequence number
 pub type MessageIndex = SeqNum;
 
-/// packet-level sequence number
-pub type PacketIndex = SeqNum;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HostType {
     Server,

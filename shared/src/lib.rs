@@ -35,7 +35,6 @@ pub use connection::{
     io::Io,
     packet,
 	ping_manager::PingManager,
-    standard_header::StandardHeader,
 };
 pub use error::NaiaError;
 pub use messages::{

@@ -1,4 +1,4 @@
-use crate::{MessageKinds, NaiaError, Protocol};
+use crate::{MessageKinds, NaiaError, Protocol, packet::PacketIndex};
 use naia_serde::{BitReader, BitWrite, BitWriter, ConstBitLength, Serde};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -26,7 +26,7 @@ use crate::{
         },
         message_container::MessageContainer,
     },
-	types::{HostType, MessageIndex, PacketIndex},
+	types::{HostType, MessageIndex},
 };
 
 /// Handles incoming/outgoing messages, tracks the delivery status of Messages

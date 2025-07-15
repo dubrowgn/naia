@@ -1,6 +1,6 @@
 /// The error message when failing to serialize/deserialize to/from the bit
 /// stream.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct SerdeErr;
 
 impl std::fmt::Debug for SerdeErr {

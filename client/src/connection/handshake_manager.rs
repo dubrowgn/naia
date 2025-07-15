@@ -1,7 +1,7 @@
 use log::{trace, warn};
 use naia_shared::{
 	BitReader, BitWriter, MessageContainer, MessageKinds, NaiaError,
-	Io, packet::*, PingManager, Serde, StandardHeader, Timer
+	Io, packet::*, PingManager, Serde, Timer
 };
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
@@ -108,11 +108,11 @@ impl HandshakeManager {
 
     // Call this regularly so handshake manager can process incoming requests
     pub fn recv(&mut self, reader: &mut BitReader) -> Option<HandshakeResult> {
-        let Ok(header) = StandardHeader::de(reader) else {
+        let Ok(packet_type) = PacketType::de(reader) else {
             return None;
         };
 
-        match header.packet_type {
+        match packet_type {
             PacketType::ServerChallengeResponse => {
                 self.recv_challenge_response(reader);
                 return None;
@@ -140,8 +140,8 @@ impl HandshakeManager {
 		debug_assert!(self.connection_state == HandshakeState::AwaitingChallengeResponse);
 
         let mut writer = BitWriter::new();
-        StandardHeader::of_type(PacketType::ClientChallengeRequest).ser(&mut writer);
-		ClientChallengeRequest {
+        PacketType::ClientChallengeRequest.ser(&mut writer);
+		packet::ClientChallengeRequest {
 			timestamp_ns: self.pre_connection_timestamp,
 			client_timestamp_ns: self.timestamp_ns(),
 		}.ser(&mut writer);
@@ -155,7 +155,7 @@ impl HandshakeManager {
 			return;
 		}
 
-		let Ok(resp) = ServerChallengeResponse::de(reader) else {
+		let Ok(resp) = packet::ServerChallengeResponse::de(reader) else {
 			trace!("Dropping malformed ServerChallengeResponse");
 			return;
 		};
@@ -177,8 +177,8 @@ impl HandshakeManager {
 		debug_assert!(matches!(self.connection_state, HandshakeState::AwaitingConnectResponse{..}));
 
         let mut writer = BitWriter::new();
-        StandardHeader::of_type(PacketType::ClientConnectRequest).ser(&mut writer);
-		ClientConnectRequest {
+        PacketType::ClientConnectRequest.ser(&mut writer);
+		packet::ClientConnectRequest {
 			timestamp_ns: self.pre_connection_timestamp,
 			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
 			client_timestamp_ns: self.timestamp_ns(),
@@ -203,7 +203,7 @@ impl HandshakeManager {
 			return None;
 		};
 
-		let Ok(resp) = ServerConnectResponse::de(reader) else {
+		let Ok(resp) = packet::ServerConnectResponse::de(reader) else {
 			trace!("Dropping malformed ServerConnectResponse");
 			return None;
 		};
@@ -217,8 +217,8 @@ impl HandshakeManager {
     // Send a disconnect packet
     pub fn write_disconnect(&self, io: &mut Io) -> Result<(), NaiaError> {
         let mut writer = BitWriter::new();
-        StandardHeader::of_type(PacketType::Disconnect).ser(&mut writer);
-		Disconnect {
+        PacketType::Disconnect.ser(&mut writer);
+		packet::Disconnect {
 			timestamp_ns: self.pre_connection_timestamp,
 			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
 		}.ser(&mut writer);

@@ -2,9 +2,7 @@ use std::time::Duration;
 
 use naia_client::internal::{HandshakeManager as ClientHandshakeManager};
 use naia_server::internal::{HandshakeManager as ServerHandshakeManager, HandshakeResult};
-use naia_shared::{
-    BitReader, BitWriter, MessageContainer, packet::*, Protocol, Serde, StandardHeader,
-};
+use naia_shared::{BitReader, BitWriter, MessageContainer, packet::*, Protocol, Serde};
 use naia_test::Auth;
 
 #[test]
@@ -36,7 +34,7 @@ fn end_to_end_handshake_w_auth() {
     // 2. Server receive challenge request
     {
         reader = BitReader::new(bytes);
-        StandardHeader::de(&mut reader).expect("unable to read standard header from stream");
+		assert_eq!(PacketType::de(&mut reader), Ok(PacketType::ClientChallengeRequest));
 		let writer = server.recv_challenge_request(&mut reader).unwrap();
 		bytes = writer.to_bytes();
     }
@@ -44,7 +42,7 @@ fn end_to_end_handshake_w_auth() {
     // 3. Client send connect request
     {
 		reader = BitReader::new(bytes);
-		StandardHeader::de(&mut reader).expect("unable to read standard header from stream");
+		assert_eq!(PacketType::de(&mut reader), Ok(PacketType::ServerChallengeResponse));
 		client.recv_challenge_response(&mut reader);
 		writer = client.write_connect_request(&message_kinds, 0);
         bytes = writer.to_bytes();
@@ -53,7 +51,7 @@ fn end_to_end_handshake_w_auth() {
     // 4. Server receive connect request
     {
         reader = BitReader::new(bytes);
-        StandardHeader::de(&mut reader).expect("unable to read standard header from stream");
+		assert_eq!(PacketType::de(&mut reader), Ok(PacketType::ClientConnectRequest));
         let result = server.recv_connect_request(&message_kinds, &address, &mut reader);
         if let HandshakeResult::Success(_, Some(auth_message), _) = result {
             let boxed_any = auth_message.to_boxed_any();
@@ -77,16 +75,15 @@ fn end_to_end_handshake_w_auth() {
 
     // 5. Server send connect response
     {
-        let header = StandardHeader::of_type(PacketType::ServerConnectResponse);
         writer = BitWriter::new();
-        header.ser(&mut writer);
+        PacketType::ServerConnectResponse.ser(&mut writer);
         bytes = writer.to_bytes();
     }
 
     // 6. Client receive connect response
     {
         reader = BitReader::new(bytes);
-        StandardHeader::de(&mut reader).expect("unable to read standard header from stream");
+		assert_eq!(PacketType::de(&mut reader), Ok(PacketType::ServerConnectResponse));
         client.recv_connect_response(&mut reader);
     }
 }

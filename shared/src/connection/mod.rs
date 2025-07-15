@@ -8,4 +8,3 @@ pub mod io;
 pub mod packet;
 pub mod ping_manager;
 mod sequence_buffer;
-pub mod standard_header;
