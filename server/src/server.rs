@@ -471,7 +471,7 @@ impl Server {
 
         match header.packet_type {
             PacketType::Data => {
-                connection.read_packet(&self.protocol, reader)?;
+                connection.read_data_packet(&self.protocol, reader)?;
             }
             PacketType::Disconnect => {
                 if self

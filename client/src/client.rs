@@ -290,7 +290,7 @@ impl Client {
                     // Handle based on PacketType
                     match header.packet_type {
 						Data => {
-							if let Err(e) = connection.read_packet(&self.protocol, &mut reader) {
+							if let Err(e) = connection.read_data_packet(&self.protocol, &mut reader) {
 								self.incoming_events.push(ClientEvent::Error(format!("Failed to read packet: {e}").into()));
                             }
                         }

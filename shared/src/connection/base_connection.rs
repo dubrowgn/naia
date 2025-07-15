@@ -103,7 +103,7 @@ impl BaseConnection {
 		self.message_manager.receive_messages()
 	}
 
-	pub fn write_packet(&mut self, protocol: &Protocol) -> BitWriter {
+	pub fn write_data_packet(&mut self, protocol: &Protocol) -> BitWriter {
 		let packet_index = self.ack_manager.next_sender_packet_index();
 
 		let mut writer = BitWriter::new();
@@ -113,7 +113,7 @@ impl BaseConnection {
 		writer
 	}
 
-    pub fn read_packet(
+    pub fn read_data_packet(
         &mut self,
         protocol: &Protocol,
         reader: &mut BitReader,

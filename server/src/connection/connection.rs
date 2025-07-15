@@ -1,7 +1,7 @@
 use crate::{ events::ServerEvent, user::UserKey };
 use log::warn;
 use naia_shared::{
-    BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig,
+    BaseConnection, BitReader, ChannelKinds, ConnectionConfig,
 	HostType, Io, NaiaError, PingManager, Protocol, StandardHeader,
 };
 use std::net::SocketAddr;
@@ -42,15 +42,12 @@ impl Connection {
     }
 
     /// Read packet data received from a client, storing necessary data in an internal buffer
-    pub fn read_packet(
+    pub fn read_data_packet(
         &mut self,
         protocol: &Protocol,
         reader: &mut BitReader,
     ) -> Result<(), NaiaError> {
-        // read common parts of packet (messages & world events)
-        self.base.read_packet(protocol, reader)?;
-
-        return Ok(());
+		self.base.read_data_packet(protocol, reader)
     }
 
     /// Receive & process stored packet data
@@ -91,7 +88,7 @@ impl Connection {
         io: &mut Io,
     ) -> bool {
         if self.base.has_outgoing_messages() {
-            let writer = self.write_packet(protocol);
+            let writer = self.base.write_data_packet(protocol);
 
             // send packet
             if io.send_packet(self.base.address(), writer.to_packet()).is_err() {
@@ -104,10 +101,6 @@ impl Connection {
 
         false
     }
-
-	fn write_packet(&mut self, protocol: &Protocol) -> BitWriter {
-		self.base.write_packet(protocol)
-	}
 
 	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> Result<(), NaiaError> {
 		self.base.ping_pong(reader, io)
