@@ -274,8 +274,6 @@ impl Client {
         loop {
             match self.io.recv_reader() {
                 Ok(Some((_, mut reader))) => {
-					use PacketType::*;
-
                     connection.base.mark_heard();
 
                     let Ok(header) = StandardHeader::de(&mut reader) else {
@@ -283,30 +281,26 @@ impl Client {
 						continue;
 					};
 
-					if matches!(header.packet_type, Data | Heartbeat | Ping | Pong) {
-						connection.note_receipt(&header);
-					}
-
                     // Handle based on PacketType
                     match header.packet_type {
-						Data => {
-							if let Err(e) = connection.read_data_packet(&self.protocol, &mut reader) {
+						PacketType::Data => {
+							if let Err(e) = connection.read_data_packet(&self.protocol, &header, &mut reader) {
 								self.incoming_events.push(ClientEvent::Error(format!("Failed to read packet: {e}").into()));
                             }
                         }
-						Disconnect => {
+						PacketType::Disconnect => {
 							self.pending_disconnect = true;
 							return;
 						}
-						Heartbeat => {
+						PacketType::Heartbeat => {
                             // already marked as heard, job done
                         }
-						Ping => {
+						PacketType::Ping => {
 							if let Err(e) = connection.ping_pong(&mut reader, &mut self.io) {
 								self.incoming_events.push(ClientEvent::Error(format!("Failed to handle ping: {e}").into()));
 							}
                         }
-						Pong => {
+						PacketType::Pong => {
 							if let Err(e) = connection.read_pong(&mut reader) {
 								self.incoming_events.push(ClientEvent::Error(format!("Failed to handle pong: {e}").into()));
                             }

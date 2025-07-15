@@ -65,23 +65,6 @@ impl BaseConnection {
 
     // Acks & Headers
 
-    /// Process an incoming packet, pulling out the packet index number to keep
-    /// track of the current RTT, and sending the packet to the AckManager to
-    /// handle packet notification events
-    pub fn note_receipt(&mut self, header: &StandardHeader) {
-        self.ack_manager.process_incoming_header(header, &mut self.message_manager);
-    }
-
-    /// Given a packet payload, start tracking the packet via it's index, attach
-    /// the appropriate header, and return the packet's resulting underlying
-    /// bytes
-    fn write_header(&mut self, packet_type: PacketType, writer: &mut BitWriter) {
-        // Add header onto message!
-        self.ack_manager
-            .next_outgoing_packet_header(packet_type)
-            .ser(writer);
-    }
-
     pub fn collect_messages(&mut self, now: &Instant, resend_ms: &f32) {
         self.message_manager.collect_messages(now, resend_ms);
     }
@@ -104,10 +87,11 @@ impl BaseConnection {
 	}
 
 	pub fn write_data_packet(&mut self, protocol: &Protocol) -> BitWriter {
-		let packet_index = self.ack_manager.next_sender_packet_index();
+		let header = self.ack_manager.next_outgoing_packet_header(PacketType::Data);
+		let packet_index = header.sender_packet_index;
 
 		let mut writer = BitWriter::new();
-		self.write_header(PacketType::Data, &mut writer);
+		header.ser(&mut writer);
 		self.message_manager.write_messages(&protocol, &mut writer, packet_index);
 
 		writer
@@ -116,15 +100,11 @@ impl BaseConnection {
     pub fn read_data_packet(
         &mut self,
         protocol: &Protocol,
+        header: &StandardHeader,
         reader: &mut BitReader,
     ) -> Result<(), NaiaError> {
-        // read messages
-        self.message_manager.read_messages(
-            protocol,
-            reader,
-        )?;
-
-        Ok(())
+        self.ack_manager.process_incoming_header(header, &mut self.message_manager);
+        self.message_manager.read_messages(protocol, reader)
     }
 
 	fn send(&mut self, io: &mut Io, writer: BitWriter) -> Result<(), NaiaError> {
@@ -156,7 +136,7 @@ impl BaseConnection {
 		}
 
 		let mut writer = BitWriter::new();
-		self.write_header(PacketType::Heartbeat, &mut writer);
+		StandardHeader::of_type(PacketType::Heartbeat).ser(&mut writer);
 		self.send(io, writer)?;
 
 		Ok(true)

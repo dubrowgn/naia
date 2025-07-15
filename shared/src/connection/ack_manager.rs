@@ -1,8 +1,7 @@
 use crate::{messages::message_manager::MessageManager, types::PacketIndex};
 use std::collections::HashMap;
 use super::{
-    packet::PacketType, sequence_buffer::SequenceBuffer,
-    standard_header::StandardHeader,
+    packet::PacketType, sequence_buffer::SequenceBuffer, standard_header::StandardHeader,
 };
 
 pub const REDUNDANT_PACKET_ACKS_SIZE: u16 = 32;
@@ -31,11 +30,6 @@ impl AckManager {
             sent_packets: HashMap::with_capacity(DEFAULT_SEND_PACKETS_SIZE),
             received_packets: SequenceBuffer::with_capacity(REDUNDANT_PACKET_ACKS_SIZE + 1),
         }
-    }
-
-    /// Get the index of the next outgoing packet
-    pub fn next_sender_packet_index(&self) -> PacketIndex {
-        self.next_packet_index
     }
 
     /// Process an incoming packet, handle notifications of delivered / dropped
@@ -93,13 +87,8 @@ impl AckManager {
             .insert(packet_index, SentPacket { packet_type });
     }
 
-    /// Bumps the local packet index
-    fn increment_local_packet_index(&mut self) {
-        self.next_packet_index.incr();
-    }
-
     pub fn next_outgoing_packet_header(&mut self, packet_type: PacketType) -> StandardHeader {
-        let next_packet_index = self.next_sender_packet_index();
+        let next_packet_index = self.next_packet_index;
 
         let outgoing = StandardHeader::new(
             packet_type,
@@ -109,7 +98,7 @@ impl AckManager {
         );
 
         self.track_packet(packet_type, next_packet_index);
-        self.increment_local_packet_index();
+        self.next_packet_index.incr();
 
         outgoing
     }

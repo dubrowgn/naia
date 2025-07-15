@@ -466,12 +466,9 @@ impl Server {
         // Mark that we've heard from the client
         connection.base.mark_heard();
 
-        // Process incoming header
-        connection.note_receipt(header);
-
         match header.packet_type {
             PacketType::Data => {
-                connection.read_data_packet(&self.protocol, reader)?;
+                connection.read_data_packet(&self.protocol, header, reader)?;
             }
             PacketType::Disconnect => {
                 if self

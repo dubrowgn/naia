@@ -37,17 +37,14 @@ impl Connection {
 
     // Incoming Data
 
-    pub fn note_receipt(&mut self, header: &StandardHeader) {
-        self.base.note_receipt(header);
-    }
-
     /// Read packet data received from a client, storing necessary data in an internal buffer
     pub fn read_data_packet(
         &mut self,
         protocol: &Protocol,
+        header: &StandardHeader,
         reader: &mut BitReader,
     ) -> Result<(), NaiaError> {
-		self.base.read_data_packet(protocol, reader)
+		self.base.read_data_packet(protocol, header, reader)
     }
 
     /// Receive & process stored packet data
