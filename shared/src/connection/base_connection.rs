@@ -5,7 +5,7 @@ use crate::{
 use crate::messages::{
 	channels::channel_kinds::ChannelKinds, message_manager::MessageManager,
 };
-use crate::types::{HostType, PacketIndex};
+use crate::types::HostType;
 use naia_serde::{BitReader, BitWriter, Serde};
 use std::net::SocketAddr;
 use std::time::Instant;
@@ -75,16 +75,11 @@ impl BaseConnection {
     /// Given a packet payload, start tracking the packet via it's index, attach
     /// the appropriate header, and return the packet's resulting underlying
     /// bytes
-    pub fn write_header(&mut self, packet_type: PacketType, writer: &mut BitWriter) {
+    fn write_header(&mut self, packet_type: PacketType, writer: &mut BitWriter) {
         // Add header onto message!
         self.ack_manager
             .next_outgoing_packet_header(packet_type)
             .ser(writer);
-    }
-
-    /// Get the next outgoing packet's index
-    pub fn next_packet_index(&self) -> PacketIndex {
-        self.ack_manager.next_sender_packet_index()
     }
 
     pub fn collect_messages(&mut self, now: &Instant, resend_ms: &f32) {
@@ -108,21 +103,15 @@ impl BaseConnection {
 		self.message_manager.receive_messages()
 	}
 
-    pub fn write_packet(
-        &mut self,
-        protocol: &Protocol,
-        writer: &mut BitWriter,
-        packet_index: PacketIndex,
-        has_written: &mut bool,
-    ) {
-        // write messages
-        self.message_manager.write_messages(
-            &protocol,
-            writer,
-            packet_index,
-            has_written,
-        );
-    }
+	pub fn write_packet(&mut self, protocol: &Protocol) -> BitWriter {
+		let packet_index = self.ack_manager.next_sender_packet_index();
+
+		let mut writer = BitWriter::new();
+		self.write_header(PacketType::Data, &mut writer);
+		self.message_manager.write_messages(&protocol, &mut writer, packet_index);
+
+		writer
+	}
 
     pub fn read_packet(
         &mut self,

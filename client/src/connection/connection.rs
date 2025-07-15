@@ -2,7 +2,7 @@ use crate::events::ClientEvent;
 use log::warn;
 use naia_shared::{
 	BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig,
-	HostType, Io, NaiaError, packet::*, PingManager, Protocol, StandardHeader,
+	HostType, Io, NaiaError, PingManager, Protocol, StandardHeader,
 };
 use std::net::SocketAddr;
 use std::time::Instant;
@@ -84,29 +84,9 @@ impl Connection {
         false
     }
 
-    fn write_packet(&mut self, protocol: &Protocol) -> BitWriter {
-        let next_packet_index = self.base.next_packet_index();
-
-        let mut writer = BitWriter::new();
-
-        // Reserve bits we know will be required to finish the message:
-        // 1. Messages finish bit
-        writer.reserve_bits(1);
-
-        // write header
-        self.base.write_header(PacketType::Data, &mut writer);
-
-        // write common parts of packet (messages & world events)
-        let mut has_written = false;
-        self.base.write_packet(
-            protocol,
-            &mut writer,
-            next_packet_index,
-            &mut has_written,
-        );
-
-        writer
-    }
+	fn write_packet(&mut self, protocol: &Protocol) -> BitWriter {
+		self.base.write_packet(protocol)
+	}
 
 	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> Result<(), NaiaError> {
 		self.base.ping_pong(reader, io)

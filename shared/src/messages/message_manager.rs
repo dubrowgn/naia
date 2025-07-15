@@ -205,8 +205,11 @@ impl MessageManager {
         protocol: &Protocol,
         writer: &mut BitWriter,
         packet_index: PacketIndex,
-        has_written: &mut bool,
     ) {
+		// final channel continuation bit
+		writer.reserve_bits(1);
+
+		let mut has_written = false;
         for (channel_kind, channel) in &mut self.channel_senders {
             if !channel.has_messages() {
                 continue;
@@ -232,7 +235,7 @@ impl MessageManager {
             channel_kind.ser(&protocol.channel_kinds, writer);
             // write Messages
             if let Some(message_indices) =
-                channel.write_messages(&protocol.message_kinds, writer, has_written)
+                channel.write_messages(&protocol.message_kinds, writer, &mut has_written)
             {
                 self.packet_to_message_map
                     .entry(packet_index)
