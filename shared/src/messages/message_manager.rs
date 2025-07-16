@@ -279,17 +279,10 @@ impl MessageManager {
     }
 
     /// Retrieve all messages from the channel buffers
-    pub fn receive_messages(
-        &mut self,
-    ) -> Vec<(ChannelKind, Vec<MessageContainer>)> {
-        let mut output = Vec::new();
-        // TODO: shouldn't we have a priority mechanisms between channels?
-        for (channel_kind, channel) in &mut self.channel_receivers {
-            let messages = channel.receive_messages();
-            output.push((channel_kind.clone(), messages));
-        }
-        output
-    }
+	pub fn receive_messages(&mut self) -> impl Iterator<Item = MessageContainer> + '_ {
+		self.channel_receivers.values_mut()
+			.flat_map(|chan| chan.receive_messages())
+	}
 
     /// Occurs when a packet has been notified as delivered. Stops tracking the
     /// status of Messages in that packet.

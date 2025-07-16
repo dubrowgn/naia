@@ -1,7 +1,6 @@
-use crate::events::ClientEvent;
 use naia_shared::{
 	BaseConnection, BitReader, ChannelKinds, ConnectionConfig,
-	error::*, HostType, Io, PingManager, Protocol,
+	error::*, HostType, Io, MessageContainer, PingManager, Protocol,
 };
 use std::net::SocketAddr;
 use std::time::Instant;
@@ -37,15 +36,9 @@ impl Connection {
 		self.base.read_data_packet(protocol, reader)
 	}
 
-    /// Receive & process messages and emit events for them
-    pub fn process_packets(&mut self, incoming_events: &mut Vec<ClientEvent> ) {
-        let messages = self.base.receive_messages();
-        for (_, messages) in messages {
-            for message in messages {
-                incoming_events.push(ClientEvent::Message(message));
-            }
-        }
-    }
+	pub fn receive_messages(&mut self) -> impl Iterator<Item = MessageContainer> + '_ {
+		self.base.receive_messages()
+	}
 
     // Outgoing data
 

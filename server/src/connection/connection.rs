@@ -1,7 +1,7 @@
-use crate::{ events::ServerEvent, user::UserKey };
+use crate::user::UserKey;
 use naia_shared::{
 	BaseConnection, BitReader, ChannelKinds, ConnectionConfig,
-	error::*, HostType, Io, PingManager, Protocol,
+	error::*, HostType, Io, MessageContainer, PingManager, Protocol,
 };
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
@@ -32,7 +32,6 @@ impl Connection {
     }
 
 	pub fn address(&self) -> &SocketAddr { self.base.address() }
-	pub fn user_key(&self) -> UserKey { self.user_key }
 
     // Incoming Data
 
@@ -45,17 +44,9 @@ impl Connection {
 		self.base.read_data_packet(protocol, reader)
     }
 
-    /// Receive & process stored packet data
-    pub fn process_packets(&mut self, incoming_events: &mut Vec<ServerEvent>) {
-        // Receive Message Events
-        let messages =
-            self.base.receive_messages();
-        for (_, messages) in messages {
-			for message in messages {
-				incoming_events.push(ServerEvent::Message { user_key: self.user_key, msg: message });
-			}
-        }
-    }
+	pub fn receive_messages(&mut self) -> impl Iterator<Item = MessageContainer> + '_ {
+		self.base.receive_messages()
+	}
 
     // Outgoing data
 	pub fn send_packets(

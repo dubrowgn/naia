@@ -73,7 +73,7 @@ impl BaseConnection {
         self.message_manager.queue_message(message_kinds, channel_kind, message);
     }
 
-	pub fn receive_messages(&mut self) -> Vec<(ChannelKind, Vec<MessageContainer>)> {
+	pub fn receive_messages(&mut self) -> impl Iterator<Item = MessageContainer> + '_ {
 		self.message_manager.receive_messages()
 	}
 

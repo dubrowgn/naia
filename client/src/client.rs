@@ -132,8 +132,9 @@ impl Client {
                 return std::mem::take(&mut self.incoming_events);
             }
 
-			// receive packets, process into events
-			connection.process_packets(&mut self.incoming_events);
+			for msg in connection.receive_messages() {
+				self.incoming_events.push(ClientEvent::Message(msg));
+			}
         }
 
         std::mem::take(&mut self.incoming_events)

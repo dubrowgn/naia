@@ -265,7 +265,7 @@ impl Server {
 
     /// Return a list of all currently connected Users' keys
     pub fn user_keys(&self) -> Vec<UserKey> {
-		return self.connections().map(Connection::user_key).collect()
+		self.connections().map(|conn| conn.user_key).collect()
     }
 
     /// Get the number of Users currently connected
@@ -489,7 +489,14 @@ impl Server {
 		let Some(connection) = self.user_connections.get_mut(address) else {
 			return;
 		};
-		connection.process_packets(&mut self.incoming_events);
+
+		let Some(user_key) = self.user_keys.get(address) else {
+			return;
+		};
+
+		for msg in connection.receive_messages() {
+			self.incoming_events.push(ServerEvent::Message { user_key: *user_key, msg });
+		}
     }
 
     fn handle_timeouts(&mut self) {
