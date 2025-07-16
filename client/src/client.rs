@@ -233,9 +233,9 @@ impl Client {
                         Some(HandshakeResult::Connected(ping_manager)) => {
                             // new connect!
                             self.server_connection = Some(Connection::new(
+								&handshake_manager.peer_addr,
                                 &self.client_config.connection,
                                 &self.protocol.channel_kinds,
-								&handshake_manager.peer_addr,
                                 ping_manager,
                             ));
                             self.on_connect();

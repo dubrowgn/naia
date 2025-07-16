@@ -4,7 +4,7 @@ use naia_shared::{
 	error::*, HostType, Io, MessageContainer, PingManager, Protocol,
 };
 use std::net::SocketAddr;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub struct Connection {
     pub user_key: UserKey,
@@ -12,21 +12,21 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn new(
-        connection_config: &ConnectionConfig,
-        ping_interval: Duration,
-        address: &SocketAddr,
-        user_key: &UserKey,
-        channel_kinds: &ChannelKinds,
+	pub fn new(
+		address: &SocketAddr,
+		config: &ConnectionConfig,
+		channel_kinds: &ChannelKinds,
+		ping_manager: PingManager,
+		user_key: &UserKey,
     ) -> Self {
         Connection {
             user_key: *user_key,
             base: BaseConnection::new(
 				address,
                 HostType::Server,
-                connection_config,
+                config,
                 channel_kinds,
-                PingManager::new(ping_interval),
+				ping_manager,
             ),
         }
     }
@@ -35,14 +35,12 @@ impl Connection {
 
     // Incoming Data
 
-    /// Read packet data received from a client, storing necessary data in an internal buffer
-    pub fn read_data_packet(
-        &mut self,
-        protocol: &Protocol,
-        reader: &mut BitReader,
-    ) -> NaiaResult {
+	/// Read packet data received from a client, storing necessary data in an internal buffer
+	pub fn read_data_packet(
+		&mut self, protocol: &Protocol, reader: &mut BitReader,
+	) -> NaiaResult {
 		self.base.read_data_packet(protocol, reader)
-    }
+	}
 
 	pub fn receive_messages(&mut self) -> impl Iterator<Item = MessageContainer> + '_ {
 		self.base.receive_messages()

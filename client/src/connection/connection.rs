@@ -10,17 +10,17 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn new(
-        connection_config: &ConnectionConfig,
-        channel_kinds: &ChannelKinds,
+	pub fn new(
 		address: &SocketAddr,
-        ping_manager: PingManager,
+		config: &ConnectionConfig,
+		channel_kinds: &ChannelKinds,
+		ping_manager: PingManager,
     ) -> Self {
         Connection {
             base: BaseConnection::new(
 				address,
                 HostType::Client,
-                connection_config,
+                config,
                 channel_kinds,
 				ping_manager,
             ),
@@ -31,7 +31,7 @@ impl Connection {
 
 	/// Read packet data received from a client, storing necessary data in an internal buffer
 	pub fn read_data_packet(
-		&mut self, protocol: &Protocol, reader: &mut BitReader
+		&mut self, protocol: &Protocol, reader: &mut BitReader,
 	) -> NaiaResult {
 		self.base.read_data_packet(protocol, reader)
 	}

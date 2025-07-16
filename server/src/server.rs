@@ -6,7 +6,8 @@ use crate::connection::{
 use crate::user::{User, UserKey};
 use naia_shared::{
 	BitReader, BitWriter, Channel, ChannelKind, error::*, IdPool, Io,
-	LinkConditionerConfig, Message, MessageContainer, packet::*, Protocol, Serde,
+	LinkConditionerConfig, Message, MessageContainer, packet::*, PingManager, Protocol,
+	Serde,
 };
 use log::{trace, warn};
 use std::{collections::{HashMap, HashSet}, io, net::SocketAddr, panic, time::Instant};
@@ -150,11 +151,11 @@ impl Server {
         }
 
 		let mut connection = Connection::new(
-            &self.server_config.connection,
-            self.server_config.ping_interval,
             &user.address,
-            user_key,
+            &self.server_config.connection,
             &self.protocol.channel_kinds,
+            PingManager::new(self.server_config.ping_interval),
+            user_key,
         );
 		connection.sample_rtt_ms(ctx.rtt_ms);
         self.user_connections.insert(user.address, connection);
