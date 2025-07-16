@@ -1,5 +1,4 @@
 use crate::events::ClientEvent;
-use log::warn;
 use naia_shared::{
 	BaseConnection, BitReader, ChannelKinds, ConnectionConfig,
 	error::*, HostType, Io, PingManager, Protocol,
@@ -50,35 +49,11 @@ impl Connection {
 
     // Outgoing data
 
-    /// Collect and send any outgoing packets from client to server
-    pub fn send_packets(&mut self, protocol: &Protocol, now: &Instant, io: &mut Io) {
-        let resend_ms = self.base.rtt_ms() + 1.5 * self.base.jitter_ms();
-        self.base.collect_messages(now, &resend_ms);
-
-		if !self.send_packet(protocol, io) {
-			return;
-		}
-
-		while self.send_packet(protocol, io) { }
-		self.base.mark_sent();
-    }
-
-    // Sends packet and returns whether or not a packet was sent
-    fn send_packet(&mut self, protocol: &Protocol, io: &mut Io) -> bool {
-        if self.base.has_outgoing_messages() {
-            let writer = self.base.write_data_packet(protocol);
-
-            // send packet
-            if io.send_packet(self.base.address(), writer.to_packet()).is_err() {
-                // TODO: pass this on and handle above
-                warn!("Client Error: Cannot send data packet to Server");
-            }
-
-            return true;
-        }
-
-        false
-    }
+	pub fn send_packets(
+		&mut self, protocol: &Protocol, now: &Instant, io: &mut Io,
+	) -> NaiaResult {
+		self.base.send_packets(protocol, now, io)
+	}
 
 	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> NaiaResult {
 		self.base.ping_pong(reader, io)

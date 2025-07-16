@@ -1,5 +1,5 @@
 use crate::{
-	ChannelKind, Io, MessageContainer, MessageKinds, error::*, PingManager, Protocol,
+	ChannelKind, error::*, Io, MessageContainer, MessageKinds, PingManager, Protocol,
 	Timer,
 };
 use crate::messages::{
@@ -47,9 +47,7 @@ impl BaseConnection {
 
     /// Record that a message has been sent (to prevent needing to send a
     /// heartbeat)
-    pub fn mark_sent(&mut self) {
-        self.heartbeat_timer.reset()
-    }
+    pub fn mark_sent(&mut self) { self.heartbeat_timer.reset() }
 
     // Timeouts
 
@@ -61,10 +59,6 @@ impl BaseConnection {
 	pub fn timed_out(&self) -> bool { self.timeout_timer.ringing() }
 
     // Acks & Headers
-
-    pub fn collect_messages(&mut self, now: &Instant, resend_ms: &f32) {
-        self.message_manager.collect_messages(now, resend_ms);
-    }
 
 	pub fn has_outgoing_messages(&self) -> bool {
 		self.message_manager.has_outgoing_messages()
@@ -83,7 +77,22 @@ impl BaseConnection {
 		self.message_manager.receive_messages()
 	}
 
-	pub fn write_data_packet(&mut self, protocol: &Protocol) -> BitWriter {
+	/// Fill and send as many data packets as necessary to send all pending messages
+	pub fn send_packets(
+		&mut self, protocol: &Protocol, now: &Instant, io: &mut Io,
+	) -> NaiaResult {
+		let resend_ms = self.rtt_ms() + 1.5 * self.jitter_ms();
+		self.message_manager.collect_messages(now, &resend_ms);
+
+		while self.has_outgoing_messages() {
+			let writer = self.write_data_packet(protocol);
+			self.send(io, writer)?;
+		}
+
+		Ok(())
+	}
+
+	fn write_data_packet(&mut self, protocol: &Protocol) -> BitWriter {
 		let header = self.ack_manager.next_outgoing_data_header();
 
 		let mut writer = BitWriter::new();

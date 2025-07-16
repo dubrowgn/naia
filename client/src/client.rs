@@ -141,7 +141,9 @@ impl Client {
 
 	pub fn send(&mut self) {
 		if let Some(conn) = &mut self.server_connection {
-			conn.send_packets(&self.protocol, &Instant::now(), &mut self.io);
+			if let Err(e) = conn.send_packets(&self.protocol, &Instant::now(), &mut self.io) {
+				self.incoming_events.push(ClientEvent::Error(e));
+			}
 		} else if let Some(handshake_manager) = self.handshake_manager.as_mut() {
 			handshake_manager.send(&self.protocol.message_kinds, &mut self.io);
 		}

@@ -250,11 +250,9 @@ impl Server {
         for user_address in user_addresses {
             let connection = self.user_connections.get_mut(&user_address).unwrap();
 
-            connection.send_packets(
-                &self.protocol,
-                &now,
-                &mut self.io,
-            );
+			if let Err(e) = connection.send_packets(&self.protocol, &now, &mut self.io) {
+				self.incoming_events.push(ServerEvent::Error(e));
+			}
         }
     }
 
