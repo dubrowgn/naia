@@ -1,7 +1,7 @@
 use log::warn;
 use naia_shared::{
-	Channel, ChannelKind, Io, LinkConditionerConfig, Message, MessageContainer,
-	NaiaError, packet::*, Protocol, Serde,
+	Channel, ChannelKind, error::*, Io, LinkConditionerConfig, Message,
+	MessageContainer, packet::*, Protocol, Serde,
 };
 use std::{collections::VecDeque, io, net::SocketAddr, time::Instant};
 use super::client_config::ClientConfig;
@@ -55,7 +55,7 @@ impl Client {
     }
 
     /// Connect to the given server address
-    pub fn connect<M: Message>(&mut self, addr: SocketAddr, msg: M) -> Result<(), NaiaError> {
+    pub fn connect<M: Message>(&mut self, addr: SocketAddr, msg: M) -> NaiaResult {
 		debug_assert!(self.is_disconnected());
         if !self.is_disconnected() {
             warn!("Client is already connected");

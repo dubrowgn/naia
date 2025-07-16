@@ -1,5 +1,5 @@
 use crate::{
-	BitReader, CompressionConfig, Decoder, Encoder, LinkConditionerConfig, NaiaError,
+	BitReader, CompressionConfig, Decoder, Encoder, error::*, LinkConditionerConfig,
 	PacketConditioner, OutgoingPacket, MTU_SIZE_BYTES
 };
 use std::io;
@@ -65,7 +65,7 @@ impl Io {
         }
     }
 
-    pub fn connect(&mut self, server_addr: SocketAddr) -> Result<(), NaiaError> {
+    pub fn connect(&mut self, server_addr: SocketAddr) -> NaiaResult {
 		debug_assert!(self.socket.is_none());
 		if self.socket.is_some() {
 			return Err(io::ErrorKind::AlreadyExists.into());
@@ -79,7 +79,7 @@ impl Io {
 		Ok(())
     }
 
-	pub fn listen(&mut self, server_addr: SocketAddr) -> Result<(), NaiaError> {
+	pub fn listen(&mut self, server_addr: SocketAddr) -> NaiaResult {
 		debug_assert!(self.socket.is_none());
 		if self.socket.is_some() {
 			return Err(io::ErrorKind::AlreadyExists.into());
@@ -96,7 +96,7 @@ impl Io {
         self.socket.is_some()
     }
 
-    pub fn send_packet(&mut self, addr: &SocketAddr, packet: OutgoingPacket) -> Result<(), NaiaError> {
+    pub fn send_packet(&mut self, addr: &SocketAddr, packet: OutgoingPacket) -> NaiaResult {
 		debug_assert!(self.socket.is_some());
 		let Some(socket) = &self.socket else {
 			return Err(io::ErrorKind::NotConnected.into());
@@ -118,7 +118,7 @@ impl Io {
         Ok(())
     }
 
-	pub fn recv_reader(&mut self) -> Result<Option<(SocketAddr, BitReader)>, NaiaError> {
+	pub fn recv_reader(&mut self) -> NaiaResult<Option<(SocketAddr, BitReader)>> {
 		debug_assert!(self.socket.is_some());
 		let Some(socket) = &self.socket else {
 			return Err(io::ErrorKind::NotConnected.into());

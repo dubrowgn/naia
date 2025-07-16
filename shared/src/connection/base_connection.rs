@@ -1,5 +1,5 @@
 use crate::{
-	ChannelKind, Io, MessageContainer, MessageKinds, NaiaError, PingManager, Protocol,
+	ChannelKind, Io, MessageContainer, MessageKinds, error::*, PingManager, Protocol,
 	Timer,
 };
 use crate::messages::{
@@ -98,13 +98,13 @@ impl BaseConnection {
         &mut self,
         protocol: &Protocol,
         reader: &mut BitReader,
-    ) -> Result<(), NaiaError> {
+    ) -> NaiaResult {
 		let data_header = packet::Data::de(reader)?;
         self.ack_manager.process_incoming_header(&data_header, &mut self.message_manager);
         self.message_manager.read_messages(protocol, reader)
     }
 
-	fn send(&mut self, io: &mut Io, writer: BitWriter) -> Result<(), NaiaError> {
+	fn send(&mut self, io: &mut Io, writer: BitWriter) -> NaiaResult {
 		io.send_packet(&self.address, writer.to_packet())?;
 		self.mark_sent();
 		Ok(())
@@ -114,11 +114,11 @@ impl BaseConnection {
 		self.ping_manager.sample_rtt_ms(rtt_ms);
 	}
 
-	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), NaiaError> {
+	pub fn read_pong(&mut self, reader: &mut BitReader) -> NaiaResult {
 		self.ping_manager.read_pong(reader)
 	}
 
-	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> Result<(), NaiaError> {
+	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> NaiaResult {
 		let ping = packet::Ping::de(reader)?;
 
 		let mut writer = BitWriter::new();
@@ -127,7 +127,7 @@ impl BaseConnection {
 		self.send(io, writer)
 	}
 
-	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
+	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> NaiaResult<bool> {
 		if !self.heartbeat_timer.try_reset() {
 			return Ok(false);
 		}
@@ -139,7 +139,7 @@ impl BaseConnection {
 		Ok(true)
 	}
 
-	pub fn try_send_ping(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
+	pub fn try_send_ping(&mut self, io: &mut Io) -> NaiaResult<bool> {
 		let sent = self.ping_manager.try_send_ping(&self.address, io)?;
 		if sent {
 			self.mark_sent();

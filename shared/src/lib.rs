@@ -18,7 +18,7 @@ pub use naia_serde::{
 
 mod connection;
 mod constants;
-mod error;
+pub mod error;
 mod messages;
 pub mod metrics;
 mod protocol;
@@ -36,7 +36,6 @@ pub use connection::{
     packet,
 	ping_manager::PingManager,
 };
-pub use error::NaiaError;
 pub use messages::{
     channels::{
         channel::{Channel, ChannelDirection, ChannelMode},

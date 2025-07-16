@@ -2,7 +2,7 @@ use crate::{ events::ServerEvent, user::UserKey };
 use log::warn;
 use naia_shared::{
     BaseConnection, BitReader, ChannelKinds, ConnectionConfig,
-	HostType, Io, NaiaError, PingManager, Protocol,
+	error::*, HostType, Io, PingManager, Protocol,
 };
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
@@ -42,7 +42,7 @@ impl Connection {
         &mut self,
         protocol: &Protocol,
         reader: &mut BitReader,
-    ) -> Result<(), NaiaError> {
+    ) -> NaiaResult {
 		self.base.read_data_packet(protocol, reader)
     }
 
@@ -98,7 +98,7 @@ impl Connection {
         false
     }
 
-	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> Result<(), NaiaError> {
+	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> NaiaResult {
 		self.base.ping_pong(reader, io)
 	}
 
@@ -106,17 +106,17 @@ impl Connection {
 		self.base.sample_rtt_ms(rtt_ms);
 	}
 
-	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), NaiaError> {
+	pub fn read_pong(&mut self, reader: &mut BitReader) -> NaiaResult {
 		self.base.read_pong(reader)
 	}
 
 	pub fn timed_out(&self) -> bool { self.base.timed_out() }
 
-	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
+	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> NaiaResult<bool> {
 		self.base.try_send_heartbeat(io)
 	}
 
-	pub fn try_send_ping(&mut self, io: &mut Io) -> Result<bool, NaiaError> {
+	pub fn try_send_ping(&mut self, io: &mut Io) -> NaiaResult<bool> {
 		self.base.try_send_ping(io)
 	}
 

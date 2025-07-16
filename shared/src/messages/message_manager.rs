@@ -1,4 +1,4 @@
-use crate::{MessageKinds, NaiaError, Protocol, packet::PacketIndex};
+use crate::{MessageKinds, error::*, Protocol, packet::*};
 use naia_serde::{BitReader, BitWrite, BitWriter, ConstBitLength, Serde};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -260,7 +260,7 @@ impl MessageManager {
         &mut self,
         protocol: &Protocol,
         reader: &mut BitReader,
-    ) -> Result<(), NaiaError> {
+    ) -> NaiaResult {
         loop {
             let message_continue = bool::de(reader)?;
             if !message_continue {

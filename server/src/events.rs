@@ -1,4 +1,4 @@
-use naia_shared::{packet::*, MessageContainer, NaiaError};
+use naia_shared::{error::*, MessageContainer, packet::*};
 use super::user::{User, UserKey};
 
 pub struct ConnectContext {

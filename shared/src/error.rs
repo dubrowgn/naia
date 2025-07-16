@@ -8,6 +8,8 @@ pub enum NaiaError {
 	Serde(SerdeErr),
 }
 
+pub type NaiaResult<T = ()> = Result<T, NaiaError>;
+
 impl fmt::Display for NaiaError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {

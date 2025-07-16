@@ -1,4 +1,4 @@
-use crate::{ BitReader, BitWriter, Io, NaiaError, Serde, Timer};
+use crate::{ BitReader, BitWriter, error::*, Io, Serde, Timer};
 use crate::metrics::*;
 use crate::packet::*;
 use std::net::SocketAddr;
@@ -27,7 +27,7 @@ impl PingManager {
 	}
 
 	/// Send a ping packet if enough time has passed
-    pub fn try_send_ping(&mut self, dest_addr: &SocketAddr, io: &mut Io) -> Result<bool, NaiaError> {
+    pub fn try_send_ping(&mut self, dest_addr: &SocketAddr, io: &mut Io) -> NaiaResult<bool> {
 		if !self.ping_timer.try_reset() {
 			return Ok(false);
 		}
@@ -41,7 +41,7 @@ impl PingManager {
     }
 
 	/// Read an incoming pong to update link quality metrics
-	pub fn read_pong(&mut self, reader: &mut BitReader) -> Result<(), NaiaError> {
+	pub fn read_pong(&mut self, reader: &mut BitReader) -> NaiaResult {
 		let now_ns = self.timestamp_ns();
 		let pong = packet::Pong::de(reader)?;
 		if now_ns >= pong.timestamp_ns {

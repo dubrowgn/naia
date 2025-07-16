@@ -5,8 +5,8 @@ use crate::connection::{
 };
 use crate::user::{User, UserKey};
 use naia_shared::{
-	BitReader, BitWriter, Channel, ChannelKind, IdPool, LinkConditionerConfig, Io,
-	Message, MessageContainer, NaiaError, packet::*, Protocol, Serde,
+	BitReader, BitWriter, Channel, ChannelKind, error::*, IdPool, Io,
+	LinkConditionerConfig, Message, MessageContainer, packet::*, Protocol, Serde,
 };
 use log::{trace, warn};
 use std::{collections::{HashMap, HashSet}, io, net::SocketAddr, panic, time::Instant};
@@ -59,7 +59,7 @@ impl Server {
 	}
 
     /// Listen at the given addresses
-    pub fn listen(&mut self, addr: SocketAddr) -> Result<(), NaiaError> {
+    pub fn listen(&mut self, addr: SocketAddr) -> NaiaResult {
 		debug_assert!(!self.is_listening(), "Server is already listening");
 		if self.is_listening() {
 			return Err(io::ErrorKind::AlreadyExists.into());
@@ -381,7 +381,7 @@ impl Server {
         address: &SocketAddr,
         packet_type: &PacketType,
         reader: &mut BitReader,
-    ) -> Result<bool, NaiaError> {
+    ) -> NaiaResult<bool> {
         // Handshake stuff
         match packet_type {
             PacketType::ClientChallengeRequest => {
@@ -445,7 +445,7 @@ impl Server {
         address: &SocketAddr,
         packet_type: &PacketType,
         reader: &mut BitReader,
-    ) -> Result<(), NaiaError> {
+    ) -> NaiaResult {
         // Packets requiring established connection
         let Some(connection) = self.user_connections.get_mut(address) else {
             return Ok(());

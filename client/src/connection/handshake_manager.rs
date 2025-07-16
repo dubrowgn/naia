@@ -1,6 +1,6 @@
 use log::{trace, warn};
 use naia_shared::{
-	BitReader, BitWriter, MessageContainer, MessageKinds, NaiaError,
+	BitReader, BitWriter, error::*, MessageContainer, MessageKinds,
 	Io, packet::*, PingManager, Serde, Timer
 };
 use std::net::SocketAddr;
@@ -215,7 +215,7 @@ impl HandshakeManager {
     }
 
     // Send a disconnect packet
-    pub fn write_disconnect(&self, io: &mut Io) -> Result<(), NaiaError> {
+    pub fn write_disconnect(&self, io: &mut Io) -> NaiaResult {
         let mut writer = BitWriter::new();
         PacketType::Disconnect.ser(&mut writer);
 		packet::Disconnect {
