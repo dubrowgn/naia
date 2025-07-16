@@ -154,7 +154,7 @@ impl Server {
             &user.address,
             &self.server_config.connection,
             &self.protocol.channel_kinds,
-            PingManager::new(self.server_config.ping_interval),
+            PingManager::new(self.server_config.connection.ping_interval),
             user_key,
         );
 		connection.sample_rtt_ms(ctx.rtt_ms);

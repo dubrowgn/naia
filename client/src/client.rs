@@ -67,7 +67,7 @@ impl Client {
 		let mut handshake_manager = HandshakeManager::new(
 			&addr,
 			self.client_config.handshake_resend_interval,
-			self.client_config.ping_interval,
+			self.client_config.connection.ping_interval,
 		);
 		handshake_manager.set_connect_message(MessageContainer::from_write(Box::new(msg)));
 		self.handshake_manager = Some(handshake_manager);

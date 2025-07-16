@@ -37,7 +37,7 @@ impl BaseConnection {
 			heartbeat_timer: Timer::new(config.heartbeat_interval),
 			message_manager: MessageManager::new(host_type, channel_kinds),
 			ping_manager,
-			timeout_timer: Timer::new(config.disconnection_timeout_duration),
+			timeout_timer: Timer::new(config.timeout),
         }
     }
 
