@@ -1,12 +1,18 @@
+use log::trace;
 use naia_shared::{
-	BaseConnection, BitReader, ChannelKinds, ConnectionConfig,
-	error::*, HostType, Io, MessageContainer, PingManager, Protocol,
+	BaseConnection, BitReader, ChannelKinds, ConnectionConfig, error::*, HostType, Io,
+	MessageContainer, packet::*, PingManager, Protocol, Serde,
 };
 use std::net::SocketAddr;
 use std::time::Instant;
 
 pub struct Connection {
     pub base: BaseConnection,
+}
+
+pub enum ReceiveEvent {
+	Disconnect,
+	None,
 }
 
 impl Connection {
@@ -29,11 +35,21 @@ impl Connection {
 
     // Incoming data
 
-	/// Read packet data received from a client, storing necessary data in an internal buffer
-	pub fn read_data_packet(
-		&mut self, protocol: &Protocol, reader: &mut BitReader,
-	) -> NaiaResult {
-		self.base.read_data_packet(protocol, reader)
+	pub fn receive_packet(
+		&mut self, mut reader: &mut BitReader, io: &mut Io, protocol: &Protocol,
+	) -> NaiaResult<ReceiveEvent> {
+		self.base.mark_heard();
+
+		match PacketType::de(&mut reader)? {
+			PacketType::Data => self.base.read_data_packet(protocol, reader)?,
+			PacketType::Disconnect => return Ok(ReceiveEvent::Disconnect),
+			PacketType::Heartbeat => (),
+			PacketType::Ping => self.base.ping_pong(reader, io)?,
+			PacketType::Pong => self.base.read_pong(reader)?,
+			t => trace!("Dropping spurious {t:?} packet"),
+		}
+
+		Ok(ReceiveEvent::None)
 	}
 
 	pub fn receive_messages(&mut self) -> impl Iterator<Item = MessageContainer> + '_ {
@@ -46,14 +62,6 @@ impl Connection {
 		&mut self, protocol: &Protocol, now: &Instant, io: &mut Io,
 	) -> NaiaResult {
 		self.base.send_packets(protocol, now, io)
-	}
-
-	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> NaiaResult {
-		self.base.ping_pong(reader, io)
-	}
-
-	pub fn read_pong(&mut self, reader: &mut BitReader) -> NaiaResult {
-		self.base.read_pong(reader)
 	}
 
 	pub fn timed_out(&self) -> bool { self.base.timed_out() }

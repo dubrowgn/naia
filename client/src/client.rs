@@ -1,13 +1,13 @@
 use log::warn;
 use naia_shared::{
 	Channel, ChannelKind, error::*, Io, LinkConditionerConfig, Message,
-	MessageContainer, packet::*, Protocol, Serde,
+	MessageContainer, Protocol,
 };
 use std::{collections::VecDeque, io, net::SocketAddr, time::Instant};
 use super::client_config::ClientConfig;
 use crate::{
     connection::{
-        connection::Connection,
+        connection::*,
         handshake_manager::{HandshakeManager, HandshakeResult},
     },
 	ClientEvent,
@@ -21,7 +21,6 @@ pub struct Client {
     protocol: Protocol,
     // Connection
     io: Io,
-	server_addr: Option<SocketAddr>,
     server_connection: Option<Connection>,
     handshake_manager: Option<HandshakeManager>,
     pending_disconnect: bool,
@@ -44,7 +43,6 @@ impl Client {
             protocol,
             // Connection
 			io,
-			server_addr: None,
             server_connection: None,
 			handshake_manager: None,
             pending_disconnect: false,
@@ -61,8 +59,6 @@ impl Client {
             warn!("Client is already connected");
 			return Err(io::ErrorKind::AlreadyExists.into());
         }
-
-		self.server_addr = Some(addr);
 
 		let mut handshake_manager = HandshakeManager::new(
 			&addr,
@@ -189,7 +185,7 @@ impl Client {
 
     /// Get the address currently associated with the Server
     pub fn server_address(&self) -> Option<SocketAddr> {
-        self.server_addr
+        self.handshake_manager.as_ref().map(|mgr| mgr.peer_addr)
     }
 
     /// Gets the average Round Trip Time measured to the Server
@@ -277,48 +273,17 @@ impl Client {
         loop {
             match self.io.recv_reader() {
                 Ok(Some((_, mut reader))) => {
-                    connection.base.mark_heard();
-
-                    let Ok(packet_type) = PacketType::de(&mut reader) else {
-						self.incoming_events.push(ClientEvent::Error("Received malformed packet type".into()));
-						continue;
-					};
-
-                    // Handle based on PacketType
-                    match packet_type {
-						PacketType::Data => {
-							if let Err(e) = connection.read_data_packet(&self.protocol, &mut reader) {
-								self.incoming_events.push(ClientEvent::Error(format!("Failed to read packet: {e}").into()));
-                            }
+                    match connection.receive_packet(&mut reader, &mut self.io, &self.protocol) {
+                        Ok(ReceiveEvent::Disconnect) => {
+                            self.pending_disconnect = true;
+                            return;
                         }
-						PacketType::Disconnect => {
-							self.pending_disconnect = true;
-							return;
-						}
-						PacketType::Heartbeat => {
-                            // already marked as heard, job done
-                        }
-						PacketType::Ping => {
-							if let Err(e) = connection.ping_pong(&mut reader, &mut self.io) {
-								self.incoming_events.push(ClientEvent::Error(format!("Failed to handle ping: {e}").into()));
-							}
-                        }
-						PacketType::Pong => {
-							if let Err(e) = connection.read_pong(&mut reader) {
-								self.incoming_events.push(ClientEvent::Error(format!("Failed to handle pong: {e}").into()));
-                            }
-                        }
-                        _ => {
-                            // no other packet types matter when connection is established
-                        }
+                        Ok(ReceiveEvent::None) => (),
+                        Err(e) => self.incoming_events.push(ClientEvent::Error(e)),
                     }
                 }
-                Ok(None) => {
-                    break;
-                }
-                Err(error) => {
-                    self.incoming_events.push(ClientEvent::Error(error));
-                }
+                Ok(None) => break,
+                Err(e) => self.incoming_events.push(ClientEvent::Error(e)),
             }
         }
     }
@@ -353,7 +318,7 @@ impl Client {
 
     fn server_address_unwrapped(&self) -> SocketAddr {
         // NOTE: may panic if the connection is not yet established!
-        self.server_addr.expect("connection not established!")
+        self.server_address().expect("connection not established!")
     }
 
 	// performance counters
