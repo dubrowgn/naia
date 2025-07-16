@@ -434,18 +434,6 @@ impl Server {
 
                 return Ok(true);
             }
-            PacketType::Ping => {
-				let Some(conn) = self.user_connections.get_mut(address) else {
-					trace!("Dropping ping from {address}, which is not connected");
-					return Ok(true);
-				};
-
-				if let Err(e) = conn.ping_pong(reader, &mut self.io) {
-					warn!("Server Error: failed to handle ping from {address}: {e}");
-				}
-
-                return Ok(true);
-            }
             _ => {}
         }
 
@@ -482,6 +470,11 @@ impl Server {
             PacketType::Heartbeat => {
                 // already marked heard above
             }
+			PacketType::Ping => {
+				if let Err(e) = connection.ping_pong(reader, &mut self.io) {
+					warn!("Server Error: failed to handle ping from {address}: {e}");
+				}
+			}
             PacketType::Pong => {
 				if connection.read_pong(reader).is_err() {
 					trace!("Dropping malformed pong");
