@@ -1,14 +1,13 @@
 use log::warn;
 use naia_shared::{
 	Channel, ChannelKind, error::*, Io, LinkConditionerConfig, Message,
-	MessageContainer, Protocol,
+	MessageContainer, PingManager, Protocol,
 };
 use std::{collections::VecDeque, io, net::SocketAddr, time::Instant};
-use super::client_config::ClientConfig;
-use crate::{
-    connection::*,
-    handshake_manager::{HandshakeManager, HandshakeResult},
+use super::{
+	client_config::ClientConfig,
 	ClientEvent,
+	connection::*,
 };
 
 /// Client can send/receive messages to/from a server, and has a pool of
@@ -20,7 +19,6 @@ pub struct Client {
     // Connection
     io: Io,
     server_connection: Option<Connection>,
-    handshake_manager: Option<HandshakeManager>,
     pending_disconnect: bool,
     waitlist_messages: VecDeque<(ChannelKind, Box<dyn Message>)>,
     // Events
@@ -42,7 +40,6 @@ impl Client {
             // Connection
 			io,
             server_connection: None,
-			handshake_manager: None,
             pending_disconnect: false,
             waitlist_messages: VecDeque::new(),
             // Events
@@ -58,46 +55,48 @@ impl Client {
 			return Err(io::ErrorKind::AlreadyExists.into());
         }
 
-		let mut handshake_manager = HandshakeManager::new(
-			&addr,
-			self.client_config.handshake_resend_interval,
-			self.client_config.connection.ping_interval,
-		);
-		handshake_manager.set_connect_message(MessageContainer::from_write(Box::new(msg)));
-		self.handshake_manager = Some(handshake_manager);
+		self.io.connect(addr)?;
 
-		self.io.connect(addr)
+		let mut connection = Connection::new(
+			&addr,
+			&self.client_config.connection,
+			self.client_config.handshake_resend_interval,
+			&self.protocol.channel_kinds,
+			PingManager::new(self.client_config.connection.ping_interval),
+		);
+		connection.set_connect_message(Box::new(msg));
+		self.server_connection = Some(connection);
+
+		Ok(())
     }
+
+	fn conn_connected(&self) -> Option<bool> {
+		self.server_connection.as_ref().map(Connection::is_connected)
+	}
 
     /// Returns whether or not the client is disconnected
-    pub fn is_disconnected(&self) -> bool {
-        !self.io.is_loaded()
-    }
+    pub fn is_disconnected(&self) -> bool { matches!(self.conn_connected(), None) }
 
     /// Returns whether or not a connection is being established with the Server
-    pub fn is_connecting(&self) -> bool {
-        !self.is_connected() && !self.is_disconnected()
-    }
+    pub fn is_connecting(&self) -> bool { matches!(self.conn_connected(), Some(false)) }
 
     /// Returns whether or not a connection has been established with the Server
-    pub fn is_connected(&self) -> bool {
-        self.server_connection.is_some()
-    }
+    pub fn is_connected(&self) -> bool { matches!(self.conn_connected(), Some(true)) }
 
     /// Disconnect from Server
     pub fn disconnect(&mut self) {
-		debug_assert!(self.is_connected(), "Trying to disconnect Client which is not connected yet!");
-        if !self.is_connected() {
+		debug_assert!(!self.is_disconnected());
+        if self.is_disconnected() {
 			return;
         }
 
 		self.pending_disconnect = true;
-		let Some(handshake_manager) = self.handshake_manager.as_mut() else {
+		let Some(connection) = self.server_connection.as_mut() else {
 			return;
 		};
 
         for _ in 0..10 {
-            if handshake_manager.write_disconnect(&mut self.io).is_err() {
+            if connection.write_disconnect(&mut self.io).is_err() {
                 // TODO: pass this on and handle above
                 warn!("Client Error: Cannot send disconnect packet to Server");
             }
@@ -115,6 +114,11 @@ impl Client {
     /// frame), in a loop until it returns None.
     /// Retrieves incoming update data from the server, and maintains the connection.
     pub fn receive(&mut self) -> Vec<ClientEvent> {
+		debug_assert!(!self.is_disconnected());
+		if self.is_disconnected() {
+			return Vec::new();
+		}
+
         // Need to run this to maintain connection with server, and receive packets
         // until none left
         self.maintain_socket();
@@ -135,12 +139,13 @@ impl Client {
     }
 
 	pub fn send(&mut self) {
-		if let Some(conn) = &mut self.server_connection {
-			if let Err(e) = conn.send_packets(&self.protocol, &Instant::now(), &mut self.io) {
-				self.incoming_events.push(ClientEvent::Error(e));
-			}
-		} else if let Some(handshake_manager) = self.handshake_manager.as_mut() {
-			handshake_manager.send(&self.protocol.message_kinds, &mut self.io);
+		debug_assert!(!self.is_disconnected());
+		let Some(conn) = &mut self.server_connection else {
+			return;
+		};
+
+		if let Err(e) = conn.send(&Instant::now(), &self.protocol, &mut self.io) {
+			self.incoming_events.push(ClientEvent::Error(e));
 		}
 	}
 
@@ -183,119 +188,63 @@ impl Client {
 
     /// Get the address currently associated with the Server
     pub fn server_address(&self) -> Option<SocketAddr> {
-        self.handshake_manager.as_ref().map(|mgr| mgr.peer_addr)
+        self.server_connection.as_ref().map(Connection::address).copied()
     }
 
     /// Gets the average Round Trip Time measured to the Server
     pub fn rtt_ms(&self) -> f32 {
-		debug_assert!(self.is_connected());
+		debug_assert!(!self.is_disconnected());
 		self.server_connection.as_ref().map(Connection::rtt_ms).unwrap_or(0.0)
     }
 
     /// Gets the average Jitter measured in connection to the Server
     pub fn jitter_ms(&self) -> f32 {
-		debug_assert!(self.is_connected());
+		debug_assert!(!self.is_disconnected());
 		self.server_connection.as_ref().map(Connection::jitter_ms).unwrap_or(0.0)
     }
 
     // Private methods
 
     fn maintain_socket(&mut self) {
-        if self.server_connection.is_none() {
-            self.maintain_handshake();
-        } else {
-            self.maintain_connection();
-        }
-    }
-
-    fn maintain_handshake(&mut self) {
-        // No connection established yet
-
+		debug_assert!(self.io.is_loaded());
         if !self.io.is_loaded() {
             return;
         }
 
-		let Some(handshake_manager) = self.handshake_manager.as_mut() else {
-			return;
-		};
-
-        // receive from socket
-        loop {
-            match self.io.recv_reader() {
-                Ok(Some((_, mut reader))) => {
-                    match handshake_manager.recv(&mut reader) {
-                        Some(HandshakeResult::Connected(ping_manager)) => {
-                            // new connect!
-                            self.server_connection = Some(Connection::new(
-								&handshake_manager.peer_addr,
-                                &self.client_config.connection,
-                                &self.protocol.channel_kinds,
-                                ping_manager,
-                            ));
-                            self.on_connect();
-
-                            let server_addr = self.server_address_unwrapped();
-							self.incoming_events.push(ClientEvent::Connect(server_addr));
-							return;
-                        }
-                        Some(HandshakeResult::Rejected) => {
-                            self.incoming_events.clear();
-							self.incoming_events.push(ClientEvent::Reject(handshake_manager.peer_addr));
-                            self.disconnect_reset_connection();
-                            return;
-                        }
-                        None => {}
-                    }
-                }
-                Ok(None) => {
-                    break;
-                }
-                Err(error) => {
-                    self.incoming_events.push(ClientEvent::Error(error));
-                }
-            }
-        }
-    }
-
-    fn maintain_connection(&mut self) {
-        // connection already established
-
-        let Some(connection) = self.server_connection.as_mut() else {
+		debug_assert!(self.server_connection.is_some());
+        let Some(conn) = self.server_connection.as_mut() else {
             panic!("Should have checked for this above");
         };
 
-        Self::handle_heartbeats(connection, &mut self.io);
-        Self::handle_pings(connection, &mut self.io);
-
         // receive from socket
         loop {
             match self.io.recv_reader() {
                 Ok(Some((_, mut reader))) => {
-                    match connection.receive_packet(&mut reader, &mut self.io, &self.protocol) {
+                    match conn.receive_packet(&mut reader, &mut self.io, &self.protocol) {
+                        Ok(ReceiveEvent::Connected) => {
+							let addr = *conn.address();
+                            self.on_connect();
+							self.incoming_events.push(ClientEvent::Connect(addr));
+							return;
+                        }
                         Ok(ReceiveEvent::Disconnect) => {
                             self.pending_disconnect = true;
                             return;
                         }
-                        Ok(ReceiveEvent::None) => (),
-                        Err(e) => self.incoming_events.push(ClientEvent::Error(e)),
+                        Ok(ReceiveEvent::Rejected) => {
+                            self.incoming_events.clear();
+							self.incoming_events.push(ClientEvent::Reject(*conn.address()));
+                            self.disconnect_reset_connection();
+                            return;
+                        }
+						Ok(ReceiveEvent::None) => (),
+						Err(e) => self.incoming_events.push(ClientEvent::Error(e)),
                     }
                 }
-                Ok(None) => break,
-                Err(e) => self.incoming_events.push(ClientEvent::Error(e)),
+				Ok(None) => break,
+				Err(e) => self.incoming_events.push(ClientEvent::Error(e)),
             }
         }
-    }
-
-    fn handle_heartbeats(connection: &mut Connection, io: &mut Io) {
-		if let Err(e) = connection.try_send_heartbeat(io) {
-			warn!("Client Error: Cannot send heartbeat to Server: {e}");
-		}
-    }
-
-    fn handle_pings(connection: &mut Connection, io: &mut Io) {
-		if let Err(e) = connection.try_send_ping(io) {
-			warn!("Client Error: Cannot send ping to Server: {e}");
-		}
     }
 
     fn disconnect_with_events(&mut self) {
@@ -311,7 +260,6 @@ impl Client {
     fn disconnect_reset_connection(&mut self) {
         self.server_connection = None;
 		self.io = Io::new(&self.protocol.compression, &self.protocol.conditioner_config);
-        self.handshake_manager = None;
     }
 
     fn server_address_unwrapped(&self) -> SocketAddr {

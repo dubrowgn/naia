@@ -78,7 +78,7 @@ impl BaseConnection {
 	}
 
 	/// Fill and send as many data packets as necessary to send all pending messages
-	pub fn send_packets(
+	pub fn send_data_packets(
 		&mut self, protocol: &Protocol, now: &Instant, io: &mut Io,
 	) -> NaiaResult {
 		let resend_ms = self.rtt_ms() + 1.5 * self.jitter_ms();
@@ -136,24 +136,21 @@ impl BaseConnection {
 		self.send(io, writer)
 	}
 
-	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> NaiaResult<bool> {
+	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> NaiaResult {
 		if !self.heartbeat_timer.try_reset() {
-			return Ok(false);
+			return Ok(());
 		}
 
 		let mut writer = BitWriter::new();
 		PacketType::Heartbeat.ser(&mut writer);
-		self.send(io, writer)?;
-
-		Ok(true)
+		self.send(io, writer)
 	}
 
-	pub fn try_send_ping(&mut self, io: &mut Io) -> NaiaResult<bool> {
-		let sent = self.ping_manager.try_send_ping(&self.address, io)?;
-		if sent {
+	pub fn try_send_ping(&mut self, io: &mut Io) -> NaiaResult {
+		if self.ping_manager.try_send_ping(&self.address, io)? {
 			self.mark_sent();
 		}
-		Ok(sent)
+		Ok(())
 	}
 
 	pub fn rtt_ms(&self) -> f32 { self.ping_manager.rtt_ms() }

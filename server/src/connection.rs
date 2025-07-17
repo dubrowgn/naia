@@ -47,10 +47,10 @@ impl Connection {
 	}
 
     // Outgoing data
-	pub fn send_packets(
+	pub fn send_data_packets(
 		&mut self, protocol: &Protocol, now: &Instant, io: &mut Io,
 	) -> NaiaResult {
-		self.base.send_packets(protocol, now, io)
+		self.base.send_data_packets(protocol, now, io)
 	}
 
 	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> NaiaResult {
@@ -67,11 +67,11 @@ impl Connection {
 
 	pub fn timed_out(&self) -> bool { self.base.timed_out() }
 
-	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> NaiaResult<bool> {
+	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> NaiaResult {
 		self.base.try_send_heartbeat(io)
 	}
 
-	pub fn try_send_ping(&mut self, io: &mut Io) -> NaiaResult<bool> {
+	pub fn try_send_ping(&mut self, io: &mut Io) -> NaiaResult {
 		self.base.try_send_ping(io)
 	}
 

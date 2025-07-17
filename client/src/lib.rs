@@ -14,7 +14,6 @@ mod client;
 mod client_config;
 mod connection;
 mod events;
-mod handshake_manager;
 
 pub use client::Client;
 pub use client_config::ClientConfig;
