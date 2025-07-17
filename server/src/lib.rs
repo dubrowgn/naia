@@ -15,13 +15,11 @@ pub mod shared {
 		SignedInteger, SignedVariableInteger, UnsignedInteger, UnsignedVariableInteger,
     };
 }
-pub mod internal {
-    pub use crate::connection::handshake_manager::{HandshakeManager, HandshakeResult};
-}
 
 mod cache_map;
 mod connection;
 mod events;
+mod handshake_manager;
 mod server;
 mod server_config;
 mod user;

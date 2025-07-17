@@ -1,5 +1,5 @@
 use crate::{ConnectContext, server_config::ServerConfig, ServerEvent};
-use crate::connection::{
+use crate::{
 	connection::Connection,
 	handshake_manager::{HandshakeManager, HandshakeResult},
 };

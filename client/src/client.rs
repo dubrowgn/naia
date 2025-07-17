@@ -6,10 +6,8 @@ use naia_shared::{
 use std::{collections::VecDeque, io, net::SocketAddr, time::Instant};
 use super::client_config::ClientConfig;
 use crate::{
-    connection::{
-        connection::*,
-        handshake_manager::{HandshakeManager, HandshakeResult},
-    },
+    connection::*,
+    handshake_manager::{HandshakeManager, HandshakeResult},
 	ClientEvent,
 };
 
@@ -78,7 +76,7 @@ impl Client {
 
     /// Returns whether or not a connection is being established with the Server
     pub fn is_connecting(&self) -> bool {
-        self.io.is_loaded()
+        !self.is_connected() && !self.is_disconnected()
     }
 
     /// Returns whether or not a connection has been established with the Server

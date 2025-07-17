@@ -1,4 +1,4 @@
-use crate::{cache_map::CacheMap, connection::connection::Connection};
+use crate::{cache_map::CacheMap, connection::Connection};
 use naia_shared::{
 	BitReader, BitWriter, MessageContainer, MessageKinds, packet::*, Serde, SerdeErr,
 };

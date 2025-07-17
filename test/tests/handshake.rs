@@ -1,89 +1,87 @@
-use std::time::Duration;
+use naia_client::*;
+use naia_shared::*;
+use naia_server::*;
+use std::{net::Ipv4Addr, time::Duration};
 
-use naia_client::internal::{HandshakeManager as ClientHandshakeManager};
-use naia_server::internal::{HandshakeManager as ServerHandshakeManager, HandshakeResult};
-use naia_shared::{BitReader, BitWriter, MessageContainer, packet::*, Protocol, Serde};
-use naia_test::Auth;
+#[derive(Message)]
+pub struct Auth {
+	pub token: String,
+}
 
 #[test]
-fn end_to_end_handshake_w_auth() {
-	let address = "127.0.0.1:4000".parse().unwrap();
-    let mut client = ClientHandshakeManager::new(&address, Duration::new(0, 0), Duration::new(0, 0));
-    let mut server = ServerHandshakeManager::new();
-    let mut bytes: Box<[u8]>;
-    let mut writer: BitWriter;
-    let mut reader: BitReader;
+fn connect() {
+	let address = (Ipv4Addr::LOCALHOST, 4000).into();
+	let connection_config = ConnectionConfig {
+		heartbeat_interval: Duration::ZERO,
+		ping_interval: Duration::ZERO,
+		timeout: Duration::from_secs(1),
+	};
+	let client_config = ClientConfig {
+		connection: connection_config.clone(),
+		handshake_resend_interval: Duration::ZERO,
+	};
+	let server_config = ServerConfig { connection: connection_config };
 
-    // Set up Protocol
-    let protocol = Protocol::builder().add_message::<Auth>().build();
-    let message_kinds = protocol.message_kinds;
+	let protocol = || Protocol::builder().add_message::<Auth>().build();
+	let mut client = Client::new(client_config, protocol());
+	let mut server = Server::new(server_config, protocol());
+	let token = "1234567".to_string();
 
-    // 0. set Client auth object
-    let username = "charlie";
-    let password = "1234567";
-    client.set_connect_message(MessageContainer::from_write(
-        Box::new(Auth::new(username, password)),
-    ));
+	{
+		assert!(!server.is_listening());
+		server.listen(address).unwrap();
+		assert!(server.is_listening());
 
-    // 1. Client send challenge request
-    {
-        writer = client.write_challenge_request();
-        bytes = writer.to_bytes();
-    }
+		assert!(client.is_disconnected());
+		assert!(!client.is_connecting());
+		assert!(!client.is_connected());
+		client.connect(address, Auth { token: token.clone() }).unwrap();
 
-    // 2. Server receive challenge request
-    {
-        reader = BitReader::new(bytes);
-		assert_eq!(PacketType::de(&mut reader), Ok(PacketType::ClientChallengeRequest));
-		let writer = server.recv_challenge_request(&mut reader).unwrap();
-		bytes = writer.to_bytes();
-    }
+		assert!(!client.is_disconnected());
+		assert!(client.is_connecting());
+		assert!(!client.is_connected());
+	}
 
-    // 3. Client send connect request
-    {
-		reader = BitReader::new(bytes);
-		assert_eq!(PacketType::de(&mut reader), Ok(PacketType::ServerChallengeResponse));
-		client.recv_challenge_response(&mut reader);
-		writer = client.write_connect_request(&message_kinds, 0);
-        bytes = writer.to_bytes();
-    }
+	// 1. Client send challenge request
+	{
+		client.send();
+	}
 
-    // 4. Server receive connect request
-    {
-        reader = BitReader::new(bytes);
-		assert_eq!(PacketType::de(&mut reader), Ok(PacketType::ClientConnectRequest));
-        let result = server.recv_connect_request(&message_kinds, &address, &mut reader);
-        if let HandshakeResult::Success(_, Some(auth_message), _) = result {
-            let boxed_any = auth_message.to_boxed_any();
-            let auth_replica = boxed_any
-                .downcast_ref::<Auth>()
-                .expect("did not construct protocol correctly...");
-            assert_eq!(
-                auth_replica.username, username,
-                "Server received an invalid username: '{}', should be: '{}'",
-                auth_replica.username, username
-            );
-            assert_eq!(
-                auth_replica.password, password,
-                "Server received an invalid password: '{}', should be: '{}'",
-                auth_replica.password, password
-            );
-        } else {
-            assert!(false, "handshake result from server was not correct");
-        }
-    }
+	// 2. Server receive challenge request
+	{
+		server.receive();
+		server.send_all_updates();
+	}
 
-    // 5. Server send connect response
-    {
-        writer = BitWriter::new();
-        PacketType::ServerConnectResponse.ser(&mut writer);
-        bytes = writer.to_bytes();
-    }
+	// 3. Client send connect request
+	{
+		client.receive();
+		client.send();
+	}
 
-    // 6. Client receive connect response
-    {
-        reader = BitReader::new(bytes);
-		assert_eq!(PacketType::de(&mut reader), Ok(PacketType::ServerConnectResponse));
-        client.recv_connect_response(&mut reader);
-    }
+	// 4. Server receive connect request
+	{
+		let mut events = server.receive();
+		let Some(ServerEvent::Connect { user_key, msg, ctx }) = events.pop() else {
+			panic!("expected connect event");
+		};
+		let msg = msg.expect("expected auth message");
+		assert_eq!(msg.downcast::<Auth>().token, token);
+
+		server.accept_connection(&user_key, &ctx);
+		server.send_all_updates();
+	}
+
+	// connected
+	{
+		let mut events = client.receive();
+		let Some(ClientEvent::Connect(addr)) = events.pop() else {
+			panic!("expected connect event");
+		};
+		assert_eq!(addr, address);
+
+		assert!(!client.is_disconnected());
+		assert!(!client.is_connecting());
+		assert!(client.is_connected());
+	}
 }
