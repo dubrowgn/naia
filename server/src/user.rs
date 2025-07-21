@@ -1,5 +1,5 @@
 use naia_shared::CheckedIncr;
-use std::{fmt, hash::Hash, net::SocketAddr};
+use std::{fmt, hash::Hash};
 
 // UserKey
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -13,17 +13,4 @@ impl CheckedIncr for UserKey {
 
 impl fmt::Display for UserKey {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { fmt::Debug::fmt(self, f) }
-}
-
-// User
-
-#[derive(Clone)]
-pub struct User {
-    pub address: SocketAddr,
-}
-
-impl User {
-    pub fn new(address: SocketAddr) -> User {
-        User { address }
-    }
 }

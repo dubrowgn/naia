@@ -24,4 +24,4 @@ mod user;
 pub use events::*;
 pub use server::Server;
 pub use server_config::ServerConfig;
-pub use user::{User, UserKey};
+pub use user::UserKey;

@@ -10,7 +10,7 @@ pub struct Auth {
 
 #[test]
 fn connect() {
-	let address = (Ipv4Addr::LOCALHOST, 4000).into();
+	let server_addr = (Ipv4Addr::LOCALHOST, 4000).into();
 	let connection_config = ConnectionConfig {
 		heartbeat_interval: Duration::ZERO,
 		ping_interval: Duration::ZERO,
@@ -29,13 +29,13 @@ fn connect() {
 
 	{
 		assert!(!server.is_listening());
-		server.listen(address).unwrap();
+		server.listen(server_addr).unwrap();
 		assert!(server.is_listening());
 
 		assert!(client.is_disconnected());
 		assert!(!client.is_connecting());
 		assert!(!client.is_connected());
-		client.connect(address, Auth { token: token.clone() }).unwrap();
+		client.connect(server_addr, Auth { token: token.clone() }).unwrap();
 
 		assert!(!client.is_disconnected());
 		assert!(client.is_connecting());
@@ -50,7 +50,7 @@ fn connect() {
 	// 2. Server receive challenge request
 	{
 		server.receive();
-		server.send_all_updates();
+		server.send();
 	}
 
 	// 3. Client send connect request
@@ -62,14 +62,16 @@ fn connect() {
 	// 4. Server receive connect request
 	{
 		let mut events = server.receive();
-		let Some(ServerEvent::Connect { user_key, msg, ctx }) = events.pop() else {
+		let Some(ServerEvent::Connect { user_key, addr, msg, ctx }) = events.pop() else {
 			panic!("expected connect event");
 		};
+		assert_eq!(addr.ip(), server_addr.ip());
+
 		let msg = msg.expect("expected auth message");
 		assert_eq!(msg.downcast::<Auth>().token, token);
 
 		server.accept_connection(&user_key, &ctx);
-		server.send_all_updates();
+		server.send();
 	}
 
 	// connected
@@ -78,7 +80,7 @@ fn connect() {
 		let Some(ClientEvent::Connect(addr)) = events.pop() else {
 			panic!("expected connect event");
 		};
-		assert_eq!(addr, address);
+		assert_eq!(addr, server_addr);
 
 		assert!(!client.is_disconnected());
 		assert!(!client.is_connecting());

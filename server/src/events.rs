@@ -1,13 +1,14 @@
 use naia_shared::{error::*, MessageContainer, packet::*};
-use super::user::{User, UserKey};
+use std::net::SocketAddr;
+use super::user::UserKey;
 
 pub struct ConnectContext {
 	pub(crate) req: packet::ClientConnectRequest,
 }
 
 pub enum ServerEvent {
-	Connect{ user_key: UserKey, msg: Option<MessageContainer>, ctx: ConnectContext },
-	Disconnect{ user_key: UserKey, user: User },
+	Connect{ user_key: UserKey, addr: SocketAddr, msg: Option<MessageContainer>, ctx: ConnectContext },
+	Disconnect{ user_key: UserKey, addr: SocketAddr },
 	Error(NaiaError),
 	Message{ user_key: UserKey, msg: MessageContainer },
 }

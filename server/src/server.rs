@@ -1,5 +1,5 @@
 use crate::{ConnectContext, server_config::ServerConfig, ServerEvent};
-use crate::user::{User, UserKey};
+use crate::user::UserKey;
 use naia_shared::{
 	Channel, ChannelKind, error::*, IdPool, Io, LinkConditionerConfig,
 	Message, MessageContainer, PingManager, Protocol,
@@ -18,9 +18,9 @@ pub struct Server {
     protocol: Protocol,
     io: Io,
     // Users
-    users: HashMap<UserKey, User>,
+	user_addrs: HashMap<UserKey, SocketAddr>,
+	user_conns: HashMap<SocketAddr, Connection>,
 	user_id_pool: IdPool<UserKey>,
-    user_connections: HashMap<SocketAddr, Connection>,
     // Events
     incoming_events: Vec<ServerEvent>,
 }
@@ -40,16 +40,16 @@ impl Server {
             // Connection
             io,
             // Users
-            users: HashMap::new(),
+            user_addrs: HashMap::new(),
 			user_id_pool: IdPool::default(),
-            user_connections: HashMap::new(),
+            user_conns: HashMap::new(),
             // Events
             incoming_events: Vec::new(),
         }
     }
 
 	fn connections(&self) -> impl Iterator<Item = &Connection> {
-		self.user_connections.values()
+		self.user_conns.values()
 	}
 
     /// Listen at the given addresses
@@ -71,14 +71,14 @@ impl Server {
 		}
 
 		// send disconnect packets to all connected clients
-		for (addr, conn) in self.user_connections.iter_mut() {
+		for (addr, conn) in self.user_conns.iter_mut() {
 			if let Err(e) = conn.disconnect(&mut self.io) {
 				warn!("Failed to send disconnect to {:?} @ {addr}: {e}", conn.user_key);
 			}
 		}
 
 		// clean up
-		let user_keys = self.users.keys().copied().collect::<Vec<_>>();
+		let user_keys = self.user_addrs.keys().copied().collect::<Vec<_>>();
 		for user_key in user_keys {
 			self.user_disconnect(&user_key);
 		}
@@ -118,13 +118,13 @@ impl Server {
     /// Accepts an incoming Client User, allowing them to establish a connection
     /// with the Server
     pub fn accept_connection(&mut self, user_key: &UserKey, ctx: &ConnectContext) {
-        let Some(user) = self.users.get(user_key) else {
-			debug_assert!(false, "unknown user is attempting to accept connection...");
+        let Some(addr) = self.user_addrs.get(user_key) else {
+			debug_assert!(false, "cannot accept connection for unknown user {user_key}");
             return;
         };
 
-		let Some(conn) = self.user_connections.get_mut(&user.address) else {
-			debug_assert!(false, "unknown user is attempting to accept connection...");
+		let Some(conn) = self.user_conns.get_mut(addr) else {
+			debug_assert!(false, "cannot accept connection for unknown user {user_key} @ {addr}");
 			return;
 		};
 
@@ -137,13 +137,13 @@ impl Server {
     /// Rejects an incoming Client User, terminating their attempt to establish
     /// a connection with the Server
     pub fn reject_connection(&mut self, user_key: &UserKey) {
-		let Some(user) = self.users.get(user_key) else {
+		let Some(addr) = self.user_addrs.get(user_key) else {
 			debug_assert!(false, "cannot reject connection for unknown user {user_key}");
 			return;
 		};
 
-		let Some(conn) = self.user_connections.get_mut(&user.address) else {
-			debug_assert!(false, "cannot reject connection for unknown user {user_key} @ {}", user.address);
+		let Some(conn) = self.user_conns.get_mut(addr) else {
+			debug_assert!(false, "cannot reject connection for unknown user {user_key} @ {addr}");
 			return;
 		};
 
@@ -178,8 +178,8 @@ impl Server {
 			return;
         }
 
-        if let Some(user) = self.users.get(user_key) {
-            if let Some(connection) = self.user_connections.get_mut(&user.address) {
+        if let Some(addr) = self.user_addrs.get(user_key) {
+            if let Some(connection) = self.user_conns.get_mut(addr) {
                 let msg = MessageContainer::from_write(message_box);
                 connection.queue_message(&self.protocol, channel_kind, msg);
             }
@@ -198,30 +198,29 @@ impl Server {
         message_box: Box<dyn Message>,
     ) {
 		// FIXME -- this is gross
-        for (user_key, User{ address }) in self.users.iter().map(|(k, v)| (*k, v.clone())).collect::<Vec<_>>() {
-			if let Some(true) = self.user_connections.get(&address).map(Connection::is_connected) {
+        for (user_key, addr) in self.user_addrs.iter().map(|(k, v)| (*k, v.clone())).collect::<Vec<_>>() {
+			if let Some(true) = self.user_conns.get(&addr).map(Connection::is_connected) {
 				self.send_message_inner(&user_key, channel_kind, message_box.clone());
 			}
 		}
     }
-
 
     // Updates
 
     /// Sends all update messages to all Clients. If you don't call this
     /// method, the Server will never communicate with it's connected
     /// Clients
-    pub fn send_all_updates(&mut self) {
+    pub fn send(&mut self) {
         let now = Instant::now();
 
         // loop through all connections, send packet
-        let mut user_addresses: Vec<SocketAddr> = self.user_connections.keys().copied().collect();
+        let mut user_addresses: Vec<SocketAddr> = self.user_conns.keys().copied().collect();
 
         // shuffle order of connections in order to avoid priority among users
         fastrand::shuffle(&mut user_addresses);
 
         for user_address in user_addresses {
-            let connection = self.user_connections.get_mut(&user_address).unwrap();
+            let connection = self.user_conns.get_mut(&user_address).unwrap();
 
 			if let Err(e) = connection.send_data_packets(&self.protocol, &now, &mut self.io) {
 				self.incoming_events.push(ServerEvent::Error(e));
@@ -233,7 +232,7 @@ impl Server {
 
     /// Returns whether or not a User exists for the given UserKey
     pub fn user_exists(&self, user_key: &UserKey) -> bool {
-        self.users.contains_key(user_key)
+        self.user_addrs.contains_key(user_key)
     }
 
     /// Return a list of all currently connected Users' keys
@@ -243,24 +242,24 @@ impl Server {
 
     /// Get the number of Users currently connected
     pub fn users_count(&self) -> usize {
-        self.users.len()
+        self.user_addrs.len()
     }
 
     // Ping
     /// Gets the average Round Trip Time measured to the given User's Client
     pub fn rtt_ms(&self, user_key: &UserKey) -> Option<f32> {
-		debug_assert!(self.users.contains_key(user_key));
-		self.users.get(user_key)
-			.and_then(|user| self.user_connections.get(&user.address))
+		debug_assert!(self.user_addrs.contains_key(user_key));
+		self.user_addrs.get(user_key)
+			.and_then(|addr| self.user_conns.get(addr))
 			.map(Connection::rtt_ms)
     }
 
     /// Gets the average Jitter measured in connection to the given User's
     /// Client
     pub fn jitter_ms(&self, user_key: &UserKey) -> Option<f32> {
-		debug_assert!(self.users.contains_key(user_key));
-		self.users.get(user_key)
-			.and_then(|user| self.user_connections.get(&user.address))
+		debug_assert!(self.user_addrs.contains_key(user_key));
+		self.user_addrs.get(user_key)
+			.and_then(|addr| self.user_conns.get(addr))
 			.map(Connection::jitter_ms)
     }
 
@@ -269,24 +268,24 @@ impl Server {
     //// Users
 
     /// Get a User's Socket Address, given the associated UserKey
-    pub fn user_address(&self, user_key: &UserKey) -> Option<SocketAddr> {
-		self.users.get(user_key).map(|user| user.address)
+    pub fn user_address(&self, user_key: &UserKey) -> Option<&SocketAddr> {
+		self.user_addrs.get(user_key)
     }
 
     pub fn user_disconnect(&mut self, user_key: &UserKey) {
-        let user = self.user_delete(user_key);
-        self.incoming_events.push(ServerEvent::Disconnect { user_key:*user_key, user });
+        let addr = self.user_delete(user_key);
+        self.incoming_events.push(ServerEvent::Disconnect { user_key:*user_key, addr });
     }
 
-    fn user_delete(&mut self, user_key: &UserKey) -> User {
-        let Some(user) = self.users.remove(user_key) else {
+    fn user_delete(&mut self, user_key: &UserKey) -> SocketAddr {
+        let Some(addr) = self.user_addrs.remove(user_key) else {
             panic!("Attempting to delete non-existant user!");
         };
 
-        self.user_connections.remove(&user.address);
+        self.user_conns.remove(&addr);
 		self.user_id_pool.put(*user_key);
 
-        return user;
+        return addr;
     }
 
     // Private methods
@@ -302,7 +301,7 @@ impl Server {
         loop {
             match self.io.recv_reader() {
                 Ok(Some((address, mut reader))) => {
-					let conn = match self.user_connections.entry(address) {
+					let conn = match self.user_conns.entry(address) {
 						Entry::Occupied(entry) => entry.into_mut(),
 						Entry::Vacant(entry) => {
 							let Some(user_key) = self.user_id_pool.get() else {
@@ -311,7 +310,7 @@ impl Server {
 								warn!("Dropping packet from {address}: too many connected users");
 								continue;
 							};
-							self.users.insert(user_key, User::new(address));
+							self.user_addrs.insert(user_key, address);
 							entry.insert(Connection::new(
 								&address,
 								&self.server_config.connection,
@@ -324,8 +323,12 @@ impl Server {
 
 					match conn.receive_packet(&mut reader, &mut self.io, &self.protocol) {
 						Ok(ReceiveEvent::Connecting(req, msg)) => {
-							let ctx = ConnectContext { req };
-							self.incoming_events.push(ServerEvent::Connect { user_key: conn.user_key, msg, ctx });
+							self.incoming_events.push(ServerEvent::Connect {
+								user_key: conn.user_key,
+								addr: address,
+								msg,
+								ctx: ConnectContext { req },
+							});
 						}
 						Ok(ReceiveEvent::Data) => {
 							addresses.insert(address);
@@ -356,7 +359,7 @@ impl Server {
 
     fn process_packets(&mut self, address: &SocketAddr) {
         // Packets requiring established connection
-		let Some(connection) = self.user_connections.get_mut(address) else {
+		let Some(connection) = self.user_conns.get_mut(address) else {
 			return;
 		};
 
@@ -382,7 +385,7 @@ impl Server {
     }
 
     fn handle_heartbeats(&mut self) {
-		for (addr, connection) in &mut self.user_connections.iter_mut() {
+		for (addr, connection) in &mut self.user_conns.iter_mut() {
 			if let Err(e) = connection.try_send_heartbeat(&mut self.io) {
 				warn!("Server Error: Cannot send heartbeat packet to {addr}: {e}");
 			}
@@ -390,7 +393,7 @@ impl Server {
     }
 
     fn handle_pings(&mut self) {
-		for (addr, conn) in &mut self.user_connections.iter_mut() {
+		for (addr, conn) in &mut self.user_conns.iter_mut() {
 			if let Err(e) = conn.try_send_ping(&mut self.io) {
 				warn!("Server Error: Cannot send ping packet to {addr}: {e}");
 			}
