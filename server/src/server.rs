@@ -265,15 +265,14 @@ impl Server {
     }
 
     fn broadcast_message_inner(
-        &mut self,
-        channel_kind: &ChannelKind,
-        message_box: Box<dyn Message>,
+		&mut self, channel_kind: &ChannelKind, message_box: Box<dyn Message>,
     ) {
-		// FIXME -- this is gross
-        for (user_key, addr) in self.user_addrs.iter().map(|(k, v)| (*k, v.clone())).collect::<Vec<_>>() {
-			if let Some(true) = self.user_conns.get(&addr).map(Connection::is_connected) {
-				self.send_message_inner(&user_key, channel_kind, message_box.clone());
-			}
+		let connected_users: Vec<_> = self.user_conns.iter()
+			.filter(|(_, conn)| conn.is_connected())
+			.map(|(_, conn)| conn.user_key)
+			.collect();
+		for user_key in connected_users {
+			self.send_message_inner(&user_key, channel_kind, message_box.clone());
 		}
     }
 
