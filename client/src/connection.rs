@@ -116,11 +116,12 @@ impl Connection {
 	fn receive_packet_handshake(
 		&mut self, reader: &mut BitReader
 	) -> NaiaResult<ReceiveEvent> {
-		match PacketType::de(reader)? {
-			PacketType::ServerChallengeResponse => {
-				self.recv_challenge_response(reader);
-				Ok(ReceiveEvent::None)
-			}
+		let Ok(packet_type) = PacketType::de(reader) else {
+			return Err(NaiaError::malformed::<PacketType>());
+		};
+
+		match packet_type {
+			PacketType::ServerChallengeResponse => self.recv_challenge_response(reader),
 			PacketType::ServerConnectResponse => self.recv_connect_response(reader),
 			PacketType::ServerRejectResponse => Ok(ReceiveEvent::Rejected),
 			_ => Ok(ReceiveEvent::None),
@@ -142,18 +143,19 @@ impl Connection {
 	}
 
 	// Step 2 of Handshake
-	fn recv_challenge_response(&mut self, reader: &mut BitReader) {
+	fn recv_challenge_response(
+		&mut self, reader: &mut BitReader,
+	) -> NaiaResult<ReceiveEvent> {
 		if self.state != ConnectionState::AwaitingChallengeResponse {
-			return;
+			return Ok(ReceiveEvent::None);
 		}
 
 		let Ok(resp) = packet::ServerChallengeResponse::de(reader) else {
-			trace!("Dropping malformed ServerChallengeResponse");
-			return;
+			return Err(NaiaError::malformed::<packet::ServerChallengeResponse>());
 		};
 
 		if self.pre_connection_timestamp != resp.timestamp_ns {
-			return;
+			return Ok(ReceiveEvent::None);
 		}
 
 		self.sample_rtt(resp.client_timestamp_ns);
@@ -162,6 +164,8 @@ impl Connection {
 		self.set_state(ConnectionState::AwaitingConnectResponse{
 			server_timestamp_ns: resp.server_timestamp_ns,
 		});
+
+		Ok(ReceiveEvent::None)
 	}
 
 	// Step 3 of Handshake
@@ -196,8 +200,7 @@ impl Connection {
 		};
 
 		let Ok(resp) = packet::ServerConnectResponse::de(reader) else {
-			trace!("Dropping malformed ServerConnectResponse");
-			return Ok(ReceiveEvent::None);
+			return Err(NaiaError::malformed::<packet::ServerConnectResponse>());
 		};
 
 		self.sample_rtt(resp.client_timestamp_ns);
@@ -240,11 +243,15 @@ impl Connection {
 	}
 
 	fn receive_packet_connected(
-		&mut self, mut reader: &mut BitReader, io: &mut Io, protocol: &Protocol,
+		&mut self, reader: &mut BitReader, io: &mut Io, protocol: &Protocol,
 	) -> NaiaResult<ReceiveEvent> {
 		self.base.mark_heard();
 
-		match PacketType::de(&mut reader)? {
+		let Ok(packet_type) = PacketType::de(reader) else {
+			return Err(NaiaError::malformed::<PacketType>());
+		};
+
+		match packet_type {
 			PacketType::Data => self.base.read_data_packet(protocol, reader)?,
 			PacketType::Disconnect => return Ok(ReceiveEvent::Disconnect),
 			PacketType::Heartbeat => (),

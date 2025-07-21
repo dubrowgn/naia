@@ -257,18 +257,21 @@ impl MessageManager {
     // Incoming Messages
 
     pub fn read_messages(
-        &mut self,
-        protocol: &Protocol,
-        reader: &mut BitReader,
+        &mut self, protocol: &Protocol, reader: &mut BitReader,
     ) -> NaiaResult {
         loop {
-            let message_continue = bool::de(reader)?;
+            let Ok(message_continue) = bool::de(reader) else {
+				return Err(NaiaError::malformed::<packet::Data>());
+			};
+
             if !message_continue {
                 break;
             }
 
             // read channel id
-            let channel_kind = ChannelKind::de(&protocol.channel_kinds, reader)?;
+            let Ok(channel_kind) = ChannelKind::de(&protocol.channel_kinds, reader) else {
+				return Err(NaiaError::malformed::<packet::Data>());
+			};
 
             // continue read inside channel
             let channel = self.channel_receivers.get_mut(&channel_kind).unwrap();

@@ -108,7 +108,10 @@ impl BaseConnection {
         protocol: &Protocol,
         reader: &mut BitReader,
     ) -> NaiaResult {
-		let data_header = packet::Data::de(reader)?;
+		let Ok(data_header) = packet::Data::de(reader) else {
+			return Err(NaiaError::malformed::<packet::Data>());
+		};
+
         self.ack_manager.process_incoming_header(&data_header, &mut self.message_manager);
         self.message_manager.read_messages(protocol, reader)
     }

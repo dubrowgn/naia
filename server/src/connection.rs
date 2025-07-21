@@ -75,11 +75,13 @@ impl Connection {
 	pub fn accept_connection(
 		&mut self, req: &packet::ClientConnectRequest, io: &mut Io,
 	) -> NaiaResult {
+		self.state = ConnectionState::Connected;
 		let writer = self.write_connect_response(req);
 		self.base.send(io, writer)
 	}
 
 	pub fn reject_connection(&mut self, io: &mut Io) -> NaiaResult {
+		self.state = ConnectionState::Disconnected;
 		let writer = self.write_reject_response();
 		self.base.send(io, writer)
 	}
@@ -104,21 +106,33 @@ impl Connection {
 
 	// Step 1 of Handshake
 	fn recv_challenge_request(
-		&mut self, reader: &mut BitReader,
-	) -> NaiaResult<BitWriter> {
-		let req = packet::ClientChallengeRequest::de(reader)?;
-		Ok(self.write_challenge_response(&req))
+		&mut self, io: &mut Io, reader: &mut BitReader,
+	) -> NaiaResult<ReceiveEvent> {
+		match self.state {
+			ConnectionState::PendingChallenge => (), // happy path
+			ConnectionState::PendingConnect => (), // resp might have dropped; resend
+			// avoid backwards progression
+			ConnectionState::PendingAccept
+			| ConnectionState::Connected
+			// protocol violation
+			| ConnectionState::Disconnected => return Ok(ReceiveEvent::None),
+		}
+
+		let Ok(req) = packet::ClientChallengeRequest::de(reader) else {
+			return Err(NaiaError::malformed::<packet::ClientChallengeRequest>());
+		};
+
+		let writer = self.write_challenge_response(&req);
+		self.base.send(io, writer)?;
+
+		self.state = ConnectionState::PendingConnect;
+		Ok(ReceiveEvent::None)
 	}
 
 	// Step 2 of Handshake
 	fn write_challenge_response(
 		&mut self, req: &packet::ClientChallengeRequest
 	) -> BitWriter {
-		// TODO -- hoist to match client connection
-		if self.state == ConnectionState::PendingChallenge {
-			self.state = ConnectionState::PendingConnect;
-		}
-
 		let tag = hmac::sign(&self.connection_hash_key, &req.timestamp_ns.to_le_bytes());
 
 		let mut writer = BitWriter::new();
@@ -137,6 +151,17 @@ impl Connection {
 	fn recv_connect_request(
 		&mut self, protocol: &Protocol, io: &mut Io, reader: &mut BitReader,
 	) -> NaiaResult<ReceiveEvent> {
+		match self.state {
+			ConnectionState::PendingConnect => (), // happy path
+			ConnectionState::Connected => (), // resp might have dropped; resend
+			// avoid duplicate events to user code
+			ConnectionState::PendingAccept
+			// protocol violation
+			| ConnectionState::PendingChallenge
+			| ConnectionState::Disconnected => return Ok(ReceiveEvent::None),
+		}
+
+
 		let Ok(req) = packet::ClientConnectRequest::de(reader) else {
 			return Err(NaiaError::malformed::<packet::ClientConnectRequest>());
 		};
@@ -165,7 +190,6 @@ impl Connection {
 		let rtt_ns = self.timestamp_ns() - req.server_timestamp_ns;
 		self.base.sample_rtt_ms(rtt_ns as f32 / 1_000_000.0);
 
-		// TODO -- hoist to match client connection
 		match self.state {
 			ConnectionState::Connected => {
 				let writer = self.write_connect_response(&req);
@@ -176,23 +200,23 @@ impl Connection {
 				self.state = ConnectionState::PendingAccept;
 				Ok(ReceiveEvent::Connecting(req, connect_msg))
 			}
-			ConnectionState::PendingAccept => Ok(ReceiveEvent::None),
-			_ => {
-				trace!("Dropping invalid connect request from {}", self.base.address());
-				Ok(ReceiveEvent::None)
-			}
+			_ => unreachable!(),
 		}
 	}
 
 	// Step 4 of Handshake
 	fn write_connect_response(&mut self, req: &packet::ClientConnectRequest) -> BitWriter {
-		self.state = ConnectionState::Connected;
-
 		let mut writer = BitWriter::new();
 		PacketType::ServerConnectResponse.ser(&mut writer);
 		packet::ServerConnectResponse {
 			client_timestamp_ns: req.client_timestamp_ns,
 		}.ser(&mut writer);
+		writer
+	}
+
+	fn write_reject_response(&self) -> BitWriter {
+		let mut writer = BitWriter::new();
+		PacketType::ServerRejectResponse.ser(&mut writer);
 		writer
 	}
 
@@ -207,12 +231,6 @@ impl Connection {
 		}
 
 		Ok(ReceiveEvent::Disconnect)
-	}
-
-	fn write_reject_response(&self) -> BitWriter {
-		let mut writer = BitWriter::new();
-		PacketType::ServerRejectResponse.ser(&mut writer);
-		writer
 	}
 
 	fn is_disconnect_valid(
@@ -238,12 +256,13 @@ impl Connection {
 	) -> NaiaResult<ReceiveEvent> {
 		self.base.mark_heard();
 
-		match PacketType::de(reader)? {
-			PacketType::ClientChallengeRequest => {
-				let writer = self.recv_challenge_request(reader)?;
-				self.base.send(io, writer)?;
-				Ok(ReceiveEvent::None)
-			}
+		let Ok(packet_type) = PacketType::de(reader) else {
+			return Err(NaiaError::malformed::<PacketType>());
+		};
+
+		match packet_type {
+			PacketType::ClientChallengeRequest =>
+				self.recv_challenge_request(io, reader),
 			PacketType::ClientConnectRequest =>
 				self.recv_connect_request(protocol, io, reader),
 			PacketType::Data => {
