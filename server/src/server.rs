@@ -16,7 +16,7 @@ pub struct Server {
     // Config
     server_config: ServerConfig,
     protocol: Protocol,
-    io: Io,
+    io: Option<Io>,
     // Users
 	user_addrs: HashMap<UserKey, SocketAddr>,
 	user_conns: HashMap<SocketAddr, Connection>,
@@ -31,14 +31,12 @@ impl Server {
         let mut protocol: Protocol = protocol.into();
         protocol.lock();
 
-        let io = Io::new(&protocol.compression, &protocol.conditioner_config);
-
         Server {
             // Config
             server_config: server_config.clone(),
             protocol,
             // Connection
-            io,
+			io: None,
             // Users
             user_addrs: HashMap::new(),
 			user_id_pool: IdPool::default(),
@@ -59,20 +57,25 @@ impl Server {
 			return Err(io::ErrorKind::AlreadyExists.into());
 		}
 
-		self.io.listen(addr)?;
+		let io = Io::listen(
+			addr,
+			&self.protocol.compression,
+			&self.protocol.conditioner_config,
+		)?;
+		self.io = Some(io);
 		Ok(())
     }
 
 	/// Disconnect from all connected clients and stop listening
 	pub fn shutdown(&mut self) {
 		debug_assert!(self.is_listening(), "Server is not listening");
-		if !self.is_listening() {
+		let Some(io) = &mut self.io else {
 			return;
-		}
+		};
 
 		// send disconnect packets to all connected clients
 		for (addr, conn) in self.user_conns.iter_mut() {
-			if let Err(e) = conn.disconnect(&mut self.io) {
+			if let Err(e) = conn.disconnect(io) {
 				warn!("Failed to send disconnect to {:?} @ {addr}: {e}", conn.user_key);
 			}
 		}
@@ -84,17 +87,13 @@ impl Server {
 		}
 
 		// stop listening
-		self.reset_connection();
-	}
-
-	fn reset_connection(&mut self) {
-		self.io = Io::new(&self.protocol.compression, &self.protocol.conditioner_config);
+		self.io = None;
 	}
 
     /// Returns whether or not the Server has initialized correctly and is
     /// listening for Clients
     pub fn is_listening(&self) -> bool {
-        self.io.is_loaded()
+        self.io.is_some()
     }
 
 	/// Returns conditioner config
@@ -105,9 +104,72 @@ impl Server {
     /// Must be called regularly, maintains connection to and receives messages
     /// from all Clients
     pub fn receive(&mut self) -> Vec<ServerEvent> {
-        // Need to run this to maintain connection with all clients, and receive packets
-        // until none left
-        self.maintain_socket();
+		debug_assert!(self.is_listening(), "Server is not listening");
+		if self.io.is_none() {
+			return Vec::new();
+		};
+
+		let mut addresses: HashSet<SocketAddr> = HashSet::new();
+		loop {
+			let io = self.io.as_mut().unwrap();
+			match io.recv_reader() {
+				Ok(Some((address, mut reader))) => {
+					let conn = match self.user_conns.entry(address) {
+						Entry::Occupied(entry) => entry.into_mut(),
+						Entry::Vacant(entry) => {
+							let Some(user_key) = self.user_id_pool.get() else {
+								// too many connected users; reject request
+								// TODO -- send rejection w/ reason
+								warn!("Dropping packet from {address}: too many connected users");
+								continue;
+							};
+							self.user_addrs.insert(user_key, address);
+							entry.insert(Connection::new(
+								&address,
+								&self.server_config.connection,
+								&self.protocol.channel_kinds,
+								PingManager::new(self.server_config.connection.ping_interval),
+								&user_key,
+							))
+						}
+					};
+
+					match conn.receive_packet(&mut reader, io, &self.protocol) {
+						Ok(ReceiveEvent::Connecting(req, msg)) => {
+							self.incoming_events.push(ServerEvent::Connect {
+								user_key: conn.user_key,
+								addr: address,
+								msg,
+								ctx: ConnectContext { req },
+							});
+						}
+						Ok(ReceiveEvent::Data) => {
+							addresses.insert(address);
+						}
+						Ok(ReceiveEvent::Disconnect) => {
+							let user_key = conn.user_key;
+							self.user_disconnect(&user_key);
+						}
+						Ok(ReceiveEvent::None) => {}
+						Err(e) => self.incoming_events.push(ServerEvent::Error(e)),
+					}
+				}
+				Ok(None) => {
+					// No more packets, break loop
+					break;
+				}
+				Err(error) => {
+					self.incoming_events.push(ServerEvent::Error(error));
+					break;
+				}
+			}
+		}
+
+		for address in addresses {
+			self.process_packets(&address);
+		}
+
+		self.handle_timeouts();
 
         // return all received messages and reset the buffer
         std::mem::take(&mut self.incoming_events)
@@ -118,6 +180,11 @@ impl Server {
     /// Accepts an incoming Client User, allowing them to establish a connection
     /// with the Server
     pub fn accept_connection(&mut self, user_key: &UserKey, ctx: &ConnectContext) {
+		debug_assert!(self.is_listening(), "Server is not listening");
+		let Some(io) = &mut self.io else {
+			return;
+		};
+
         let Some(addr) = self.user_addrs.get(user_key) else {
 			debug_assert!(false, "cannot accept connection for unknown user {user_key}");
             return;
@@ -129,7 +196,7 @@ impl Server {
 		};
 
         // send connect response
-		if let Err(e) = conn.accept_connection(&ctx.req, &mut self.io) {
+		if let Err(e) = conn.accept_connection(&ctx.req, io) {
 			self.incoming_events.push(ServerEvent::Error(e));
 		}
     }
@@ -137,6 +204,11 @@ impl Server {
     /// Rejects an incoming Client User, terminating their attempt to establish
     /// a connection with the Server
     pub fn reject_connection(&mut self, user_key: &UserKey) {
+		debug_assert!(self.is_listening(), "Server is not listening");
+		let Some(io) = &mut self.io else {
+			return;
+		};
+
 		let Some(addr) = self.user_addrs.get(user_key) else {
 			debug_assert!(false, "cannot reject connection for unknown user {user_key}");
 			return;
@@ -148,7 +220,7 @@ impl Server {
 		};
 
 		// send connect reject response
-		if let Err(e) = conn.reject_connection(&mut self.io) {
+		if let Err(e) = conn.reject_connection(io) {
 			self.incoming_events.push(ServerEvent::Error(e));
 		}
 
@@ -211,6 +283,11 @@ impl Server {
     /// method, the Server will never communicate with it's connected
     /// Clients
     pub fn send(&mut self) {
+		debug_assert!(self.is_listening(), "Server is not listening");
+		let Some(io) = &mut self.io else {
+			return;
+		};
+
         let now = Instant::now();
 
         // loop through all connections, send packet
@@ -222,7 +299,7 @@ impl Server {
 		for addr in user_addresses {
 			let conn = self.user_conns.get_mut(&addr).unwrap();
 
-			if let Err(e) = conn.send(&now, &self.protocol, &mut self.io) {
+			if let Err(e) = conn.send(&now, &self.protocol, io) {
 				self.incoming_events.push(ServerEvent::Error(e));
 			}
         }
@@ -290,71 +367,6 @@ impl Server {
 
     // Private methods
 
-    /// Maintain connection with a client and read all incoming packet data
-    fn maintain_socket(&mut self) {
-        let mut addresses: HashSet<SocketAddr> = HashSet::new();
-        // receive socket events
-        loop {
-            match self.io.recv_reader() {
-                Ok(Some((address, mut reader))) => {
-					let conn = match self.user_conns.entry(address) {
-						Entry::Occupied(entry) => entry.into_mut(),
-						Entry::Vacant(entry) => {
-							let Some(user_key) = self.user_id_pool.get() else {
-								// too many connected users; reject request
-								// TODO -- send rejection w/ reason
-								warn!("Dropping packet from {address}: too many connected users");
-								continue;
-							};
-							self.user_addrs.insert(user_key, address);
-							entry.insert(Connection::new(
-								&address,
-								&self.server_config.connection,
-								&self.protocol.channel_kinds,
-								PingManager::new(self.server_config.connection.ping_interval),
-								&user_key,
-							))
-						}
-					};
-
-					match conn.receive_packet(&mut reader, &mut self.io, &self.protocol) {
-						Ok(ReceiveEvent::Connecting(req, msg)) => {
-							self.incoming_events.push(ServerEvent::Connect {
-								user_key: conn.user_key,
-								addr: address,
-								msg,
-								ctx: ConnectContext { req },
-							});
-						}
-						Ok(ReceiveEvent::Data) => {
-							addresses.insert(address);
-						}
-						Ok(ReceiveEvent::Disconnect) => {
-							let user_key = conn.user_key;
-							self.user_disconnect(&user_key);
-						}
-						Ok(ReceiveEvent::None) => {}
-						Err(e) => self.incoming_events.push(ServerEvent::Error(e)),
-					}
-                }
-                Ok(None) => {
-                    // No more packets, break loop
-                    break;
-                }
-                Err(error) => {
-					self.incoming_events.push(ServerEvent::Error(error));
-					break;
-                }
-            }
-        }
-
-        for address in addresses {
-            self.process_packets(&address);
-        }
-
-		self.handle_timeouts();
-    }
-
     fn process_packets(&mut self, address: &SocketAddr) {
         // Packets requiring established connection
 		let Some(connection) = self.user_conns.get_mut(address) else {
@@ -384,13 +396,13 @@ impl Server {
 
 	// performance counters
 
-	pub fn bytes_rx(&self) -> u64 { self.io.bytes_rx() }
-	pub fn bytes_tx(&self) -> u64 { self.io.bytes_tx() }
+	pub fn bytes_rx(&self) -> u64 { self.io.as_ref().map(Io::bytes_rx).unwrap_or(0) }
+	pub fn bytes_tx(&self) -> u64 { self.io.as_ref().map(Io::bytes_tx).unwrap_or(0) }
 	pub fn msg_rx_count(&self) -> u64 { self.connections().map(Connection::msg_rx_count).sum() }
 	pub fn msg_rx_drop_count(&self) -> u64 { self.connections().map(Connection::msg_rx_drop_count).sum() }
 	pub fn msg_rx_miss_count(&self) -> u64 { self.connections().map(Connection::msg_rx_miss_count).sum() }
 	pub fn msg_tx_count(&self) -> u64 { self.connections().map(Connection::msg_tx_count).sum() }
 	pub fn msg_tx_queue_count(&self) -> u64 { self.connections().map(Connection::msg_tx_queue_count).sum() }
-	pub fn pkt_rx_count(&self) -> u64 { self.io.pkt_rx_count() }
-	pub fn pkt_tx_count(&self) -> u64 { self.io.pkt_tx_count() }
+	pub fn pkt_rx_count(&self) -> u64 { self.io.as_ref().map(Io::pkt_rx_count).unwrap_or(0) }
+	pub fn pkt_tx_count(&self) -> u64 { self.io.as_ref().map(Io::pkt_tx_count).unwrap_or(0) }
 }

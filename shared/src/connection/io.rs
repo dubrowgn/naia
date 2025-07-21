@@ -40,11 +40,12 @@ pub struct Io {
     incoming_decoder: Option<Decoder>,
 	pkt_rx_count: u64,
 	pkt_tx_count: u64,
-	socket: Option<UdpSocket>,
+	socket: UdpSocket,
 }
 
 impl Io {
-    pub fn new(
+    fn new(
+		socket: UdpSocket,
 		compression_config: &Option<CompressionConfig>,
 		conditioner_config: &Option<LinkConditionerConfig>,
 	) -> Self {
@@ -61,47 +62,34 @@ impl Io {
             incoming_decoder,
 			pkt_rx_count: 0,
 			pkt_tx_count: 0,
-			socket: None,
+			socket,
         }
     }
 
-    pub fn connect(&mut self, server_addr: SocketAddr) -> NaiaResult {
-		debug_assert!(self.socket.is_none());
-		if self.socket.is_some() {
-			return Err(io::ErrorKind::AlreadyExists.into());
-		}
-
+	pub fn connect(
+		server_addr: SocketAddr,
+		compression_config: &Option<CompressionConfig>,
+		conditioner_config: &Option<LinkConditionerConfig>,
+	) -> NaiaResult<Self> {
 		let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
 		socket.set_nonblocking(true)?;
 		socket.connect(server_addr)?;
-		self.socket = Some(socket);
 
-		Ok(())
+		Ok(Self::new(socket, compression_config, conditioner_config))
     }
 
-	pub fn listen(&mut self, server_addr: SocketAddr) -> NaiaResult {
-		debug_assert!(self.socket.is_none());
-		if self.socket.is_some() {
-			return Err(io::ErrorKind::AlreadyExists.into());
-		}
-
+	pub fn listen(
+		server_addr: SocketAddr,
+		compression_config: &Option<CompressionConfig>,
+		conditioner_config: &Option<LinkConditionerConfig>,
+	) -> NaiaResult<Self> {
 		let socket = UdpSocket::bind(server_addr)?;
 		socket.set_nonblocking(true)?;
-		self.socket = Some(socket);
 
-		Ok(())
+		Ok(Self::new(socket, compression_config, conditioner_config))
 	}
 
-    pub fn is_loaded(&self) -> bool {
-        self.socket.is_some()
-    }
-
     pub fn send_packet(&mut self, addr: &SocketAddr, packet: OutgoingPacket) -> NaiaResult {
-		debug_assert!(self.socket.is_some());
-		let Some(socket) = &self.socket else {
-			return Err(io::ErrorKind::NotConnected.into());
-		};
-
         // get payload
         let mut payload = packet.slice();
 
@@ -114,20 +102,15 @@ impl Io {
 		self.bytes_tx = self.bytes_tx.wrapping_add(payload.len() as u64);
 		self.pkt_tx_count = self.pkt_tx_count.wrapping_add(1);
 
-		socket.send_to(payload, addr)?;
+		self.socket.send_to(payload, addr)?;
         Ok(())
     }
 
 	pub fn recv_reader(&mut self) -> NaiaResult<Option<(SocketAddr, BitReader)>> {
-		debug_assert!(self.socket.is_some());
-		let Some(socket) = &self.socket else {
-			return Err(io::ErrorKind::NotConnected.into());
-		};
-
 		let result = if let Some(conditioner) = &mut self.conditioner {
-			receive_conditioned(&socket, conditioner)
+			receive_conditioned(&self.socket, conditioner)
 		} else {
-			receive(&socket)
+			receive(&self.socket)
 		};
 
 		match result {

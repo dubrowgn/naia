@@ -17,9 +17,7 @@ pub struct Client {
     client_config: ClientConfig,
     protocol: Protocol,
     // Connection
-    io: Io,
-    server_connection: Option<Connection>,
-    pending_disconnect: bool,
+	io_conn: Option<(Io, Connection)>,
     waitlist_messages: VecDeque<(ChannelKind, Box<dyn Message>)>,
     // Events
     incoming_events: Vec::<ClientEvent>,
@@ -31,21 +29,20 @@ impl Client {
         let mut protocol: Protocol = protocol.into();
         protocol.lock();
 
-		let io = Io::new(&protocol.compression, &protocol.conditioner_config);
-
         Client {
             // Config
             client_config: client_config.clone(),
             protocol,
             // Connection
-			io,
-            server_connection: None,
-            pending_disconnect: false,
+			io_conn: None,
             waitlist_messages: VecDeque::new(),
             // Events
             incoming_events: Vec::new(),
         }
     }
+
+	fn conn(&self) -> Option<&Connection> { self.io_conn.as_ref().map(|(_, conn)| conn) }
+	fn io(&self) -> Option<&Io> { self.io_conn.as_ref().map(|(io, _)| io) }
 
     /// Connect to the given server address
     pub fn connect<M: Message>(&mut self, addr: SocketAddr, msg: M) -> NaiaResult {
@@ -55,53 +52,56 @@ impl Client {
 			return Err(io::ErrorKind::AlreadyExists.into());
         }
 
-		self.io.connect(addr)?;
+		let io = Io::connect(
+			addr,
+			&self.protocol.compression,
+			&self.protocol.conditioner_config,
+		)?;
 
-		let mut connection = Connection::new(
+		let mut conn = Connection::new(
 			&addr,
 			&self.client_config.connection,
 			self.client_config.handshake_resend_interval,
 			&self.protocol.channel_kinds,
 			PingManager::new(self.client_config.connection.ping_interval),
 		);
-		connection.set_connect_message(Box::new(msg));
-		self.server_connection = Some(connection);
+		conn.set_connect_message(Box::new(msg));
+
+		self.io_conn = Some((io, conn));
 
 		Ok(())
     }
 
-	fn conn_connected(&self) -> Option<bool> {
-		self.server_connection.as_ref().map(Connection::is_connected)
+    /// Returns whether or not the client is disconnected
+    pub fn is_disconnected(&self) -> bool {
+		self.conn().map(Connection::is_connected) == None
 	}
 
-    /// Returns whether or not the client is disconnected
-    pub fn is_disconnected(&self) -> bool { matches!(self.conn_connected(), None) }
-
     /// Returns whether or not a connection is being established with the Server
-    pub fn is_connecting(&self) -> bool { matches!(self.conn_connected(), Some(false)) }
+    pub fn is_connecting(&self) -> bool {
+		self.conn().map(Connection::is_connected) == Some(false)
+	}
 
     /// Returns whether or not a connection has been established with the Server
-    pub fn is_connected(&self) -> bool { matches!(self.conn_connected(), Some(true)) }
+    pub fn is_connected(&self) -> bool {
+		self.conn().map(Connection::is_connected) == Some(true)
+	}
 
     /// Disconnect from Server
-    pub fn disconnect(&mut self) {
+	pub fn disconnect(&mut self) -> NaiaResult {
 		debug_assert!(!self.is_disconnected());
-        if self.is_disconnected() {
-			return;
-        }
-
-		self.pending_disconnect = true;
-		let Some(connection) = self.server_connection.as_mut() else {
-			return;
+		let Some((io, conn)) = &mut self.io_conn else {
+			return Err(io::ErrorKind::NotConnected.into());
 		};
 
-        for _ in 0..10 {
-            if connection.write_disconnect(&mut self.io).is_err() {
-                // TODO: pass this on and handle above
-                warn!("Client Error: Cannot send disconnect packet to Server");
-            }
-        }
-    }
+		// best effort
+		if let Err(e) = conn.disconnect(io) {
+			warn!("Failed to disconnect from Server: {e:?}");
+		}
+		self.reset_connection();
+
+		Ok(())
+	}
 
     /// Returns conditioner config
 	pub fn conditioner_config(&self) -> &Option<LinkConditionerConfig> {
@@ -115,36 +115,63 @@ impl Client {
     /// Retrieves incoming update data from the server, and maintains the connection.
     pub fn receive(&mut self) -> Vec<ClientEvent> {
 		debug_assert!(!self.is_disconnected());
-		if self.is_disconnected() {
+		if self.io_conn.is_none() {
 			return Vec::new();
+		};
+
+		// receive from socket
+		loop {
+			let (io, conn) = self.io_conn.as_mut().unwrap();
+			match io.recv_reader() {
+				Ok(Some((_, mut reader))) => {
+					match conn.receive_packet(&mut reader, io, &self.protocol) {
+						Ok(ReceiveEvent::Connected) => {
+							let addr = *conn.address();
+							self.on_connect();
+							self.incoming_events.push(ClientEvent::Connect(addr));
+							break;
+						}
+						Ok(ReceiveEvent::Disconnect) => {
+							let event = ClientEvent::Disconnect(*conn.address());
+							return self.disconnect_with_events(event);
+						}
+						Ok(ReceiveEvent::Rejected) => {
+							let event = ClientEvent::Reject(*conn.address());
+							return self.disconnect_with_events(event);
+						}
+						Ok(ReceiveEvent::None) => (),
+						Err(e) => self.incoming_events.push(ClientEvent::Error(e)),
+					}
+				}
+				Ok(None) => break,
+				Err(e) => {
+					self.incoming_events.push(ClientEvent::Error(e));
+					break;
+				}
+			}
 		}
 
-        // Need to run this to maintain connection with server, and receive packets
-        // until none left
-        self.maintain_socket();
-
         // all other operations
-        if let Some(connection) = &mut self.server_connection {
-            if connection.timed_out() || self.pending_disconnect {
-                self.disconnect_with_events();
-                return std::mem::take(&mut self.incoming_events);
-            }
+		let (_, conn) = self.io_conn.as_mut().unwrap();
+		if conn.timed_out() {
+			let event = ClientEvent::Disconnect(*conn.address());
+			return self.disconnect_with_events(event);
+		}
 
-			for msg in connection.receive_messages() {
-				self.incoming_events.push(ClientEvent::Message(msg));
-			}
-        }
+		for msg in conn.receive_messages() {
+			self.incoming_events.push(ClientEvent::Message(msg));
+		}
 
         std::mem::take(&mut self.incoming_events)
     }
 
 	pub fn send(&mut self) {
 		debug_assert!(!self.is_disconnected());
-		let Some(conn) = &mut self.server_connection else {
+		let Some((io, conn)) = &mut self.io_conn else {
 			return;
 		};
 
-		if let Err(e) = conn.send(&Instant::now(), &self.protocol, &mut self.io) {
+		if let Err(e) = conn.send(&Instant::now(), &self.protocol, io) {
 			self.incoming_events.push(ClientEvent::Error(e));
 		}
 	}
@@ -153,19 +180,22 @@ impl Client {
 
     /// Queues up an Message to be sent to the Server
     pub fn send_message<C: Channel, M: Message>(&mut self, message: &M) {
+		debug_assert!(!self.is_disconnected());
         let cloned_message = M::clone_box(message);
         self.send_message_inner(&ChannelKind::of::<C>(), cloned_message);
     }
 
     fn send_message_inner(&mut self, channel_kind: &ChannelKind, message_box: Box<dyn Message>) {
+		debug_assert!(!self.is_disconnected());
+
         let channel_settings = self.protocol.channel_kinds.channel(channel_kind);
         if !channel_settings.can_send_to_server() {
             panic!("Cannot send message to Server on this Channel");
         }
 
-        if let Some(connection) = &mut self.server_connection {
+        if let Some((_, conn)) = &mut self.io_conn {
             let msg = MessageContainer::from_write(message_box);
-            connection.queue_message(&self.protocol, channel_kind, msg);
+            conn.queue_message(&self.protocol, channel_kind, msg);
         } else {
             self.waitlist_messages
                 .push_back((channel_kind.clone(), message_box));
@@ -183,95 +213,45 @@ impl Client {
     // Connection
 
     /// Get the address currently associated with the Server
-    pub fn server_address(&self) -> Option<SocketAddr> {
-        self.server_connection.as_ref().map(Connection::address).copied()
-    }
+    pub fn server_address(&self) -> Option<&SocketAddr> {
+		self.conn().map(Connection::address)
+	}
 
     /// Gets the average Round Trip Time measured to the Server
     pub fn rtt_ms(&self) -> f32 {
 		debug_assert!(!self.is_disconnected());
-		self.server_connection.as_ref().map(Connection::rtt_ms).unwrap_or(0.0)
+		self.conn().map(Connection::rtt_ms).unwrap_or(0.0)
     }
 
     /// Gets the average Jitter measured in connection to the Server
     pub fn jitter_ms(&self) -> f32 {
 		debug_assert!(!self.is_disconnected());
-		self.server_connection.as_ref().map(Connection::jitter_ms).unwrap_or(0.0)
+		self.conn().map(Connection::jitter_ms).unwrap_or(0.0)
     }
 
     // Private methods
 
-    fn maintain_socket(&mut self) {
-		debug_assert!(self.io.is_loaded());
-        if !self.io.is_loaded() {
-            return;
-        }
+	fn disconnect_with_events(&mut self, event: ClientEvent) -> Vec<ClientEvent> {
+		self.reset_connection();
+		self.incoming_events.push(event);
+		std::mem::take(&mut self.incoming_events)
+	}
 
-		debug_assert!(self.server_connection.is_some());
-        let Some(conn) = self.server_connection.as_mut() else {
-            panic!("Should have checked for this above");
-        };
-
-        // receive from socket
-        loop {
-            match self.io.recv_reader() {
-                Ok(Some((_, mut reader))) => {
-                    match conn.receive_packet(&mut reader, &mut self.io, &self.protocol) {
-                        Ok(ReceiveEvent::Connected) => {
-							let addr = *conn.address();
-                            self.on_connect();
-							self.incoming_events.push(ClientEvent::Connect(addr));
-							return;
-                        }
-                        Ok(ReceiveEvent::Disconnect) => {
-                            self.pending_disconnect = true;
-                            return;
-                        }
-                        Ok(ReceiveEvent::Rejected) => {
-                            self.incoming_events.clear();
-							self.incoming_events.push(ClientEvent::Reject(*conn.address()));
-                            self.disconnect_reset_connection();
-                            return;
-                        }
-						Ok(ReceiveEvent::None) => (),
-						Err(e) => self.incoming_events.push(ClientEvent::Error(e)),
-                    }
-                }
-				Ok(None) => break,
-				Err(e) => self.incoming_events.push(ClientEvent::Error(e)),
-            }
-        }
-    }
-
-    fn disconnect_with_events(&mut self) {
-        let server_addr = self.server_address_unwrapped();
-
-        self.incoming_events.clear();
-
-        self.disconnect_reset_connection();
-
-		self.incoming_events.push(ClientEvent::Disconnect(server_addr));
-    }
-
-    fn disconnect_reset_connection(&mut self) {
-        self.server_connection = None;
-		self.io = Io::new(&self.protocol.compression, &self.protocol.conditioner_config);
-    }
-
-    fn server_address_unwrapped(&self) -> SocketAddr {
-        // NOTE: may panic if the connection is not yet established!
-        self.server_address().expect("connection not established!")
-    }
+	fn reset_connection(&mut self) {
+		self.io_conn = None;
+		self.incoming_events.clear();
+		self.waitlist_messages.clear();
+	}
 
 	// performance counters
 
-	pub fn bytes_rx(&self) -> u64 { self.io.bytes_rx() }
-	pub fn bytes_tx(&self) -> u64 { self.io.bytes_tx() }
-	pub fn msg_rx_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_rx_count).unwrap_or(0) }
-	pub fn msg_rx_drop_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_rx_drop_count).unwrap_or(0) }
-	pub fn msg_rx_miss_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_rx_miss_count).unwrap_or(0) }
-	pub fn msg_tx_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_tx_count).unwrap_or(0) }
-	pub fn msg_tx_queue_count(&self) -> u64 { self.server_connection.as_ref().map(Connection::msg_tx_queue_count).unwrap_or(0) }
-	pub fn pkt_rx_count(&self) -> u64 { self.io.pkt_rx_count() }
-	pub fn pkt_tx_count(&self) -> u64 { self.io.pkt_tx_count() }
+	pub fn bytes_rx(&self) -> u64 { self.io().map(Io::bytes_rx).unwrap_or(0) }
+	pub fn bytes_tx(&self) -> u64 { self.io().map(Io::bytes_tx).unwrap_or(0) }
+	pub fn msg_rx_count(&self) -> u64 { self.conn().map(Connection::msg_rx_count).unwrap_or(0) }
+	pub fn msg_rx_drop_count(&self) -> u64 { self.conn().map(Connection::msg_rx_drop_count).unwrap_or(0) }
+	pub fn msg_rx_miss_count(&self) -> u64 { self.conn().map(Connection::msg_rx_miss_count).unwrap_or(0) }
+	pub fn msg_tx_count(&self) -> u64 { self.conn().map(Connection::msg_tx_count).unwrap_or(0) }
+	pub fn msg_tx_queue_count(&self) -> u64 { self.conn().map(Connection::msg_tx_queue_count).unwrap_or(0) }
+	pub fn pkt_rx_count(&self) -> u64 { self.io().map(Io::pkt_rx_count).unwrap_or(0) }
+	pub fn pkt_tx_count(&self) -> u64 { self.io().map(Io::pkt_tx_count).unwrap_or(0) }
 }

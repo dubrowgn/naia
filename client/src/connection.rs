@@ -19,11 +19,12 @@ pub enum ConnectionState {
 	AwaitingChallengeResponse,
 	AwaitingConnectResponse{ server_timestamp_ns: TimestampNs },
 	Connected,
+	Disconnected,
 }
 
 pub struct Connection {
     base: BaseConnection,
-	connection_state: ConnectionState,
+	state: ConnectionState,
 	handshake_timer: Timer,
 	pre_connection_timestamp: TimestampNs,
 	pre_connection_digest: Option<Vec<u8>>,
@@ -52,7 +53,7 @@ impl Connection {
                 channel_kinds,
 				ping_manager,
             ),
-			connection_state: ConnectionState::AwaitingChallengeResponse,
+			state: ConnectionState::AwaitingChallengeResponse,
 			handshake_timer: Timer::new_ringing(handshake_resend_interval),
 			pre_connection_timestamp,
 			pre_connection_digest: None,
@@ -76,7 +77,7 @@ impl Connection {
 	}
 
 	fn set_state(&mut self, state: ConnectionState) {
-		self.connection_state = state;
+		self.state = state;
 		self.handshake_timer.ring_manual();
 	}
 
@@ -85,22 +86,17 @@ impl Connection {
 	}
 
 	pub fn is_connected(&self) -> bool {
-		self.connection_state == ConnectionState::Connected
+		self.state == ConnectionState::Connected
 	}
 
 	fn send_handshake(&mut self, protocol: &Protocol, io: &mut Io) -> NaiaResult {
-		debug_assert!(self.connection_state != ConnectionState::Connected);
-
-		debug_assert!(io.is_loaded());
-		if !io.is_loaded() {
-			return Ok(());
-		}
+		debug_assert!(self.state != ConnectionState::Connected);
 
 		if !self.handshake_timer.try_reset() {
 			return Ok(());
 		}
 
-		match &mut self.connection_state {
+		match &mut self.state {
 			ConnectionState::AwaitingChallengeResponse => {
 				let writer = self.write_challenge_request();
 				self.base.send(io, writer)?;
@@ -111,6 +107,7 @@ impl Connection {
 				self.base.send(io, writer)?;
 			}
 			ConnectionState::Connected => unreachable!(),
+			ConnectionState::Disconnected => unreachable!(),
 		}
 
 		Ok(())
@@ -132,7 +129,7 @@ impl Connection {
 
 	// Step 1 of Handshake
 	fn write_challenge_request(&self) -> BitWriter {
-		debug_assert!(self.connection_state == ConnectionState::AwaitingChallengeResponse);
+		debug_assert!(self.state == ConnectionState::AwaitingChallengeResponse);
 
 		let mut writer = BitWriter::new();
 		PacketType::ClientChallengeRequest.ser(&mut writer);
@@ -146,7 +143,7 @@ impl Connection {
 
 	// Step 2 of Handshake
 	fn recv_challenge_response(&mut self, reader: &mut BitReader) {
-		if self.connection_state != ConnectionState::AwaitingChallengeResponse {
+		if self.state != ConnectionState::AwaitingChallengeResponse {
 			return;
 		}
 
@@ -169,7 +166,7 @@ impl Connection {
 
 	// Step 3 of Handshake
 	fn write_connect_request(&self, protocol: &Protocol, server_timestamp_ns: TimestampNs) -> BitWriter {
-		debug_assert!(matches!(self.connection_state, ConnectionState::AwaitingConnectResponse{..}));
+		debug_assert!(matches!(self.state, ConnectionState::AwaitingConnectResponse{..}));
 
 		let mut writer = BitWriter::new();
 		PacketType::ClientConnectRequest.ser(&mut writer);
@@ -194,7 +191,7 @@ impl Connection {
 
 	// Step 4 of Handshake
 	fn recv_connect_response(&mut self, reader: &mut BitReader) -> NaiaResult<ReceiveEvent> {
-		let ConnectionState::AwaitingConnectResponse { .. } = self.connection_state else {
+		let ConnectionState::AwaitingConnectResponse { .. } = self.state else {
 			return Ok(ReceiveEvent::None);
 		};
 
@@ -209,15 +206,23 @@ impl Connection {
 		Ok(ReceiveEvent::Connected)
 	}
 
-	// Send a disconnect packet
-	pub fn write_disconnect(&mut self, io: &mut Io) -> NaiaResult {
-		let mut writer = BitWriter::new();
-		PacketType::Disconnect.ser(&mut writer);
-		packet::Disconnect {
-			timestamp_ns: self.pre_connection_timestamp,
-			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
-		}.ser(&mut writer);
-		self.base.send(io, writer)?;
+	pub fn disconnect(&mut self, io: &mut Io) -> NaiaResult {
+		if self.state != ConnectionState::Connected {
+			return Ok(());
+		}
+
+		self.set_state(ConnectionState::Disconnected);
+
+		for _ in 0..3 {
+			let mut writer = BitWriter::new();
+			PacketType::Disconnect.ser(&mut writer);
+			packet::Disconnect {
+				timestamp_ns: self.pre_connection_timestamp,
+				signature: self.pre_connection_digest.as_ref().unwrap().clone(),
+			}.ser(&mut writer);
+
+			self.base.send(io, writer)?;
+		}
 
 		Ok(())
 	}
@@ -266,17 +271,17 @@ impl Connection {
 	pub fn send(
 		&mut self, now: &Instant, protocol: &Protocol, io: &mut Io
 	) -> NaiaResult {
-		if self.is_connected() {
-			self.send_connected(now, protocol, io)
-		} else {
-			self.send_handshake(protocol, io)
+		match self.state {
+			ConnectionState::Connected => self.send_connected(now, protocol, io),
+			ConnectionState::Disconnected => Ok(()),
+			_ => self.send_handshake(protocol, io),
 		}
 	}
 
 	fn send_connected(
 		&mut self, now: &Instant, protocol: &Protocol, io: &mut Io
 	) -> NaiaResult {
-		debug_assert!(self.connection_state == ConnectionState::Connected);
+		debug_assert!(self.state == ConnectionState::Connected);
 		self.base.send_data_packets(protocol, now, io)?;
 		self.base.try_send_ping(io)?;
 		self.base.try_send_heartbeat(io)
