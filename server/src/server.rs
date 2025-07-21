@@ -1,16 +1,13 @@
 use crate::{ConnectContext, server_config::ServerConfig, ServerEvent};
-use crate::{
-	connection::Connection,
-	handshake_manager::{HandshakeManager, HandshakeResult},
-};
 use crate::user::{User, UserKey};
 use naia_shared::{
-	BitReader, BitWriter, Channel, ChannelKind, error::*, IdPool, Io,
-	LinkConditionerConfig, Message, MessageContainer, packet::*, PingManager, Protocol,
-	Serde,
+	BitWriter, Channel, ChannelKind, error::*, IdPool, Io, LinkConditionerConfig, Message,
+	MessageContainer, packet::*, PingManager, Protocol, Serde,
 };
 use log::{trace, warn};
+use std::collections::hash_map::Entry;
 use std::{collections::{HashMap, HashSet}, io, net::SocketAddr, panic, time::Instant};
+use super::connection::*;
 
 /// A server that uses either UDP or WebRTC communication to send/receive
 /// messages to/from connected clients, and syncs registered entities to
@@ -20,12 +17,10 @@ pub struct Server {
     server_config: ServerConfig,
     protocol: Protocol,
     io: Io,
-    handshake_manager: HandshakeManager,
     // Users
     users: HashMap<UserKey, User>,
 	user_id_pool: IdPool<UserKey>,
     user_connections: HashMap<SocketAddr, Connection>,
-	user_keys: HashMap<SocketAddr, UserKey>,
     // Events
     incoming_events: Vec<ServerEvent>,
 }
@@ -44,12 +39,10 @@ impl Server {
             protocol,
             // Connection
             io,
-            handshake_manager: HandshakeManager::new(),
             // Users
             users: HashMap::new(),
 			user_id_pool: IdPool::default(),
             user_connections: HashMap::new(),
-			user_keys: HashMap::new(),
             // Events
             incoming_events: Vec::new(),
         }
@@ -136,8 +129,13 @@ impl Server {
             return;
         };
 
+		let Some(conn) = self.user_connections.get_mut(&user.address) else {
+			debug_assert!(false, "unknown user is attempting to accept connection...");
+			return;
+		};
+
         // send connect response
-        let writer = self.handshake_manager.write_connect_response(&ctx.req);
+        let writer = conn.write_connect_response(&ctx.req);
         if self
             .io
             .send_packet(&user.address, writer.to_packet())
@@ -149,36 +147,35 @@ impl Server {
                 &user.address
             );
         }
-
-		let mut connection = Connection::new(
-            &user.address,
-            &self.server_config.connection,
-            &self.protocol.channel_kinds,
-            PingManager::new(self.server_config.connection.ping_interval),
-            user_key,
-        );
-		connection.sample_rtt_ms(ctx.rtt_ms);
-        self.user_connections.insert(user.address, connection);
     }
 
     /// Rejects an incoming Client User, terminating their attempt to establish
     /// a connection with the Server
     pub fn reject_connection(&mut self, user_key: &UserKey) {
-        if let Some(user) = self.users.get(user_key) {
-            // send connect reject response
-            let writer = self.handshake_manager.write_reject_response();
-            if self
-                .io
-                .send_packet(&user.address, writer.to_packet())
-                .is_err()
-            {
-                // TODO: pass this on and handle above
-                warn!(
-                    "Server Error: Cannot send auth rejection packet to {}",
-                    &user.address
-                );
-            }
-        }
+		let Some(user) = self.users.get(user_key) else {
+			debug_assert!(false, "cannot reject connection for unknown user {user_key}");
+			return;
+		};
+
+		let Some(conn) = self.user_connections.get_mut(&user.address) else {
+			debug_assert!(false, "cannot reject connection for unknown user {user_key} @ {}", user.address);
+			return;
+		};
+
+		// send connect reject response
+		let writer = conn.write_reject_response();
+		if self
+			.io
+			.send_packet(&user.address, writer.to_packet())
+			.is_err()
+		{
+			// TODO: pass this on and handle above
+			warn!(
+				"Server Error: Cannot send auth rejection packet to {}",
+				&user.address
+			);
+		}
+
         self.user_delete(user_key);
     }
 
@@ -200,9 +197,9 @@ impl Server {
         message_box: Box<dyn Message>,
     ) {
         let channel_settings = self.protocol.channel_kinds.channel(channel_kind);
-
+		debug_assert!(channel_settings.can_send_to_client(), "Cannot send message to Client on this Channel");
         if !channel_settings.can_send_to_client() {
-            panic!("Cannot send message to Client on this Channel");
+			return;
         }
 
         if let Some(user) = self.users.get(user_key) {
@@ -228,9 +225,12 @@ impl Server {
         channel_kind: &ChannelKind,
         message_box: Box<dyn Message>,
     ) {
-        self.user_keys().iter().for_each(|user_key| {
-            self.send_message_inner(user_key, channel_kind, message_box.clone())
-        })
+		// FIXME -- this is gross
+        for (user_key, User{ address }) in self.users.iter().map(|(k, v)| (*k, v.clone())).collect::<Vec<_>>() {
+			if let Some(true) = self.user_connections.get(&address).map(Connection::is_connected) {
+				self.send_message_inner(&user_key, channel_kind, message_box.clone());
+			}
+		}
     }
 
 
@@ -312,15 +312,10 @@ impl Server {
         };
 
         self.user_connections.remove(&user.address);
-		self.user_keys.remove(&user.address);
 		self.user_id_pool.put(*user_key);
-
-        self.handshake_manager.delete_user(&user.address);
 
         return user;
     }
-
-    //////// users
 
     // Private methods
 
@@ -335,6 +330,29 @@ impl Server {
         loop {
             match self.io.recv_reader() {
                 Ok(Some((address, mut reader))) => {
+					let conn = match self.user_connections.entry(address) {
+						Entry::Occupied(entry) => entry.into_mut(),
+						Entry::Vacant(entry) => {
+							let Some(user_key) = self.user_id_pool.get() else {
+								// too many connected users; reject request
+								// TODO -- send rejection w/ reason
+								warn!("Dropping packet from {address}: too many connected users");
+								continue;
+							};
+							self.users.insert(user_key, User::new(address));
+							entry.insert(Connection::new(
+								&address,
+								&self.server_config.connection,
+								&self.protocol.channel_kinds,
+								PingManager::new(self.server_config.connection.ping_interval),
+								&user_key,
+							))
+						}
+					};
+
+					// Mark that we've heard from the client
+					conn.base.mark_heard();
+
                     // Read header
                     let Ok(packet_type) = PacketType::de(&mut reader) else {
                         // Received a malformed packet
@@ -342,23 +360,65 @@ impl Server {
                         continue;
                     };
 
-                    let Ok(should_continue) = self.maintain_handshake(&address, &packet_type, &mut reader) else {
-                        warn!("Server Error: cannot read malformed packet");
-                        continue;
-                    };
-                    if should_continue {
-                        continue;
-                    }
-
-                    addresses.insert(address);
-
-                    if self
-                        .read_packet(&address, &packet_type, &mut reader)
-                        .is_err()
-                    {
-                        warn!("Server Error: cannot read malformed packet");
-                        continue;
-                    }
+					match packet_type {
+						PacketType::ClientChallengeRequest => {
+							if let Ok(writer) = conn.recv_challenge_request(&mut reader) {
+								if self.io.send_packet(&address, writer.to_packet()).is_err() {
+									// TODO: pass this on and handle above
+									warn!(
+										"Server Error: Cannot send challenge response packet to {}",
+										&address
+									);
+								}
+							}
+						}
+						PacketType::ClientConnectRequest => {
+							match conn.recv_connect_request(&self.protocol, &mut reader) {
+								HandshakeResult::AlreadyConnected(req) => {
+									let writer = conn.write_connect_response(&req);
+									if self.io.send_packet(&conn.address(), writer.to_packet()).is_err() {
+										// TODO: pass this on and handle above
+										warn!(
+											"Server Error: Cannot send connect success response packet to {}",
+											address
+										);
+									};
+								}
+								HandshakeResult::PendingAccept => (),
+								HandshakeResult::Success(req, msg) => {
+									let ctx = ConnectContext { req };
+									self.incoming_events.push(ServerEvent::Connect { user_key: conn.user_key, msg, ctx });
+								}
+								HandshakeResult::Invalid => {
+									trace!("Dropping invalid connect request from {address}");
+								}
+							}
+						}
+						PacketType::Data => {
+							addresses.insert(address);
+							if let Err(e) = conn.read_data_packet(&self.protocol, &mut reader) {
+								warn!("Server Error: failed to handle data packet from {address}: {e}");
+							};
+						}
+						PacketType::Disconnect => {
+							if conn.verify_disconnect_request(&mut reader) {
+								let user_key = conn.user_key;
+								self.user_disconnect(&user_key);
+							}
+						}
+						PacketType::Heartbeat => (),
+						PacketType::Ping => {
+							if let Err(e) = conn.ping_pong(&mut reader, &mut self.io) {
+								warn!("Server Error: failed to handle ping from {address}: {e}");
+							}
+						}
+						PacketType::Pong => {
+							if conn.read_pong(&mut reader).is_err() {
+								trace!("Dropping malformed pong");
+							}
+						}
+						_ => {}
+					}
                 }
                 Ok(None) => {
                     // No more packets, break loop
@@ -366,6 +426,7 @@ impl Server {
                 }
                 Err(error) => {
 					self.incoming_events.push(ServerEvent::Error(error));
+					break;
                 }
             }
         }
@@ -375,128 +436,15 @@ impl Server {
         }
     }
 
-    fn maintain_handshake(
-        &mut self,
-        address: &SocketAddr,
-        packet_type: &PacketType,
-        reader: &mut BitReader,
-    ) -> NaiaResult<bool> {
-        // Handshake stuff
-        match packet_type {
-            PacketType::ClientChallengeRequest => {
-                if let Ok(writer) = self.handshake_manager.recv_challenge_request(reader) {
-                    if self.io.send_packet(&address, writer.to_packet()).is_err() {
-                        // TODO: pass this on and handle above
-                        warn!(
-                            "Server Error: Cannot send challenge response packet to {}",
-                            &address
-                        );
-                    }
-                }
-                return Ok(true);
-            }
-            PacketType::ClientConnectRequest => {
-				match self.handshake_manager.recv_connect_request(
-					&self.protocol.message_kinds,
-					address,
-					reader,
-				) {
-					HandshakeResult::Success(req, msg, rtt_ms) => {
-						if self.user_connections.contains_key(address) {
-							// already connected, resend connect response
-							let writer = self.handshake_manager.write_connect_response(&req);
-							if self.io.send_packet(address, writer.to_packet()).is_err() {
-								// TODO: pass this on and handle above
-								warn!(
-									"Server Error: Cannot send connect success response packet to {}",
-									address
-								);
-							};
-						} else if self.user_keys.contains_key(address) {
-							// connection already pending approval, do nothing
-						} else if let Some(user_key) = self.user_id_pool.get() {
-							// request connection approval from user code
-							self.user_keys.insert(*address, user_key);
-							self.users.insert(user_key, User::new(*address));
-
-							let ctx = ConnectContext { req, rtt_ms };
-							self.incoming_events.push(ServerEvent::Connect { user_key, msg, ctx });
-						} else {
-							// too many connected users; reject request
-							// TODO -- send rejection w/ reason
-						}
-					}
-					HandshakeResult::Invalid => {
-						trace!("Dropping invalid connect request from {}", address);
-					}
-				}
-
-                return Ok(true);
-            }
-            _ => {}
-        }
-
-        return Ok(false);
-    }
-
-    fn read_packet(
-        &mut self,
-        address: &SocketAddr,
-        packet_type: &PacketType,
-        reader: &mut BitReader,
-    ) -> NaiaResult {
-        // Packets requiring established connection
-        let Some(connection) = self.user_connections.get_mut(address) else {
-            return Ok(());
-        };
-
-        // Mark that we've heard from the client
-        connection.base.mark_heard();
-
-        match packet_type {
-            PacketType::Data => {
-                connection.read_data_packet(&self.protocol, reader)?;
-            }
-            PacketType::Disconnect => {
-                if self
-                    .handshake_manager
-                    .verify_disconnect_request(connection, reader)
-                {
-                    let user_key = connection.user_key;
-                    self.user_disconnect(&user_key);
-                }
-            }
-            PacketType::Heartbeat => {
-                // already marked heard above
-            }
-			PacketType::Ping => {
-				if let Err(e) = connection.ping_pong(reader, &mut self.io) {
-					warn!("Server Error: failed to handle ping from {address}: {e}");
-				}
-			}
-            PacketType::Pong => {
-				if connection.read_pong(reader).is_err() {
-					trace!("Dropping malformed pong");
-				}
-            }
-            _ => {}
-        }
-
-        return Ok(());
-    }
-
     fn process_packets(&mut self, address: &SocketAddr) {
         // Packets requiring established connection
 		let Some(connection) = self.user_connections.get_mut(address) else {
 			return;
 		};
 
-		let Some(user_key) = self.user_keys.get(address) else {
-			return;
-		};
-
+		let user_key = connection.user_key;
 		for msg in connection.receive_messages() {
-			self.incoming_events.push(ServerEvent::Message { user_key: *user_key, msg });
+			self.incoming_events.push(ServerEvent::Message { user_key, msg });
 		}
     }
 

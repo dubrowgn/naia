@@ -1,6 +1,5 @@
 //! # Naia Server
-//! A server that uses either UDP or WebRTC communication to send/receive
-//! messages to/from connected clients.
+//! A cross-platform server that can send/receive messages to/from connected clients.
 
 #![deny(
     trivial_casts,
@@ -16,10 +15,8 @@ pub mod shared {
     };
 }
 
-mod cache_map;
 mod connection;
 mod events;
-mod handshake_manager;
 mod server;
 mod server_config;
 mod user;

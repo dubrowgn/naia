@@ -1,7 +1,5 @@
 //! # Naia Client
-//! A cross-platform client that can send/receive messages to/from a server, and
-//! has a pool of in-scope Entities/Components that are synced with the
-//! server.
+//! A cross-platform client that can send/receive messages to/from a server.
 
 #![deny(
     trivial_casts,
