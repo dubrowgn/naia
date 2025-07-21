@@ -214,15 +214,15 @@ impl Server {
         let now = Instant::now();
 
         // loop through all connections, send packet
-        let mut user_addresses: Vec<SocketAddr> = self.user_conns.keys().copied().collect();
+        let mut user_addresses: Vec<_> = self.user_conns.keys().copied().collect();
 
         // shuffle order of connections in order to avoid priority among users
         fastrand::shuffle(&mut user_addresses);
 
-        for user_address in user_addresses {
-            let connection = self.user_conns.get_mut(&user_address).unwrap();
+		for addr in user_addresses {
+			let conn = self.user_conns.get_mut(&addr).unwrap();
 
-			if let Err(e) = connection.send_data_packets(&self.protocol, &now, &mut self.io) {
+			if let Err(e) = conn.send(&now, &self.protocol, &mut self.io) {
 				self.incoming_events.push(ServerEvent::Error(e));
 			}
         }
@@ -292,10 +292,6 @@ impl Server {
 
     /// Maintain connection with a client and read all incoming packet data
     fn maintain_socket(&mut self) {
-        self.handle_timeouts();
-        self.handle_heartbeats();
-        self.handle_pings();
-
         let mut addresses: HashSet<SocketAddr> = HashSet::new();
         // receive socket events
         loop {
@@ -355,6 +351,8 @@ impl Server {
         for address in addresses {
             self.process_packets(&address);
         }
+
+		self.handle_timeouts();
     }
 
     fn process_packets(&mut self, address: &SocketAddr) {
@@ -381,22 +379,6 @@ impl Server {
 
 		for user_key in user_disconnects {
 			self.user_disconnect(&user_key);
-		}
-    }
-
-    fn handle_heartbeats(&mut self) {
-		for (addr, connection) in &mut self.user_conns.iter_mut() {
-			if let Err(e) = connection.try_send_heartbeat(&mut self.io) {
-				warn!("Server Error: Cannot send heartbeat packet to {addr}: {e}");
-			}
-		}
-    }
-
-    fn handle_pings(&mut self) {
-		for (addr, conn) in &mut self.user_conns.iter_mut() {
-			if let Err(e) = conn.try_send_ping(&mut self.io) {
-				warn!("Server Error: Cannot send ping packet to {addr}: {e}");
-			}
 		}
     }
 

@@ -233,13 +233,6 @@ impl Connection {
 
     // Incoming Data
 
-	/// Read packet data received from a client, storing necessary data in an internal buffer
-	pub fn read_data_packet(
-		&mut self, protocol: &Protocol, reader: &mut BitReader,
-	) -> NaiaResult {
-		self.base.read_data_packet(protocol, reader)
-	}
-
 	pub fn receive_packet(
 		&mut self, reader: &mut BitReader, io: &mut Io, protocol: &Protocol,
 	) -> NaiaResult<ReceiveEvent> {
@@ -254,17 +247,17 @@ impl Connection {
 			PacketType::ClientConnectRequest =>
 				self.recv_connect_request(protocol, io, reader),
 			PacketType::Data => {
-				self.read_data_packet(protocol, reader)?;
+				self.base.read_data_packet(protocol, reader)?;
 				Ok(ReceiveEvent::Data)
 			}
 			PacketType::Disconnect => self.recv_disconnect(reader),
 			PacketType::Heartbeat => Ok(ReceiveEvent::None),
 			PacketType::Ping => {
-				self.ping_pong(reader, io)?;
+				self.base.ping_pong(reader, io)?;
 				Ok(ReceiveEvent::None)
 			}
 			PacketType::Pong => {
-				self.read_pong(reader)?;
+				self.base.read_pong(reader)?;
 				Ok(ReceiveEvent::None)
 			}
 			t => {
@@ -286,29 +279,19 @@ impl Connection {
 		self.base.queue_message(&protocol.message_kinds, channel, msg);
 	}
 
-	pub fn send_data_packets(
-		&mut self, protocol: &Protocol, now: &Instant, io: &mut Io,
+	pub fn send(
+		&mut self, now: &Instant, protocol: &Protocol, io: &mut Io
 	) -> NaiaResult {
-		self.base.send_data_packets(protocol, now, io)
-	}
+		if !self.is_connected() {
+			return Ok(());
+		}
 
-	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> NaiaResult {
-		self.base.ping_pong(reader, io)
-	}
-
-	pub fn read_pong(&mut self, reader: &mut BitReader) -> NaiaResult {
-		self.base.read_pong(reader)
-	}
-
-	pub fn timed_out(&self) -> bool { self.base.timed_out() }
-
-	pub fn try_send_heartbeat(&mut self, io: &mut Io) -> NaiaResult {
+		self.base.send_data_packets(protocol, now, io)?;
+		self.base.try_send_ping(io)?;
 		self.base.try_send_heartbeat(io)
 	}
 
-	pub fn try_send_ping(&mut self, io: &mut Io) -> NaiaResult {
-		self.base.try_send_ping(io)
-	}
+	pub fn timed_out(&self) -> bool { self.base.timed_out() }
 
 	pub fn rtt_ms(&self) -> f32 { self.base.rtt_ms() }
 	pub fn jitter_ms(&self) -> f32 { self.base.jitter_ms() }
