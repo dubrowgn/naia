@@ -164,12 +164,8 @@ impl Client {
         }
 
         if let Some(connection) = &mut self.server_connection {
-            let message = MessageContainer::from_write(message_box);
-            connection.base.queue_message(
-                &self.protocol.message_kinds,
-                channel_kind,
-                message,
-            );
+            let msg = MessageContainer::from_write(message_box);
+            connection.queue_message(&self.protocol, channel_kind, msg);
         } else {
             self.waitlist_messages
                 .push_back((channel_kind.clone(), message_box));

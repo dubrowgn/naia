@@ -1,7 +1,8 @@
 use log::trace;
 use naia_shared::{
-	BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig, error::*,
-	HostType, Io, Message, MessageContainer, packet::*, PingManager, Protocol, Serde, Timer,
+	BaseConnection, BitReader, BitWriter, ChannelKind, ChannelKinds, ConnectionConfig,
+	error::*, HostType, Io, Message, MessageContainer, packet::*, PingManager, Protocol,
+	Serde, Timer,
 };
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
@@ -21,7 +22,7 @@ pub enum ConnectionState {
 }
 
 pub struct Connection {
-    pub base: BaseConnection,
+    base: BaseConnection,
 	connection_state: ConnectionState,
 	handshake_timer: Timer,
 	pre_connection_timestamp: TimestampNs,
@@ -255,6 +256,12 @@ impl Connection {
 	}
 
     // Outgoing data
+
+	pub fn queue_message(
+		&mut self, protocol: &Protocol, channel: &ChannelKind, msg: MessageContainer,
+	) {
+		self.base.queue_message(&protocol.message_kinds, channel, msg);
+	}
 
 	pub fn send(
 		&mut self, now: &Instant, protocol: &Protocol, io: &mut Io

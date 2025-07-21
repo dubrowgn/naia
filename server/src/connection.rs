@@ -1,8 +1,8 @@
 use crate::user::UserKey;
 use log::trace;
 use naia_shared::{
-	BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig, error::*,
-	HostType, Io, MessageContainer, PingManager, Protocol, Serde, packet::*,
+	BaseConnection, BitReader, BitWriter, ChannelKind, ChannelKinds, ConnectionConfig,
+	error::*, HostType, Io, MessageContainer, PingManager, Protocol, Serde, packet::*,
 };
 use ring::{hmac, rand};
 use std::net::SocketAddr;
@@ -33,7 +33,7 @@ pub enum ConnectionState {
 
 pub struct Connection {
     pub user_key: UserKey,
-    pub base: BaseConnection,
+    base: BaseConnection,
 	state: ConnectionState,
 	connection_hash_key: hmac::Key,
 	timestamp: Option<TimestampNs>,
@@ -289,6 +289,13 @@ impl Connection {
 	}
 
     // Outgoing data
+
+	pub fn queue_message(
+		&mut self, protocol: &Protocol, channel: &ChannelKind, msg: MessageContainer,
+	) {
+		self.base.queue_message(&protocol.message_kinds, channel, msg);
+	}
+
 	pub fn send_data_packets(
 		&mut self, protocol: &Protocol, now: &Instant, io: &mut Io,
 	) -> NaiaResult {
