@@ -1,10 +1,10 @@
 use crate::{ConnectContext, server_config::ServerConfig, ServerEvent};
 use crate::user::{User, UserKey};
 use naia_shared::{
-	BitWriter, Channel, ChannelKind, error::*, IdPool, Io, LinkConditionerConfig, Message,
-	MessageContainer, packet::*, PingManager, Protocol, Serde,
+	Channel, ChannelKind, error::*, IdPool, Io, LinkConditionerConfig,
+	Message, MessageContainer, PingManager, Protocol,
 };
-use log::{trace, warn};
+use log::warn;
 use std::collections::hash_map::Entry;
 use std::{collections::{HashMap, HashSet}, io, net::SocketAddr, panic, time::Instant};
 use super::connection::*;
@@ -71,15 +71,9 @@ impl Server {
 		}
 
 		// send disconnect packets to all connected clients
-		for _ in 0..3 {
-			for (addr, conn) in self.user_connections.iter_mut() {
-				let mut writer = BitWriter::new();
-				PacketType::Disconnect.ser(&mut writer);
-				packet::Disconnect { timestamp_ns: 0, signature: vec![] }.ser(&mut writer);
-
-				if self.io.send_packet(addr, writer.to_packet()).is_err() {
-					warn!("Failed to send disconnect to {:?} @ {addr}", conn.user_key);
-				};
+		for (addr, conn) in self.user_connections.iter_mut() {
+			if let Err(e) = conn.disconnect(&mut self.io) {
+				warn!("Failed to send disconnect to {:?} @ {addr}: {e}", conn.user_key);
 			}
 		}
 
@@ -135,18 +129,9 @@ impl Server {
 		};
 
         // send connect response
-        let writer = conn.write_connect_response(&ctx.req);
-        if self
-            .io
-            .send_packet(&user.address, writer.to_packet())
-            .is_err()
-        {
-            // TODO: pass this on and handle above
-            warn!(
-                "Server Error: Cannot send connect response packet to {}",
-                &user.address
-            );
-        }
+		if let Err(e) = conn.accept_connection(&ctx.req, &mut self.io) {
+			self.incoming_events.push(ServerEvent::Error(e));
+		}
     }
 
     /// Rejects an incoming Client User, terminating their attempt to establish
@@ -163,17 +148,8 @@ impl Server {
 		};
 
 		// send connect reject response
-		let writer = conn.write_reject_response();
-		if self
-			.io
-			.send_packet(&user.address, writer.to_packet())
-			.is_err()
-		{
-			// TODO: pass this on and handle above
-			warn!(
-				"Server Error: Cannot send auth rejection packet to {}",
-				&user.address
-			);
+		if let Err(e) = conn.reject_connection(&mut self.io) {
+			self.incoming_events.push(ServerEvent::Error(e));
 		}
 
         self.user_delete(user_key);
@@ -350,74 +326,20 @@ impl Server {
 						}
 					};
 
-					// Mark that we've heard from the client
-					conn.base.mark_heard();
-
-                    // Read header
-                    let Ok(packet_type) = PacketType::de(&mut reader) else {
-                        // Received a malformed packet
-                        // TODO: increase suspicion against packet sender
-                        continue;
-                    };
-
-					match packet_type {
-						PacketType::ClientChallengeRequest => {
-							if let Ok(writer) = conn.recv_challenge_request(&mut reader) {
-								if self.io.send_packet(&address, writer.to_packet()).is_err() {
-									// TODO: pass this on and handle above
-									warn!(
-										"Server Error: Cannot send challenge response packet to {}",
-										&address
-									);
-								}
-							}
+					match conn.receive_packet(&mut reader, &mut self.io, &self.protocol) {
+						Ok(ReceiveEvent::Connecting(req, msg)) => {
+							let ctx = ConnectContext { req };
+							self.incoming_events.push(ServerEvent::Connect { user_key: conn.user_key, msg, ctx });
 						}
-						PacketType::ClientConnectRequest => {
-							match conn.recv_connect_request(&self.protocol, &mut reader) {
-								HandshakeResult::AlreadyConnected(req) => {
-									let writer = conn.write_connect_response(&req);
-									if self.io.send_packet(&conn.address(), writer.to_packet()).is_err() {
-										// TODO: pass this on and handle above
-										warn!(
-											"Server Error: Cannot send connect success response packet to {}",
-											address
-										);
-									};
-								}
-								HandshakeResult::PendingAccept => (),
-								HandshakeResult::Success(req, msg) => {
-									let ctx = ConnectContext { req };
-									self.incoming_events.push(ServerEvent::Connect { user_key: conn.user_key, msg, ctx });
-								}
-								HandshakeResult::Invalid => {
-									trace!("Dropping invalid connect request from {address}");
-								}
-							}
-						}
-						PacketType::Data => {
+						Ok(ReceiveEvent::Data) => {
 							addresses.insert(address);
-							if let Err(e) = conn.read_data_packet(&self.protocol, &mut reader) {
-								warn!("Server Error: failed to handle data packet from {address}: {e}");
-							};
 						}
-						PacketType::Disconnect => {
-							if conn.verify_disconnect_request(&mut reader) {
-								let user_key = conn.user_key;
-								self.user_disconnect(&user_key);
-							}
+						Ok(ReceiveEvent::Disconnect) => {
+							let user_key = conn.user_key;
+							self.user_disconnect(&user_key);
 						}
-						PacketType::Heartbeat => (),
-						PacketType::Ping => {
-							if let Err(e) = conn.ping_pong(&mut reader, &mut self.io) {
-								warn!("Server Error: failed to handle ping from {address}: {e}");
-							}
-						}
-						PacketType::Pong => {
-							if conn.read_pong(&mut reader).is_err() {
-								trace!("Dropping malformed pong");
-							}
-						}
-						_ => {}
+						Ok(ReceiveEvent::None) => {}
+						Err(e) => self.incoming_events.push(ServerEvent::Error(e)),
 					}
                 }
                 Ok(None) => {

@@ -1,4 +1,5 @@
 use crate::user::UserKey;
+use log::trace;
 use naia_shared::{
 	BaseConnection, BitReader, BitWriter, ChannelKinds, ConnectionConfig, error::*,
 	HostType, Io, MessageContainer, PingManager, Protocol, Serde, packet::*,
@@ -6,6 +7,13 @@ use naia_shared::{
 use ring::{hmac, rand};
 use std::net::SocketAddr;
 use std::time::Instant;
+
+pub enum ReceiveEvent {
+	Connecting(packet::ClientConnectRequest, Option<MessageContainer>),
+	Data,
+	Disconnect,
+	None,
+}
 
 pub enum HandshakeResult {
 	AlreadyConnected(packet::ClientConnectRequest),
@@ -20,6 +28,7 @@ pub enum ConnectionState {
 	PendingConnect,
 	PendingAccept,
 	Connected,
+	Disconnected,
 }
 
 pub struct Connection {
@@ -62,8 +71,6 @@ impl Connection {
         }
     }
 
-	pub fn address(&self) -> &SocketAddr { self.base.address() }
-
 	pub fn is_connected(&self) -> bool { self.state == ConnectionState::Connected }
 
 	// Handshake
@@ -72,8 +79,38 @@ impl Connection {
 		self.epoch.elapsed().as_nanos() as TimestampNs
 	}
 
+	pub fn accept_connection(
+		&mut self, req: &packet::ClientConnectRequest, io: &mut Io,
+	) -> NaiaResult {
+		let writer = self.write_connect_response(req);
+		self.base.send(io, writer)
+	}
+
+	pub fn reject_connection(&mut self, io: &mut Io) -> NaiaResult {
+		let writer = self.write_reject_response();
+		self.base.send(io, writer)
+	}
+
+	pub fn disconnect(&mut self, io: &mut Io) -> NaiaResult {
+		if self.state != ConnectionState::Connected {
+			return Ok(());
+		}
+
+		self.state = ConnectionState::Disconnected;
+
+		for _ in 0..3 {
+			let mut writer = BitWriter::new();
+			PacketType::Disconnect.ser(&mut writer);
+			packet::Disconnect { timestamp_ns: 0, signature: vec![] }.ser(&mut writer);
+
+			self.base.send(io, writer)?;
+		}
+
+		Ok(())
+	}
+
 	// Step 1 of Handshake
-	pub fn recv_challenge_request(
+	fn recv_challenge_request(
 		&mut self, reader: &mut BitReader,
 	) -> NaiaResult<BitWriter> {
 		let req = packet::ClientChallengeRequest::de(reader)?;
@@ -81,7 +118,7 @@ impl Connection {
 	}
 
 	// Step 2 of Handshake
-	pub fn write_challenge_response(
+	fn write_challenge_response(
 		&mut self, req: &packet::ClientChallengeRequest
 	) -> BitWriter {
 		// TODO -- hoist to match client connection
@@ -104,7 +141,7 @@ impl Connection {
 	}
 
 	// Step 3 of Handshake
-	pub fn recv_connect_request(
+	fn recv_connect_request(
 		&mut self, protocol: &Protocol, reader: &mut BitReader,
 	) -> HandshakeResult {
 		let Ok(req) = packet::ClientConnectRequest::de(reader) else {
@@ -147,7 +184,7 @@ impl Connection {
 	}
 
 	// Step 4 of Handshake
-	pub(crate) fn write_connect_response(&mut self, req: &packet::ClientConnectRequest) -> BitWriter {
+	fn write_connect_response(&mut self, req: &packet::ClientConnectRequest) -> BitWriter {
 		self.state = ConnectionState::Connected;
 
 		let mut writer = BitWriter::new();
@@ -158,7 +195,7 @@ impl Connection {
 		writer
 	}
 
-	pub fn verify_disconnect_request(&mut self, reader: &mut BitReader) -> bool {
+	fn verify_disconnect_request(&mut self, reader: &mut BitReader) -> bool {
 		let Ok(req) = packet::Disconnect::de(reader) else {
 			return false;
 		};
@@ -171,7 +208,7 @@ impl Connection {
 		self.is_timestamp_valid(&req.timestamp_ns, &req.signature)
 	}
 
-	pub fn write_reject_response(&self) -> BitWriter {
+	fn write_reject_response(&self) -> BitWriter {
 		let mut writer = BitWriter::new();
 		PacketType::ServerRejectResponse.ser(&mut writer);
 		writer
@@ -193,6 +230,58 @@ impl Connection {
 		&mut self, protocol: &Protocol, reader: &mut BitReader,
 	) -> NaiaResult {
 		self.base.read_data_packet(protocol, reader)
+	}
+
+	pub fn receive_packet(
+		&mut self, reader: &mut BitReader, io: &mut Io, protocol: &Protocol,
+	) -> NaiaResult<ReceiveEvent> {
+		self.base.mark_heard();
+
+		match PacketType::de(reader)? {
+			PacketType::ClientChallengeRequest => {
+				let writer = self.recv_challenge_request(reader)?;
+				self.base.send(io, writer)?;
+				Ok(ReceiveEvent::None)
+			}
+			PacketType::ClientConnectRequest => {
+				match self.recv_connect_request(protocol, reader) {
+					HandshakeResult::AlreadyConnected(req) => {
+						let writer = self.write_connect_response(&req);
+						self.base.send(io, writer)?;
+						Ok(ReceiveEvent::None)
+					}
+					HandshakeResult::PendingAccept => Ok(ReceiveEvent::None),
+					HandshakeResult::Success(req, msg) => {
+						Ok(ReceiveEvent::Connecting(req, msg))
+					}
+					HandshakeResult::Invalid => {
+						trace!("Dropping invalid connect request from {}", self.base.address());
+						Ok(ReceiveEvent::None)
+					}
+				}
+			}
+			PacketType::Data => {
+				self.read_data_packet(protocol, reader)?;
+				Ok(ReceiveEvent::Data)
+			}
+			PacketType::Disconnect => {
+				if self.verify_disconnect_request(reader) {
+					Ok(ReceiveEvent::Disconnect)
+				} else {
+					Ok(ReceiveEvent::None)
+				}
+			}
+			PacketType::Heartbeat => Ok(ReceiveEvent::None),
+			PacketType::Ping => {
+				self.ping_pong(reader, io)?;
+				Ok(ReceiveEvent::None)
+			}
+			PacketType::Pong => {
+				self.read_pong(reader)?;
+				Ok(ReceiveEvent::None)
+			}
+			_ => Ok(ReceiveEvent::None),
+		}
 	}
 
 	pub fn receive_messages(&mut self) -> impl Iterator<Item = MessageContainer> + '_ {

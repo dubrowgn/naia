@@ -102,12 +102,12 @@ impl Connection {
 		match &mut self.connection_state {
 			ConnectionState::AwaitingChallengeResponse => {
 				let writer = self.write_challenge_request();
-				io.send_packet(self.base.address(), writer.to_packet())?;
+				self.base.send(io, writer)?;
 			}
 			ConnectionState::AwaitingConnectResponse{ server_timestamp_ns } => {
 				let server_timestamp_ns = *server_timestamp_ns;
 				let writer = self.write_connect_request(protocol, server_timestamp_ns);
-				io.send_packet(self.base.address(), writer.to_packet())?;
+				self.base.send(io, writer)?;
 			}
 			ConnectionState::Connected => unreachable!(),
 		}
@@ -209,14 +209,14 @@ impl Connection {
 	}
 
 	// Send a disconnect packet
-	pub fn write_disconnect(&self, io: &mut Io) -> NaiaResult {
+	pub fn write_disconnect(&mut self, io: &mut Io) -> NaiaResult {
 		let mut writer = BitWriter::new();
 		PacketType::Disconnect.ser(&mut writer);
 		packet::Disconnect {
 			timestamp_ns: self.pre_connection_timestamp,
 			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
 		}.ser(&mut writer);
-		io.send_packet(self.base.address(), writer.to_packet())?;
+		self.base.send(io, writer)?;
 
 		Ok(())
 	}

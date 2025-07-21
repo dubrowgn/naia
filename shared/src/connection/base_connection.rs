@@ -113,7 +113,7 @@ impl BaseConnection {
         self.message_manager.read_messages(protocol, reader)
     }
 
-	fn send(&mut self, io: &mut Io, writer: BitWriter) -> NaiaResult {
+	pub fn send(&mut self, io: &mut Io, writer: BitWriter) -> NaiaResult {
 		io.send_packet(&self.address, writer.to_packet())?;
 		self.mark_sent();
 		Ok(())
