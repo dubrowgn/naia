@@ -6,6 +6,13 @@ pub enum NaiaError {
 	Io(io::Error),
     Message(String),
 	Serde(SerdeErr),
+	Malformed(&'static str),
+}
+
+impl NaiaError {
+	pub fn malformed<T>() -> Self {
+		Self::Malformed(std::any::type_name::<T>())
+	}
 }
 
 pub type NaiaResult<T = ()> = Result<T, NaiaError>;
@@ -16,6 +23,7 @@ impl fmt::Display for NaiaError {
 			NaiaError::Io(err) => io::Error::fmt(err, f),
             NaiaError::Message(msg) => write!(f, "Naia Error: {msg}"),
 			NaiaError::Serde(err) => SerdeErr::fmt(err, f),
+			NaiaError::Malformed(name) => write!(f, "Received malformed {name}"),
         }
     }
 }

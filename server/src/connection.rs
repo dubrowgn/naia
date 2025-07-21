@@ -15,13 +15,6 @@ pub enum ReceiveEvent {
 	None,
 }
 
-pub enum HandshakeResult {
-	AlreadyConnected(packet::ClientConnectRequest),
-	Invalid,
-	PendingAccept,
-	Success(packet::ClientConnectRequest, Option<MessageContainer>),
-}
-
 #[derive(PartialEq)]
 pub enum ConnectionState {
 	PendingChallenge,
@@ -142,23 +135,24 @@ impl Connection {
 
 	// Step 3 of Handshake
 	fn recv_connect_request(
-		&mut self, protocol: &Protocol, reader: &mut BitReader,
-	) -> HandshakeResult {
+		&mut self, protocol: &Protocol, io: &mut Io, reader: &mut BitReader,
+	) -> NaiaResult<ReceiveEvent> {
 		let Ok(req) = packet::ClientConnectRequest::de(reader) else {
-			return HandshakeResult::Invalid;
+			return Err(NaiaError::malformed::<packet::ClientConnectRequest>());
 		};
 
 		// Verify that timestamp hash has been written by this server instance
 		if !self.is_timestamp_valid(&req.timestamp_ns, &req.signature) {
-			return HandshakeResult::Invalid;
+			trace!("Dropping invalid connect request from {}", self.base.address());
+			return Ok(ReceiveEvent::None);
 		};
 
 		// read optional message
 		let connect_msg = match bool::de(reader) {
-			Err(_) => return HandshakeResult::Invalid,
+			Err(_) => return Err(NaiaError::malformed::<packet::ClientConnectRequest>()),
 			Ok(true) => {
 				let Ok(msg) = protocol.message_kinds.read(reader) else {
-					return HandshakeResult::Invalid;
+					return Err(NaiaError::malformed::<packet::ClientConnectRequest>());
 				};
 				Some(msg)
 			}
@@ -173,13 +167,20 @@ impl Connection {
 
 		// TODO -- hoist to match client connection
 		match self.state {
-			ConnectionState::Connected => HandshakeResult::AlreadyConnected(req),
+			ConnectionState::Connected => {
+				let writer = self.write_connect_response(&req);
+				self.base.send(io, writer)?;
+				Ok(ReceiveEvent::None)
+			},
 			ConnectionState::PendingConnect => {
 				self.state = ConnectionState::PendingAccept;
-				HandshakeResult::Success(req, connect_msg)
+				Ok(ReceiveEvent::Connecting(req, connect_msg))
 			}
-			ConnectionState::PendingAccept => HandshakeResult::PendingAccept,
-			_ => HandshakeResult::Invalid,
+			ConnectionState::PendingAccept => Ok(ReceiveEvent::None),
+			_ => {
+				trace!("Dropping invalid connect request from {}", self.base.address());
+				Ok(ReceiveEvent::None)
+			}
 		}
 	}
 
@@ -195,23 +196,30 @@ impl Connection {
 		writer
 	}
 
-	fn verify_disconnect_request(&mut self, reader: &mut BitReader) -> bool {
+	fn recv_disconnect(&mut self, reader: &mut BitReader) -> NaiaResult<ReceiveEvent> {
 		let Ok(req) = packet::Disconnect::de(reader) else {
-			return false;
+			return Err(NaiaError::malformed::<packet::Disconnect>());
 		};
 
-		if self.timestamp != Some(req.timestamp_ns) {
-			return false;
+		if !self.is_disconnect_valid(&req) {
+			trace!("Dropping invalid disconnect request from {}", self.base.address());
+			return Ok(ReceiveEvent::None);
 		}
 
-		// Verify that timestamp hash has been written by this server instance
-		self.is_timestamp_valid(&req.timestamp_ns, &req.signature)
+		Ok(ReceiveEvent::Disconnect)
 	}
 
 	fn write_reject_response(&self) -> BitWriter {
 		let mut writer = BitWriter::new();
 		PacketType::ServerRejectResponse.ser(&mut writer);
 		writer
+	}
+
+	fn is_disconnect_valid(
+		&self, req: &packet::Disconnect,
+	) -> bool {
+		self.timestamp == Some(req.timestamp_ns) &&
+			self.is_timestamp_valid(&req.timestamp_ns, &req.signature)
 	}
 
 	fn is_timestamp_valid(&self, timestamp: &TimestampNs, signature: &Vec<u8>,) -> bool {
@@ -243,34 +251,13 @@ impl Connection {
 				self.base.send(io, writer)?;
 				Ok(ReceiveEvent::None)
 			}
-			PacketType::ClientConnectRequest => {
-				match self.recv_connect_request(protocol, reader) {
-					HandshakeResult::AlreadyConnected(req) => {
-						let writer = self.write_connect_response(&req);
-						self.base.send(io, writer)?;
-						Ok(ReceiveEvent::None)
-					}
-					HandshakeResult::PendingAccept => Ok(ReceiveEvent::None),
-					HandshakeResult::Success(req, msg) => {
-						Ok(ReceiveEvent::Connecting(req, msg))
-					}
-					HandshakeResult::Invalid => {
-						trace!("Dropping invalid connect request from {}", self.base.address());
-						Ok(ReceiveEvent::None)
-					}
-				}
-			}
+			PacketType::ClientConnectRequest =>
+				self.recv_connect_request(protocol, io, reader),
 			PacketType::Data => {
 				self.read_data_packet(protocol, reader)?;
 				Ok(ReceiveEvent::Data)
 			}
-			PacketType::Disconnect => {
-				if self.verify_disconnect_request(reader) {
-					Ok(ReceiveEvent::Disconnect)
-				} else {
-					Ok(ReceiveEvent::None)
-				}
-			}
+			PacketType::Disconnect => self.recv_disconnect(reader),
 			PacketType::Heartbeat => Ok(ReceiveEvent::None),
 			PacketType::Ping => {
 				self.ping_pong(reader, io)?;
@@ -280,7 +267,10 @@ impl Connection {
 				self.read_pong(reader)?;
 				Ok(ReceiveEvent::None)
 			}
-			_ => Ok(ReceiveEvent::None),
+			t => {
+				trace!("Dropping spurious {t:?} from {}", self.base.address());
+				Ok(ReceiveEvent::None)
+			}
 		}
 	}
 
