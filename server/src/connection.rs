@@ -80,24 +80,25 @@ impl Connection {
 		self.base.send(io, writer)
 	}
 
-	pub fn reject_connection(&mut self, io: &mut Io) -> NaiaResult {
+	pub fn reject_connection(&mut self, io: &mut Io, reason: RejectReason) -> NaiaResult {
 		self.state = ConnectionState::Disconnected;
-		let writer = self.write_reject_response();
+		let writer = Connection::write_reject_response(reason);
 		self.base.send(io, writer)
 	}
 
 	pub fn disconnect(&mut self, io: &mut Io) -> NaiaResult {
-		if self.state != ConnectionState::Connected {
+		if self.state == ConnectionState::Disconnected {
 			return Ok(());
 		}
 
 		self.state = ConnectionState::Disconnected;
 
 		for _ in 0..3 {
-			let mut writer = BitWriter::new();
-			PacketType::Disconnect.ser(&mut writer);
-			packet::Disconnect { timestamp_ns: 0, signature: vec![] }.ser(&mut writer);
-
+			let writer = if self.state == ConnectionState::Connected {
+				self.write_disconnect()
+			} else {
+				Connection::write_reject_response(RejectReason::Disconnect)
+			};
 			self.base.send(io, writer)?;
 		}
 
@@ -214,9 +215,17 @@ impl Connection {
 		writer
 	}
 
-	fn write_reject_response(&self) -> BitWriter {
+	fn write_disconnect(&mut self) -> BitWriter {
+		let mut writer = BitWriter::new();
+		PacketType::Disconnect.ser(&mut writer);
+		packet::Disconnect { timestamp_ns: 0, signature: vec![] }.ser(&mut writer);
+		writer
+	}
+
+	pub fn write_reject_response(reason: RejectReason) -> BitWriter {
 		let mut writer = BitWriter::new();
 		PacketType::ServerRejectResponse.ser(&mut writer);
+		packet::ServerRejectResponse { reason }.ser(&mut writer);
 		writer
 	}
 

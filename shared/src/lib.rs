@@ -25,6 +25,7 @@ mod protocol;
 mod timer;
 mod types;
 
+pub use error::NaiaError;
 pub use connection::{
     ack_manager::AckManager,
     base_connection::BaseConnection,
@@ -52,6 +53,7 @@ pub use messages::{
     message_manager::MessageManager,
     named::Named,
 };
+pub use packet::RejectReason;
 
 pub use protocol::Protocol;
 pub use timer::Timer;

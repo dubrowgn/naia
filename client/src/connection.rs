@@ -11,7 +11,7 @@ pub enum ReceiveEvent {
 	Connected,
 	Disconnect,
 	None,
-	Rejected,
+	Rejected(RejectReason),
 }
 
 #[derive(Debug, PartialEq)]
@@ -123,9 +123,18 @@ impl Connection {
 		match packet_type {
 			PacketType::ServerChallengeResponse => self.recv_challenge_response(reader),
 			PacketType::ServerConnectResponse => self.recv_connect_response(reader),
-			PacketType::ServerRejectResponse => Ok(ReceiveEvent::Rejected),
+			PacketType::ServerRejectResponse => self.recv_reject_response(reader),
 			_ => Ok(ReceiveEvent::None),
 		}
+	}
+
+	fn recv_reject_response(
+		&mut self, reader: &mut BitReader
+	) -> NaiaResult<ReceiveEvent> {
+		let Ok(resp) = packet::ServerRejectResponse::de(reader) else {
+			return Err(NaiaError::malformed::<packet::ServerRejectResponse>());
+		};
+		Ok(ReceiveEvent::Rejected(resp.reason))
 	}
 
 	// Step 1 of Handshake

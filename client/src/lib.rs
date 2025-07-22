@@ -16,3 +16,4 @@ mod events;
 pub use client::Client;
 pub use client_config::ClientConfig;
 pub use events::*;
+pub use naia_shared::RejectReason;

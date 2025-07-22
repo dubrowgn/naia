@@ -2,7 +2,7 @@ use crate::{ConnectContext, server_config::ServerConfig, ServerEvent};
 use crate::user::UserKey;
 use naia_shared::{
 	Channel, ChannelKind, error::*, IdPool, Io, LinkConditionerConfig,
-	Message, MessageContainer, PingManager, Protocol,
+	Message, MessageContainer, PingManager, Protocol, RejectReason,
 };
 use log::warn;
 use std::collections::hash_map::Entry;
@@ -113,9 +113,10 @@ impl Server {
 						Entry::Occupied(entry) => entry.into_mut(),
 						Entry::Vacant(entry) => {
 							let Some(user_key) = self.user_id_pool.get() else {
-								// too many connected users; reject request
-								// TODO -- send rejection w/ reason
-								warn!("Dropping packet from {address}: too many connected users");
+								// too many connected users; reject request -- best effort
+								let writer = Connection::write_reject_response(RejectReason::ServerFull);
+								let _ = io.send_packet(&address, writer.to_packet());
+
 								continue;
 							};
 							self.user_addrs.insert(user_key, address);
@@ -197,7 +198,7 @@ impl Server {
 
     /// Rejects an incoming Client User, terminating their attempt to establish
     /// a connection with the Server
-    pub fn reject_connection(&mut self, user_key: &UserKey) {
+    pub fn reject_connection(&mut self, user_key: &UserKey, reason: RejectReason) {
 		debug_assert!(self.is_listening(), "Server is not listening");
 		let Some(io) = &mut self.io else {
 			return;
@@ -213,7 +214,7 @@ impl Server {
 			return;
 		};
 
-		if let Err(e) = conn.reject_connection(io) {
+		if let Err(e) = conn.reject_connection(io, reason) {
 			self.incoming_events.push(ServerEvent::Error(e));
 		}
 

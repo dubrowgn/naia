@@ -1,4 +1,4 @@
-use naia_shared::{error::*, MessageContainer};
+use naia_shared::{MessageContainer, NaiaError, RejectReason};
 use std::net::SocketAddr;
 
 pub enum ClientEvent {
@@ -6,5 +6,5 @@ pub enum ClientEvent {
 	Disconnect(SocketAddr),
 	Error(NaiaError),
 	Message(MessageContainer),
-	Reject(SocketAddr),
+	Reject(SocketAddr, RejectReason),
 }

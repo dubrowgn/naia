@@ -135,8 +135,8 @@ impl Client {
 							let event = ClientEvent::Disconnect(*conn.address());
 							return self.disconnect_with_events(event);
 						}
-						Ok(ReceiveEvent::Rejected) => {
-							let event = ClientEvent::Reject(*conn.address());
+						Ok(ReceiveEvent::Rejected(reason)) => {
+							let event = ClientEvent::Reject(*conn.address(), reason);
 							return self.disconnect_with_events(event);
 						}
 						Ok(ReceiveEvent::None) => (),

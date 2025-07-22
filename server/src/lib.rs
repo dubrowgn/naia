@@ -14,6 +14,7 @@ pub mod shared {
 		SignedInteger, SignedVariableInteger, UnsignedInteger, UnsignedVariableInteger,
     };
 }
+pub use naia_shared::packet::RejectReason;
 
 mod connection;
 mod events;
