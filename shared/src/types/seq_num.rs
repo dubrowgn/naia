@@ -29,6 +29,8 @@ impl SeqNum {
 	pub const MIN: Self = Self(u16::MIN);
 	pub const MAX: Self = Self(u16::MAX);
 	pub const ZERO: Self = Self(0);
+	pub const SIZE_BYTES: usize = size_of::<Self>();
+	pub const SIZE_BITS: usize = Self::SIZE_BYTES * 8;
 
 	pub fn add_diff(&self, rhs: i16) -> Self {
 		Self(self.0.wrapping_add_signed(rhs))
