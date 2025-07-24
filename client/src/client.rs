@@ -1,7 +1,7 @@
 use log::warn;
 use naia_shared::{
 	Channel, ChannelKind, error::*, Io, LinkConditionerConfig, Message,
-	MessageContainer, PingManager, Protocol,
+	MessageContainer, Protocol,
 };
 use std::{collections::VecDeque, io, net::SocketAddr, time::Instant};
 use super::{
@@ -63,7 +63,6 @@ impl Client {
 			&self.client_config.connection,
 			self.client_config.handshake_resend_interval,
 			&self.protocol.channel_kinds,
-			PingManager::new(self.client_config.connection.ping_interval),
 		);
 		conn.set_connect_message(Box::new(msg));
 

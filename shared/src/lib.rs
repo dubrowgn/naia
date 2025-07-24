@@ -35,7 +35,6 @@ pub use connection::{
     encoder::Encoder,
     io::Io,
     packet,
-	ping_manager::PingManager,
 };
 pub use messages::{
     channels::{

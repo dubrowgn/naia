@@ -2,7 +2,7 @@ use crate::{ConnectContext, server_config::ServerConfig, ServerEvent};
 use crate::user::UserKey;
 use naia_shared::{
 	Channel, ChannelKind, error::*, IdPool, Io, LinkConditionerConfig,
-	Message, MessageContainer, PingManager, Protocol, RejectReason,
+	Message, MessageContainer, Protocol, RejectReason,
 };
 use log::warn;
 use std::collections::hash_map::Entry;
@@ -124,7 +124,6 @@ impl Server {
 								&address,
 								&self.server_config.connection,
 								&self.protocol.channel_kinds,
-								PingManager::new(self.server_config.connection.ping_interval),
 								&user_key,
 							))
 						}

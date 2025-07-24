@@ -2,7 +2,7 @@ use crate::user::UserKey;
 use log::trace;
 use naia_shared::{
 	BaseConnection, BitReader, BitWriter, ChannelKind, ChannelKinds, ConnectionConfig,
-	error::*, HostType, Io, MessageContainer, PingManager, Protocol, Serde, packet::*,
+	error::*, HostType, Io, MessageContainer, Protocol, Serde, packet::*,
 };
 use ring::{hmac, rand};
 use std::net::SocketAddr;
@@ -31,7 +31,6 @@ pub struct Connection {
 	connection_hash_key: hmac::Key,
 	timestamp: Option<TimestampNs>,
 	timestamp_digest: Option<Vec<u8>>,
-	epoch: Instant,
 }
 
 impl Connection {
@@ -39,7 +38,6 @@ impl Connection {
 		address: &SocketAddr,
 		config: &ConnectionConfig,
 		channel_kinds: &ChannelKinds,
-		ping_manager: PingManager,
 		user_key: &UserKey,
     ) -> Self {
         let connection_hash_key = hmac::Key::generate(
@@ -49,28 +47,17 @@ impl Connection {
 
         Self {
             user_key: *user_key,
-            base: BaseConnection::new(
-				address,
-                HostType::Server,
-                config,
-                channel_kinds,
-				ping_manager,
-            ),
+            base: BaseConnection::new(address, HostType::Server, config, channel_kinds),
 			state: ConnectionState::PendingChallenge,
 			connection_hash_key,
 			timestamp: None,
 			timestamp_digest: None,
-			epoch: Instant::now(),
         }
     }
 
 	pub fn is_connected(&self) -> bool { self.state == ConnectionState::Connected }
 
 	// Handshake
-
-	fn timestamp_ns(&self) -> TimestampNs {
-		self.epoch.elapsed().as_nanos() as TimestampNs
-	}
 
 	pub fn accept_connection(
 		&mut self, req: &packet::ClientConnectRequest, io: &mut Io,
@@ -142,7 +129,7 @@ impl Connection {
 			timestamp_ns: req.timestamp_ns,
 			signature: tag.as_ref().into(),
 			client_timestamp_ns: req.client_timestamp_ns,
-			server_timestamp_ns: self.timestamp_ns(),
+			server_timestamp_ns: self.base.timestamp_ns(),
 		}.ser(&mut writer);
 
 		writer
@@ -188,8 +175,7 @@ impl Connection {
 		self.timestamp = Some(req.timestamp_ns);
 		self.timestamp_digest = Some(req.signature.clone());
 
-		let rtt_ns = self.timestamp_ns() - req.server_timestamp_ns;
-		self.base.sample_rtt_ms(rtt_ns as f32 / 1_000_000.0);
+		self.base.sample_rtt(req.server_timestamp_ns);
 
 		match self.state {
 			ConnectionState::Connected => {

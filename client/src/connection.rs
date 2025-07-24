@@ -1,8 +1,7 @@
 use log::trace;
 use naia_shared::{
 	BaseConnection, BitReader, BitWriter, ChannelKind, ChannelKinds, ConnectionConfig,
-	error::*, HostType, Io, Message, MessageContainer, packet::*, PingManager, Protocol,
-	Serde, Timer,
+	error::*, HostType, Io, Message, MessageContainer, packet::*, Protocol, Serde, Timer,
 };
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
@@ -29,7 +28,6 @@ pub struct Connection {
 	pre_connection_timestamp: TimestampNs,
 	pre_connection_digest: Option<Vec<u8>>,
 	connect_message: Option<Box<dyn Message>>,
-	epoch: Instant,
 }
 
 impl Connection {
@@ -38,7 +36,6 @@ impl Connection {
 		config: &ConnectionConfig,
 		handshake_resend_interval: Duration,
 		channel_kinds: &ChannelKinds,
-		ping_manager: PingManager,
     ) -> Self {
 		let pre_connection_timestamp = SystemTime::now()
 			.duration_since(SystemTime::UNIX_EPOCH)
@@ -46,35 +43,18 @@ impl Connection {
 			.as_nanos() as TimestampNs;
 
         Connection {
-            base: BaseConnection::new(
-				address,
-                HostType::Client,
-				config,
-                channel_kinds,
-				ping_manager,
-            ),
+            base: BaseConnection::new(address, HostType::Client, config, channel_kinds),
 			state: ConnectionState::AwaitingChallengeResponse,
 			handshake_timer: Timer::new_ringing(handshake_resend_interval),
 			pre_connection_timestamp,
 			pre_connection_digest: None,
 			connect_message: None,
-			epoch: Instant::now(),
         }
     }
 
 	pub fn address(&self) -> &SocketAddr { self.base.address() }
 
 	// Handshake
-
-	fn timestamp_ns(&self) -> TimestampNs {
-		self.epoch.elapsed().as_nanos() as TimestampNs
-	}
-
-	fn sample_rtt(&mut self, start_timestamp_ns: TimestampNs) {
-		let now_ns = self.timestamp_ns();
-		let rtt_ms = (now_ns - start_timestamp_ns) as f32 / 1_000_000.0;
-		self.base.sample_rtt_ms(rtt_ms);
-	}
 
 	fn set_state(&mut self, state: ConnectionState) {
 		self.state = state;
@@ -145,7 +125,7 @@ impl Connection {
 		PacketType::ClientChallengeRequest.ser(&mut writer);
 		packet::ClientChallengeRequest {
 			timestamp_ns: self.pre_connection_timestamp,
-			client_timestamp_ns: self.timestamp_ns(),
+			client_timestamp_ns: self.base.timestamp_ns(),
 		}.ser(&mut writer);
 
 		writer
@@ -167,7 +147,7 @@ impl Connection {
 			return Ok(ReceiveEvent::None);
 		}
 
-		self.sample_rtt(resp.client_timestamp_ns);
+		self.base.sample_rtt(resp.client_timestamp_ns);
 
 		self.pre_connection_digest = Some(resp.signature);
 		self.set_state(ConnectionState::AwaitingConnectResponse{
@@ -186,7 +166,7 @@ impl Connection {
 		packet::ClientConnectRequest {
 			timestamp_ns: self.pre_connection_timestamp,
 			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
-			client_timestamp_ns: self.timestamp_ns(),
+			client_timestamp_ns: self.base.timestamp_ns(),
 			server_timestamp_ns,
 		}.ser(&mut writer);
 
@@ -212,7 +192,7 @@ impl Connection {
 			return Err(NaiaError::malformed::<packet::ServerConnectResponse>());
 		};
 
-		self.sample_rtt(resp.client_timestamp_ns);
+		self.base.sample_rtt(resp.client_timestamp_ns);
 
 		self.set_state(ConnectionState::Connected);
 		Ok(ReceiveEvent::Connected)

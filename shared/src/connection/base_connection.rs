@@ -1,25 +1,27 @@
-use crate::{
-	ChannelKind, error::*, Io, MessageContainer, MessageKinds, PingManager, Protocol,
-	Timer,
-};
+use crate::{ ChannelKind, error::*, Io, MessageContainer, MessageKinds, Protocol, Timer };
 use crate::messages::{
 	channels::channel_kinds::ChannelKinds, message_manager::MessageManager,
 };
+use crate::metrics::*;
 use crate::types::HostType;
 use naia_serde::{BitReader, BitWriter, Serde};
 use std::net::SocketAddr;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use super::{ack_manager::AckManager, connection_config::ConnectionConfig, packet::*};
+
+const METRICS_WINDOW_SIZE: Duration = Duration::from_secs(7);
 
 /// Represents a connection to a remote host, and provides functionality to
 /// manage the connection and the communications to it
 pub struct BaseConnection {
-    ack_manager: AckManager,
 	address: SocketAddr,
-    heartbeat_timer: Timer,
-    message_manager: MessageManager,
-    ping_manager: PingManager,
-    timeout_timer: Timer,
+	ack_manager: AckManager,
+	message_manager: MessageManager,
+	heartbeat_timer: Timer,
+	ping_timer: Timer,
+	timeout_timer: Timer,
+	epoch: Instant,
+	rtt_ms: RollingWindow,
 }
 
 impl BaseConnection {
@@ -29,19 +31,24 @@ impl BaseConnection {
         host_type: HostType,
         config: &ConnectionConfig,
         channel_kinds: &ChannelKinds,
-        ping_manager: PingManager,
     ) -> Self {
         BaseConnection {
 			address: *address,
 			ack_manager: AckManager::new(),
-			heartbeat_timer: Timer::new(config.heartbeat_interval),
 			message_manager: MessageManager::new(host_type, channel_kinds),
-			ping_manager,
+			heartbeat_timer: Timer::new(config.heartbeat_interval),
+			ping_timer: Timer::new(config.ping_interval),
 			timeout_timer: Timer::new(config.timeout),
+			epoch: Instant::now(),
+			rtt_ms: RollingWindow::new(METRICS_WINDOW_SIZE),
         }
     }
 
 	pub fn address(&self) -> &SocketAddr { &self.address }
+
+	pub fn timestamp_ns(&self) -> TimestampNs {
+		self.epoch.elapsed().as_nanos() as TimestampNs
+	}
 
     // Heartbeats
 
@@ -122,12 +129,19 @@ impl BaseConnection {
 		Ok(())
 	}
 
-	pub fn sample_rtt_ms(&mut self, rtt_ms: f32) {
-		self.ping_manager.sample_rtt_ms(rtt_ms);
+	pub fn sample_rtt(&mut self, start_timestamp_ns: TimestampNs) {
+		let now_ns = self.timestamp_ns();
+		if now_ns >= start_timestamp_ns {
+			self.rtt_ms.sample((now_ns - start_timestamp_ns) as f32 / 1_000_000.0);
+		}
 	}
 
+	/// Read an incoming pong to update link quality metrics
 	pub fn read_pong(&mut self, reader: &mut BitReader) -> NaiaResult {
-		self.ping_manager.read_pong(reader)
+		let pong: packet::Pong = packet::Pong::de(reader)?;
+		self.sample_rtt(pong.timestamp_ns);
+
+		Ok(())
 	}
 
 	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> NaiaResult {
@@ -149,15 +163,24 @@ impl BaseConnection {
 		self.send(io, writer)
 	}
 
+	/// Send a ping packet if enough time has passed
 	pub fn try_send_ping(&mut self, io: &mut Io) -> NaiaResult {
-		if self.ping_manager.try_send_ping(&self.address, io)? {
-			self.mark_sent();
+		if !self.ping_timer.try_reset() {
+			return Ok(());
 		}
-		Ok(())
+
+		let mut writer = BitWriter::new();
+		PacketType::Ping.ser(&mut writer);
+		packet::Ping { timestamp_ns: self.timestamp_ns() }.ser(&mut writer);
+		self.send(io, writer)
 	}
 
-	pub fn rtt_ms(&self) -> f32 { self.ping_manager.rtt_ms() }
-	pub fn jitter_ms(&self) -> f32 { self.ping_manager.jitter_ms() }
+	pub fn rtt_ms(&self) -> f32 { self.rtt_ms.mean() }
+
+	pub fn jitter_ms(&self) -> f32 {
+		let mean = self.rtt_ms.mean();
+		f32::max(self.rtt_ms.max() - mean, mean - self.rtt_ms.min())
+	}
 
 	// performance counters
 
