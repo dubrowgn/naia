@@ -3,7 +3,7 @@ use crate::SeqNum;
 use naia_serde::*;
 
 /// packet-level sequence number
-pub type PacketIndex = SeqNum;
+pub type PacketSeq = SeqNum;
 
 // u64 is enough for ~584 years of nanoseconds
 pub type TimestampNs = u64;
@@ -60,9 +60,9 @@ pub struct ServerRejectResponse {
 #[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub struct Data {
 	/// Packet index identifying this packet
-	pub packet_index: PacketIndex,
+	pub packet_index: PacketSeq,
 	/// This is the last acknowledged packet index.
-	pub ack_index: PacketIndex,
+	pub ack_index: PacketSeq,
 	/// This is an bitfield of all last 32 acknowledged packets
 	pub ack_bitfield: u32,
 

@@ -10,12 +10,12 @@ const DEFAULT_SEND_PACKETS_SIZE: usize = 256;
 /// copied into the standard header on each outgoing packet
 pub struct AckManager {
     // Local packet index which we'll bump each time we send a new packet over the network.
-    next_packet_index: PacketIndex,
+    next_packet_index: PacketSeq,
     // The last acked packet index of the packets we've sent to the remote host.
-    last_recv_packet_index: PacketIndex,
+    last_recv_packet_index: PacketSeq,
     // Using a `Hashmap` to track every packet we send out so we can ensure that we can resend when
     // dropped.
-    sent_packets: HashSet<PacketIndex>,
+    sent_packets: HashSet<PacketSeq>,
     // However, we can only reasonably ack up to `REDUNDANT_PACKET_ACKS_SIZE + 1` packets on each
     // message we send so this should be that large.
     received_packets: SequenceBuffer,
@@ -24,8 +24,8 @@ pub struct AckManager {
 impl AckManager {
     pub fn new() -> Self {
         Self {
-            next_packet_index: PacketIndex::ZERO,
-            last_recv_packet_index: PacketIndex::MAX,
+            next_packet_index: PacketSeq::ZERO,
+            last_recv_packet_index: PacketSeq::MAX,
             sent_packets: HashSet::with_capacity(DEFAULT_SEND_PACKETS_SIZE),
             received_packets: SequenceBuffer::with_capacity(REDUNDANT_PACKET_ACKS_SIZE + 1),
         }
@@ -71,7 +71,7 @@ impl AckManager {
     }
 
     /// Records the packet with the given packet index
-    fn track_packet(&mut self, packet_index: PacketIndex) {
+    fn track_packet(&mut self, packet_index: PacketSeq) {
         self.sent_packets.insert(packet_index);
     }
 
@@ -87,12 +87,12 @@ impl AckManager {
         }
     }
 
-    fn last_received_packet_index(&self) -> PacketIndex {
+    fn last_received_packet_index(&self) -> PacketSeq {
         self.received_packets.sequence_num() - 1
     }
 
     fn ack_bitfield(&self) -> u32 {
-        let last_received_remote_packet_index: PacketIndex = self.last_received_packet_index();
+        let last_received_remote_packet_index: PacketSeq = self.last_received_packet_index();
         let mut ack_bitfield: u32 = 0;
         let mut mask: u32 = 1;
 

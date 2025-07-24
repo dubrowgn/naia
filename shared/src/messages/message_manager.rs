@@ -35,7 +35,7 @@ pub struct MessageManager {
     channel_senders: HashMap<ChannelKind, Box<dyn ChannelSender>>,
     channel_receivers: HashMap<ChannelKind, Box<dyn ChannelReceiver>>,
     channel_settings: HashMap<ChannelKind, ChannelSettings>,
-    packet_to_message_map: HashMap<PacketIndex, Vec<(ChannelKind, Vec<MessageIndex>)>>,
+    packet_to_message_map: HashMap<PacketSeq, Vec<(ChannelKind, Vec<MessageIndex>)>>,
     message_fragmenter: MessageFragmenter,
 }
 
@@ -204,7 +204,7 @@ impl MessageManager {
         &mut self,
         protocol: &Protocol,
         writer: &mut BitWriter,
-        packet_index: PacketIndex,
+        packet_index: PacketSeq,
     ) {
 		// final channel continuation bit
 		writer.reserve_bits(1);
@@ -289,7 +289,7 @@ impl MessageManager {
 
     /// Occurs when a packet has been notified as delivered. Stops tracking the
     /// status of Messages in that packet.
-    pub fn notify_packet_delivered(&mut self, packet_index: PacketIndex) {
+    pub fn notify_packet_delivered(&mut self, packet_index: PacketSeq) {
         if let Some(channel_list) = self.packet_to_message_map.get(&packet_index) {
             for (channel_kind, message_indices) in channel_list {
                 if let Some(channel) = self.channel_senders.get_mut(channel_kind) {
