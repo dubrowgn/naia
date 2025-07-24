@@ -1,4 +1,7 @@
-use crate::{ ChannelKind, error::*, Io, MessageContainer, MessageKinds, Protocol, Timer };
+use crate::{
+	ChannelKind, error::*, Io, MessageContainer, MessageKinds, Protocol, RolloverCounter,
+	Timer,
+};
 use crate::messages::{
 	channels::channel_kinds::ChannelKinds, message_manager::MessageManager,
 };
@@ -17,6 +20,7 @@ pub struct BaseConnection {
 	address: SocketAddr,
 	ack_manager: AckManager,
 	message_manager: MessageManager,
+	packet_seq: RolloverCounter,
 	heartbeat_timer: Timer,
 	ping_timer: Timer,
 	timeout_timer: Timer,
@@ -36,6 +40,7 @@ impl BaseConnection {
 			address: *address,
 			ack_manager: AckManager::new(),
 			message_manager: MessageManager::new(host_type, channel_kinds),
+			packet_seq: RolloverCounter::MAX,
 			heartbeat_timer: Timer::new(config.heartbeat_interval),
 			ping_timer: Timer::new(config.ping_interval),
 			timeout_timer: Timer::new(config.timeout),
@@ -66,6 +71,10 @@ impl BaseConnection {
 	pub fn timed_out(&self) -> bool { self.timeout_timer.ringing() }
 
     // Acks & Headers
+
+	pub fn packet_header(&mut self, packet_type: PacketType) -> PacketHeader {
+		PacketHeader { packet_type, packet_seq: self.packet_seq.incr() }
+	}
 
 	pub fn has_outgoing_messages(&self) -> bool {
 		self.message_manager.has_outgoing_messages()
@@ -100,12 +109,12 @@ impl BaseConnection {
 	}
 
 	fn write_data_packet(&mut self, protocol: &Protocol) -> BitWriter {
-		let header = self.ack_manager.next_outgoing_data_header();
+		let header = self.packet_header(PacketType::Data);
 
 		let mut writer = BitWriter::new();
-		PacketType::Data.ser(&mut writer);
 		header.ser(&mut writer);
-		self.message_manager.write_messages(&protocol, &mut writer, header.packet_index);
+		self.ack_manager.next_outgoing_data_header(header.packet_seq).ser(&mut writer);
+		self.message_manager.write_messages(&protocol, &mut writer, header.packet_seq);
 
 		writer
 	}
@@ -113,13 +122,14 @@ impl BaseConnection {
     pub fn read_data_packet(
         &mut self,
         protocol: &Protocol,
+		packet_seq: PacketSeq,
         reader: &mut BitReader,
     ) -> NaiaResult {
 		let Ok(data_header) = packet::Data::de(reader) else {
 			return Err(NaiaError::malformed::<packet::Data>());
 		};
 
-        self.ack_manager.process_incoming_header(&data_header, &mut self.message_manager);
+        self.ack_manager.process_incoming_header(packet_seq, &data_header, &mut self.message_manager);
         self.message_manager.read_messages(protocol, reader)
     }
 
@@ -148,7 +158,7 @@ impl BaseConnection {
 		let ping = packet::Ping::de(reader)?;
 
 		let mut writer = BitWriter::new();
-		PacketType::Pong.ser(&mut writer);
+		self.packet_header(PacketType::Pong).ser(&mut writer);
 		packet::Pong { timestamp_ns: ping.timestamp_ns }.ser(&mut writer);
 		self.send(io, writer)
 	}
@@ -159,7 +169,7 @@ impl BaseConnection {
 		}
 
 		let mut writer = BitWriter::new();
-		PacketType::Heartbeat.ser(&mut writer);
+		self.packet_header(PacketType::Heartbeat).ser(&mut writer);
 		self.send(io, writer)
 	}
 
@@ -170,7 +180,7 @@ impl BaseConnection {
 		}
 
 		let mut writer = BitWriter::new();
-		PacketType::Ping.ser(&mut writer);
+		self.packet_header(PacketType::Ping).ser(&mut writer);
 		packet::Ping { timestamp_ns: self.timestamp_ns() }.ser(&mut writer);
 		self.send(io, writer)
 	}

@@ -13,8 +13,7 @@ pub struct RolloverCounter {
 /// the number of rollovers to infer the high bytes, and thus, the actual sequence number.
 impl RolloverCounter {
 	pub const ZERO: Self = Self { rollovers: 0, seq: SeqNum::ZERO };
-
-	pub const fn new() -> Self { Self::ZERO }
+	pub const MAX: Self = Self { rollovers: u32::MAX, seq: SeqNum::MAX };
 
 	/// Get the non-wrapping sequence number
 	pub fn value(&self) -> u64 {
@@ -31,7 +30,7 @@ impl RolloverCounter {
 	}
 
 	/// Advance the counter's non-wrapping sequence number to `seq`, if `seq` is greater
-	pub fn update(&mut self, seq: SeqNum) {
+	pub fn advance(&mut self, seq: SeqNum) {
 		if !seq.gt(&self.seq) {
 			return;
 		}
@@ -44,12 +43,13 @@ impl RolloverCounter {
 		self.seq = seq;
 	}
 
-	/// Increment the sequence number
-	pub fn incr(&mut self) {
+	/// Increment and return the sequence number
+	pub fn incr(&mut self) -> SeqNum {
 		self.seq.incr();
 		if self.seq.0 == 0 {
-			self.rollovers += 1;
+			self.rollovers = self.rollovers.wrapping_add(1);
 		}
+		self.seq
 	}
 
 	/// Get the wrapping sequence number for the current count
@@ -81,6 +81,10 @@ mod tests {
 
 		counter.incr();
 		assert_eq!(counter.value(), 1 << SeqNum::SIZE_BITS);
+
+		counter = RolloverCounter::MAX;
+		counter.incr();
+		assert_eq!(counter.value(), 0);
 	}
 
 	#[test]
@@ -89,12 +93,12 @@ mod tests {
 		assert_eq!(counter.value(), SeqNum::MAX.0.into());
 
 		// forward
-		counter.update(3.into());
+		counter.advance(3.into());
 		assert_eq!(counter.rollovers, 1);
 		assert_eq!(counter.seq, 3.into());
 
 		// backward
-		counter.update(0.into());
+		counter.advance(0.into());
 		assert_eq!(counter.rollovers, 1);
 		assert_eq!(counter.seq, 3.into());
 	}

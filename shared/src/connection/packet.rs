@@ -43,6 +43,14 @@ pub enum PacketType {
 }
 
 #[derive(Clone, Debug, PartialEq, SerdeInternal)]
+pub struct PacketHeader {
+	/// Packet type
+	pub packet_type: PacketType,
+	/// Packet sequence number, incremented for each packet sent
+	pub packet_seq: PacketSeq,
+}
+
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub enum RejectReason {
 	AuthFailed,
 	Disconnect,
@@ -59,8 +67,6 @@ pub struct ServerRejectResponse {
 
 #[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub struct Data {
-	/// Packet index identifying this packet
-	pub packet_index: PacketSeq,
 	/// This is the last acknowledged packet index.
 	pub ack_index: PacketSeq,
 	/// This is an bitfield of all last 32 acknowledged packets

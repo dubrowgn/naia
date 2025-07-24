@@ -204,7 +204,7 @@ impl MessageManager {
         &mut self,
         protocol: &Protocol,
         writer: &mut BitWriter,
-        packet_index: PacketSeq,
+        packet_seq: PacketSeq,
     ) {
 		// final channel continuation bit
 		writer.reserve_bits(1);
@@ -238,9 +238,9 @@ impl MessageManager {
                 channel.write_messages(&protocol.message_kinds, writer, &mut has_written)
             {
                 self.packet_to_message_map
-                    .entry(packet_index)
+                    .entry(packet_seq)
                     .or_insert_with(Vec::new);
-                let channel_list = self.packet_to_message_map.get_mut(&packet_index).unwrap();
+                let channel_list = self.packet_to_message_map.get_mut(&packet_seq).unwrap();
                 channel_list.push((channel_kind.clone(), message_indices));
             }
 

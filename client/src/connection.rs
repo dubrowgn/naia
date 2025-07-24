@@ -96,11 +96,11 @@ impl Connection {
 	fn receive_packet_handshake(
 		&mut self, reader: &mut BitReader
 	) -> NaiaResult<ReceiveEvent> {
-		let Ok(packet_type) = PacketType::de(reader) else {
-			return Err(NaiaError::malformed::<PacketType>());
+		let Ok(header) = PacketHeader::de(reader) else {
+			return Err(NaiaError::malformed::<PacketHeader>());
 		};
 
-		match packet_type {
+		match header.packet_type {
 			PacketType::ServerChallengeResponse => self.recv_challenge_response(reader),
 			PacketType::ServerConnectResponse => self.recv_connect_response(reader),
 			PacketType::ServerRejectResponse => self.recv_reject_response(reader),
@@ -118,11 +118,11 @@ impl Connection {
 	}
 
 	// Step 1 of Handshake
-	fn write_challenge_request(&self) -> BitWriter {
+	fn write_challenge_request(&mut self) -> BitWriter {
 		debug_assert!(self.state == ConnectionState::AwaitingChallengeResponse);
 
 		let mut writer = BitWriter::new();
-		PacketType::ClientChallengeRequest.ser(&mut writer);
+		self.base.packet_header(PacketType::ClientChallengeRequest).ser(&mut writer);
 		packet::ClientChallengeRequest {
 			timestamp_ns: self.pre_connection_timestamp,
 			client_timestamp_ns: self.base.timestamp_ns(),
@@ -158,11 +158,11 @@ impl Connection {
 	}
 
 	// Step 3 of Handshake
-	fn write_connect_request(&self, protocol: &Protocol, server_timestamp_ns: TimestampNs) -> BitWriter {
+	fn write_connect_request(&mut self, protocol: &Protocol, server_timestamp_ns: TimestampNs) -> BitWriter {
 		debug_assert!(matches!(self.state, ConnectionState::AwaitingConnectResponse{..}));
 
 		let mut writer = BitWriter::new();
-		PacketType::ClientConnectRequest.ser(&mut writer);
+		self.base.packet_header(PacketType::ClientConnectRequest).ser(&mut writer);
 		packet::ClientConnectRequest {
 			timestamp_ns: self.pre_connection_timestamp,
 			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
@@ -207,7 +207,7 @@ impl Connection {
 
 		for _ in 0..3 {
 			let mut writer = BitWriter::new();
-			PacketType::Disconnect.ser(&mut writer);
+			self.base.packet_header(PacketType::Disconnect).ser(&mut writer);
 			packet::Disconnect {
 				timestamp_ns: self.pre_connection_timestamp,
 				signature: self.pre_connection_digest.as_ref().unwrap().clone(),
@@ -236,12 +236,12 @@ impl Connection {
 	) -> NaiaResult<ReceiveEvent> {
 		self.base.mark_heard();
 
-		let Ok(packet_type) = PacketType::de(reader) else {
-			return Err(NaiaError::malformed::<PacketType>());
+		let Ok(header) = PacketHeader::de(reader) else {
+			return Err(NaiaError::malformed::<PacketHeader>());
 		};
 
-		match packet_type {
-			PacketType::Data => self.base.read_data_packet(protocol, reader)?,
+		match header.packet_type {
+			PacketType::Data => self.base.read_data_packet(protocol, header.packet_seq, reader)?,
 			PacketType::Disconnect => return Ok(ReceiveEvent::Disconnect),
 			PacketType::Heartbeat => (),
 			PacketType::Ping => self.base.ping_pong(reader, io)?,

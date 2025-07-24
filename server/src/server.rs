@@ -114,7 +114,7 @@ impl Server {
 						Entry::Vacant(entry) => {
 							let Some(user_key) = self.user_id_pool.get() else {
 								// too many connected users; reject request -- best effort
-								let writer = Connection::write_reject_response(RejectReason::ServerFull);
+								let writer = write_reject_response(RejectReason::ServerFull);
 								let _ = io.send_packet(&address, writer.to_packet());
 
 								continue;

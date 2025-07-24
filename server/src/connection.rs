@@ -69,7 +69,7 @@ impl Connection {
 
 	pub fn reject_connection(&mut self, io: &mut Io, reason: RejectReason) -> NaiaResult {
 		self.state = ConnectionState::Disconnected;
-		let writer = Connection::write_reject_response(reason);
+		let writer = self.write_reject_response(reason);
 		self.base.send(io, writer)
 	}
 
@@ -84,7 +84,7 @@ impl Connection {
 			let writer = if self.state == ConnectionState::Connected {
 				self.write_disconnect()
 			} else {
-				Connection::write_reject_response(RejectReason::Disconnect)
+				self.write_reject_response(RejectReason::Disconnect)
 			};
 			self.base.send(io, writer)?;
 		}
@@ -124,7 +124,7 @@ impl Connection {
 		let tag = hmac::sign(&self.connection_hash_key, &req.timestamp_ns.to_le_bytes());
 
 		let mut writer = BitWriter::new();
-		PacketType::ServerChallengeResponse.ser(&mut writer);
+		self.base.packet_header(PacketType::ServerChallengeResponse).ser(&mut writer);
 		packet::ServerChallengeResponse {
 			timestamp_ns: req.timestamp_ns,
 			signature: tag.as_ref().into(),
@@ -194,7 +194,7 @@ impl Connection {
 	// Step 4 of Handshake
 	fn write_connect_response(&mut self, req: &packet::ClientConnectRequest) -> BitWriter {
 		let mut writer = BitWriter::new();
-		PacketType::ServerConnectResponse.ser(&mut writer);
+		self.base.packet_header(PacketType::ServerConnectResponse).ser(&mut writer);
 		packet::ServerConnectResponse {
 			client_timestamp_ns: req.client_timestamp_ns,
 		}.ser(&mut writer);
@@ -203,14 +203,14 @@ impl Connection {
 
 	fn write_disconnect(&mut self) -> BitWriter {
 		let mut writer = BitWriter::new();
-		PacketType::Disconnect.ser(&mut writer);
+		self.base.packet_header(PacketType::Disconnect).ser(&mut writer);
 		packet::Disconnect { timestamp_ns: 0, signature: vec![] }.ser(&mut writer);
 		writer
 	}
 
-	pub fn write_reject_response(reason: RejectReason) -> BitWriter {
+	fn write_reject_response(&mut self, reason: RejectReason) -> BitWriter {
 		let mut writer = BitWriter::new();
-		PacketType::ServerRejectResponse.ser(&mut writer);
+		self.base.packet_header(PacketType::ServerRejectResponse).ser(&mut writer);
 		packet::ServerRejectResponse { reason }.ser(&mut writer);
 		writer
 	}
@@ -251,17 +251,17 @@ impl Connection {
 	) -> NaiaResult<ReceiveEvent> {
 		self.base.mark_heard();
 
-		let Ok(packet_type) = PacketType::de(reader) else {
-			return Err(NaiaError::malformed::<PacketType>());
+		let Ok(header) = PacketHeader::de(reader) else {
+			return Err(NaiaError::malformed::<PacketHeader>());
 		};
 
-		match packet_type {
+		match header.packet_type {
 			PacketType::ClientChallengeRequest =>
 				self.recv_challenge_request(io, reader),
 			PacketType::ClientConnectRequest =>
 				self.recv_connect_request(protocol, io, reader),
 			PacketType::Data => {
-				self.base.read_data_packet(protocol, reader)?;
+				self.base.read_data_packet(protocol, header.packet_seq, reader)?;
 				Ok(ReceiveEvent::Data)
 			}
 			PacketType::Disconnect => self.recv_disconnect(reader),
@@ -317,4 +317,14 @@ impl Connection {
 	pub fn msg_rx_miss_count(&self) -> u64 { self.base.msg_rx_miss_count() }
 	pub fn msg_tx_count(&self) -> u64 { self.base.msg_tx_count() }
 	pub fn msg_tx_queue_count(&self) -> u64 { self.base.msg_tx_queue_count() }
+}
+
+pub fn write_reject_response(reason: RejectReason) -> BitWriter {
+	let mut writer = BitWriter::new();
+	PacketHeader {
+		packet_type: PacketType::ServerRejectResponse,
+		packet_seq: 0.into(),
+	}.ser(&mut writer);
+	packet::ServerRejectResponse { reason }.ser(&mut writer);
+	writer
 }

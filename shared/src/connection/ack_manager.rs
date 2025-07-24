@@ -9,8 +9,6 @@ const DEFAULT_SEND_PACKETS_SIZE: usize = 256;
 /// Keeps track of sent & received packets, and contains ack information that is
 /// copied into the standard header on each outgoing packet
 pub struct AckManager {
-    // Local packet index which we'll bump each time we send a new packet over the network.
-    next_packet_index: PacketSeq,
     // The last acked packet index of the packets we've sent to the remote host.
     last_recv_packet_index: PacketSeq,
     // Using a `Hashmap` to track every packet we send out so we can ensure that we can resend when
@@ -24,7 +22,6 @@ pub struct AckManager {
 impl AckManager {
     pub fn new() -> Self {
         Self {
-            next_packet_index: PacketSeq::ZERO,
             last_recv_packet_index: PacketSeq::MAX,
             sent_packets: HashSet::with_capacity(DEFAULT_SEND_PACKETS_SIZE),
             received_packets: SequenceBuffer::with_capacity(REDUNDANT_PACKET_ACKS_SIZE + 1),
@@ -35,15 +32,14 @@ impl AckManager {
     /// packets
     pub fn process_incoming_header(
         &mut self,
+		packet_seq: PacketSeq,
         data_header: &packet::Data,
         message_manager: &mut MessageManager,
     ) {
-        let sender_packet_index = data_header.packet_index;
         let sender_ack_index = data_header.ack_index;
         let mut sender_ack_bitfield = data_header.ack_bitfield;
 
-        self.received_packets
-            .set(sender_packet_index.into());
+        self.received_packets.set(packet_seq);
 
         // ensure that `self.sender_ack_index` is always increasing (with wrapping)
         if sender_ack_index > self.last_recv_packet_index {
@@ -75,13 +71,9 @@ impl AckManager {
         self.sent_packets.insert(packet_index);
     }
 
-    pub fn next_outgoing_data_header(&mut self) -> packet::Data {
-		let packet_index = self.next_packet_index;
-        self.track_packet(packet_index);
-        self.next_packet_index.incr();
-
+    pub fn next_outgoing_data_header(&mut self, packet_seq: PacketSeq) -> packet::Data {
+        self.track_packet(packet_seq);
         packet::Data {
-            packet_index,
             ack_index: self.last_received_packet_index(),
             ack_bitfield: self.ack_bitfield(),
         }
