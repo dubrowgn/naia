@@ -4,12 +4,12 @@ use naia_shared::{
 	BaseConnection, BitReader, ChannelKind, ChannelKinds, ConnectionConfig,
 	error::*, HostType, Io, MessageContainer, Schema, Serde, packet::*,
 };
-use ring::{hmac, rand};
 use std::net::SocketAddr;
 use std::time::Instant;
+use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
 
 pub enum ReceiveEvent {
-	Connecting(packet::ClientConnectRequest, Option<MessageContainer>),
+	Connecting(packet::ConnectRequest, Option<MessageContainer>),
 	Data,
 	Disconnect,
 	None,
@@ -17,7 +17,7 @@ pub enum ReceiveEvent {
 
 #[derive(PartialEq)]
 pub enum ConnectionState {
-	PendingChallenge,
+	PendingEncrypt,
 	PendingConnect,
 	PendingAccept,
 	Connected,
@@ -28,9 +28,7 @@ pub struct Connection {
     pub user_key: UserKey,
     base: BaseConnection,
 	state: ConnectionState,
-	connection_hash_key: hmac::Key,
-	timestamp: Option<TimestampNs>,
-	timestamp_digest: Option<Vec<u8>>,
+	shared_key: Option<SharedSecret>,
 }
 
 impl Connection {
@@ -40,18 +38,11 @@ impl Connection {
 		channel_kinds: &ChannelKinds,
 		user_key: &UserKey,
     ) -> Self {
-        let connection_hash_key = hmac::Key::generate(
-			hmac::HMAC_SHA256,
-			&rand::SystemRandom::new(),
-		).unwrap();
-
         Self {
             user_key: *user_key,
             base: BaseConnection::new(address, HostType::Server, config, channel_kinds),
-			state: ConnectionState::PendingChallenge,
-			connection_hash_key,
-			timestamp: None,
-			timestamp_digest: None,
+			state: ConnectionState::PendingEncrypt,
+			shared_key: None,
         }
     }
 
@@ -60,7 +51,7 @@ impl Connection {
 	// Handshake
 
 	pub fn accept_connection(
-		&mut self, req: &packet::ClientConnectRequest, io: &mut Io,
+		&mut self, req: &packet::ConnectRequest, io: &mut Io,
 	) -> NaiaResult {
 		self.state = ConnectionState::Connected;
 		let writer = self.write_connect_response(req);
@@ -93,11 +84,11 @@ impl Connection {
 	}
 
 	// Step 1 of Handshake
-	fn recv_challenge_request(
+	fn recv_encrypt_request(
 		&mut self, io: &mut Io, reader: &mut BitReader,
 	) -> NaiaResult<ReceiveEvent> {
 		match self.state {
-			ConnectionState::PendingChallenge => (), // happy path
+			ConnectionState::PendingEncrypt => (), // happy path
 			ConnectionState::PendingConnect => (), // resp might have dropped; resend
 			// avoid backwards progression
 			ConnectionState::PendingAccept
@@ -106,11 +97,18 @@ impl Connection {
 			| ConnectionState::Disconnected => return Ok(ReceiveEvent::None),
 		}
 
-		let Ok(req) = packet::ClientChallengeRequest::de(reader) else {
-			return Err(NaiaError::malformed::<packet::ClientChallengeRequest>());
+		// FIXME -- handle version mismatch
+		// FIXME -- handle potential for different client public keys
+
+		let Ok(req) = packet::EncryptRequest::de(reader) else {
+			return Err(NaiaError::malformed::<packet::EncryptRequest>());
 		};
 
-		let writer = self.write_challenge_response(&req);
+		if req.padding != [0; packet::EncryptRequest::PADDING_SIZE] {
+			return Err(NaiaError::malformed::<packet::EncryptRequest>());
+		}
+
+		let writer = self.write_encrypt_response(&req);
 		self.base.send(io, writer)?;
 
 		self.state = ConnectionState::PendingConnect;
@@ -118,15 +116,16 @@ impl Connection {
 	}
 
 	// Step 2 of Handshake
-	fn write_challenge_response(
-		&mut self, req: &packet::ClientChallengeRequest
-	) -> PacketWriter {
-		let tag = hmac::sign(&self.connection_hash_key, &req.timestamp_ns.to_le_bytes());
+	fn write_encrypt_response(&mut self, req: &packet::EncryptRequest) -> PacketWriter {
+		let priv_key = EphemeralSecret::random();
+		let pub_key = PublicKey::from(&priv_key);
 
-		let mut writer: _ = self.base.packet_writer(PacketType::ServerChallengeResponse);
-		packet::ServerChallengeResponse {
-			timestamp_ns: req.timestamp_ns,
-			signature: tag.as_ref().into(),
+		let client_pub_key = &req.client_public_key.into();
+		self.shared_key = Some(priv_key.diffie_hellman(client_pub_key));
+
+		let mut writer: _ = self.base.packet_writer(PacketType::EncryptResponse);
+		packet::EncryptResponse {
+			server_public_key: pub_key.to_bytes(),
 			client_timestamp_ns: req.client_timestamp_ns,
 			server_timestamp_ns: self.base.timestamp_ns(),
 		}.ser(&mut writer);
@@ -144,35 +143,25 @@ impl Connection {
 			// avoid duplicate events to user code
 			ConnectionState::PendingAccept
 			// protocol violation
-			| ConnectionState::PendingChallenge
+			| ConnectionState::PendingEncrypt
 			| ConnectionState::Disconnected => return Ok(ReceiveEvent::None),
 		}
 
-
-		let Ok(req) = packet::ClientConnectRequest::de(reader) else {
-			return Err(NaiaError::malformed::<packet::ClientConnectRequest>());
-		};
-
-		// Verify that timestamp hash has been written by this server instance
-		if !self.is_timestamp_valid(&req.timestamp_ns, &req.signature) {
-			trace!("Dropping invalid connect request from {}", self.base.address());
-			return Ok(ReceiveEvent::None);
+		let Ok(req) = packet::ConnectRequest::de(reader) else {
+			return Err(NaiaError::malformed::<packet::ConnectRequest>());
 		};
 
 		// read optional message
 		let connect_msg = match bool::de(reader) {
-			Err(_) => return Err(NaiaError::malformed::<packet::ClientConnectRequest>()),
+			Err(_) => return Err(NaiaError::malformed::<packet::ConnectRequest>()),
 			Ok(true) => {
 				let Ok(msg) = schema.message_kinds().read(reader) else {
-					return Err(NaiaError::malformed::<packet::ClientConnectRequest>());
+					return Err(NaiaError::malformed::<packet::ConnectRequest>());
 				};
 				Some(msg)
 			}
 			Ok(false) => None,
 		};
-
-		self.timestamp = Some(req.timestamp_ns);
-		self.timestamp_digest = Some(req.signature.clone());
 
 		self.base.sample_rtt(req.server_timestamp_ns);
 
@@ -191,11 +180,9 @@ impl Connection {
 	}
 
 	// Step 4 of Handshake
-	fn write_connect_response(
-		&mut self, req: &packet::ClientConnectRequest,
-	) -> PacketWriter {
-		let mut writer: _ = self.base.packet_writer(PacketType::ServerConnectResponse);
-		packet::ServerConnectResponse {
+	fn write_connect_response(&mut self, req: &packet::ConnectRequest) -> PacketWriter {
+		let mut writer: _ = self.base.packet_writer(PacketType::ConnectResponse);
+		packet::ConnectResponse {
 			client_timestamp_ns: req.client_timestamp_ns,
 		}.ser(&mut writer);
 		writer
@@ -203,43 +190,22 @@ impl Connection {
 
 	fn write_disconnect(&mut self) -> PacketWriter {
 		let mut writer: _ = self.base.packet_writer(PacketType::Disconnect);
-		packet::Disconnect { timestamp_ns: 0, signature: vec![] }.ser(&mut writer);
+		packet::Disconnect{}.ser(&mut writer);
 		writer
 	}
 
 	fn write_reject_response(&mut self, reason: RejectReason) -> PacketWriter {
-		let mut writer: _ = self.base.packet_writer(PacketType::ServerRejectResponse);
-		packet::ServerRejectResponse { reason }.ser(&mut writer);
+		let mut writer: _ = self.base.packet_writer(PacketType::HandshakeReject);
+		packet::HandshakeReject { reason }.ser(&mut writer);
 		writer
 	}
 
 	fn recv_disconnect(&mut self, reader: &mut BitReader) -> NaiaResult<ReceiveEvent> {
-		let Ok(req) = packet::Disconnect::de(reader) else {
+		let Ok(_) = packet::Disconnect::de(reader) else {
 			return Err(NaiaError::malformed::<packet::Disconnect>());
 		};
 
-		if !self.is_disconnect_valid(&req) {
-			trace!("Dropping invalid disconnect request from {}", self.base.address());
-			return Ok(ReceiveEvent::None);
-		}
-
 		Ok(ReceiveEvent::Disconnect)
-	}
-
-	fn is_disconnect_valid(
-		&self, req: &packet::Disconnect,
-	) -> bool {
-		self.timestamp == Some(req.timestamp_ns) &&
-			self.is_timestamp_valid(&req.timestamp_ns, &req.signature)
-	}
-
-	fn is_timestamp_valid(&self, timestamp: &TimestampNs, signature: &Vec<u8>,) -> bool {
-		// Verify that timestamp hash has been written by this server instance
-		hmac::verify(
-			&self.connection_hash_key,
-			&timestamp.to_le_bytes(),
-			signature,
-		).is_ok()
 	}
 
     // Incoming Data
@@ -254,10 +220,8 @@ impl Connection {
 		};
 
 		match header.packet_type {
-			PacketType::ClientChallengeRequest =>
-				self.recv_challenge_request(io, reader),
-			PacketType::ClientConnectRequest =>
-				self.recv_connect_request(schema, io, reader),
+			PacketType::EncryptRequest => self.recv_encrypt_request(io, reader),
+			PacketType::ConnectRequest => self.recv_connect_request(schema, io, reader),
 			PacketType::Data => {
 				self.base.read_data_packet(schema, header.packet_seq, reader)?;
 				Ok(ReceiveEvent::Data)
@@ -319,9 +283,9 @@ impl Connection {
 
 pub fn write_reject_response(reason: RejectReason) -> PacketWriter {
 	let mut writer: _ = PacketWriter::new(PacketHeader {
-		packet_type: PacketType::ServerRejectResponse,
+		packet_type: PacketType::HandshakeReject,
 		packet_seq: 0.into(),
 	});
-	packet::ServerRejectResponse { reason }.ser(&mut writer);
+	packet::HandshakeReject { reason }.ser(&mut writer);
 	writer
 }

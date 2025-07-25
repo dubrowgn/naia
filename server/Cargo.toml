@@ -18,7 +18,8 @@ maintenance = { status = "actively-developed" }
 
 [dependencies]
 naia-shared = { version = "0.22", path = "../shared" }
+chacha20poly1305 = "0.10.x"
 cfg-if = { version = "1.0" }
 log = { version = "0.4" }
-ring = { version = "0.16.15" }
 fastrand = { version = "1.7.0" }
+x25519-dalek = "2.0.x"

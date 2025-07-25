@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use super::user::UserKey;
 
 pub struct ConnectContext {
-	pub(crate) req: packet::ClientConnectRequest,
+	pub(crate) req: packet::ConnectRequest,
 }
 
 pub enum ServerEvent {

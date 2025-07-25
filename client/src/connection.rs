@@ -3,8 +3,10 @@ use naia_shared::{
 	BaseConnection, BitReader, ChannelKind, ChannelKinds, ConnectionConfig, error::*,
 	HostType, Io, Message, MessageContainer, packet::*, Schema, Serde, Timer,
 };
+use std::mem;
 use std::net::SocketAddr;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
+use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
 
 pub enum ReceiveEvent {
 	Connected,
@@ -13,9 +15,8 @@ pub enum ReceiveEvent {
 	Rejected(RejectReason),
 }
 
-#[derive(Debug, PartialEq)]
 pub enum ConnectionState {
-	AwaitingChallengeResponse,
+	AwaitingEncryptResponse{ priv_key: EphemeralSecret, pub_key: PublicKey },
 	AwaitingConnectResponse{ server_timestamp_ns: TimestampNs },
 	Connected,
 	Disconnected,
@@ -25,8 +26,7 @@ pub struct Connection {
     base: BaseConnection,
 	state: ConnectionState,
 	handshake_timer: Timer,
-	pre_connection_timestamp: TimestampNs,
-	pre_connection_digest: Option<Vec<u8>>,
+	shared_key: Option<SharedSecret>,
 	connect_message: Option<Box<dyn Message>>,
 }
 
@@ -37,17 +37,14 @@ impl Connection {
 		handshake_resend_interval: Duration,
 		channel_kinds: &ChannelKinds,
     ) -> Self {
-		let pre_connection_timestamp = SystemTime::now()
-			.duration_since(SystemTime::UNIX_EPOCH)
-			.expect("timing error!")
-			.as_nanos() as TimestampNs;
+		let priv_key = EphemeralSecret::random();
+		let pub_key = PublicKey::from(&priv_key);
 
-        Connection {
+        Self {
             base: BaseConnection::new(address, HostType::Client, config, channel_kinds),
-			state: ConnectionState::AwaitingChallengeResponse,
+			state: ConnectionState::AwaitingEncryptResponse{ priv_key, pub_key },
 			handshake_timer: Timer::new_ringing(handshake_resend_interval),
-			pre_connection_timestamp,
-			pre_connection_digest: None,
+			shared_key: None,
 			connect_message: None,
         }
     }
@@ -56,9 +53,9 @@ impl Connection {
 
 	// Handshake
 
-	fn set_state(&mut self, state: ConnectionState) {
-		self.state = state;
+	fn set_state(&mut self, state: ConnectionState) -> ConnectionState {
 		self.handshake_timer.ring_manual();
+		mem::replace(&mut self.state, state)
 	}
 
 	pub fn set_connect_message(&mut self, msg: Box<dyn Message>) {
@@ -66,19 +63,20 @@ impl Connection {
 	}
 
 	pub fn is_connected(&self) -> bool {
-		self.state == ConnectionState::Connected
+		matches!(self.state, ConnectionState::Connected)
 	}
 
 	fn send_handshake(&mut self, schema: &Schema, io: &mut Io) -> NaiaResult {
-		debug_assert!(self.state != ConnectionState::Connected);
+		debug_assert!(!matches!(self.state, ConnectionState::Connected));
 
 		if !self.handshake_timer.try_reset() {
 			return Ok(());
 		}
 
 		match &mut self.state {
-			ConnectionState::AwaitingChallengeResponse => {
-				let writer = self.write_challenge_request();
+			ConnectionState::AwaitingEncryptResponse{ pub_key , .. } => {
+				let pub_key = pub_key.to_bytes();
+				let writer = self.write_encrypt_request(pub_key);
 				self.base.send(io, writer)?;
 			}
 			ConnectionState::AwaitingConnectResponse{ server_timestamp_ns } => {
@@ -101,9 +99,9 @@ impl Connection {
 		};
 
 		match header.packet_type {
-			PacketType::ServerChallengeResponse => self.recv_challenge_response(reader),
-			PacketType::ServerConnectResponse => self.recv_connect_response(reader),
-			PacketType::ServerRejectResponse => self.recv_reject_response(reader),
+			PacketType::EncryptResponse => self.recv_encrypt_response(reader),
+			PacketType::ConnectResponse => self.recv_connect_response(reader),
+			PacketType::HandshakeReject => self.recv_reject_response(reader),
 			_ => Ok(ReceiveEvent::None),
 		}
 	}
@@ -111,47 +109,51 @@ impl Connection {
 	fn recv_reject_response(
 		&mut self, reader: &mut BitReader
 	) -> NaiaResult<ReceiveEvent> {
-		let Ok(resp) = packet::ServerRejectResponse::de(reader) else {
-			return Err(NaiaError::malformed::<packet::ServerRejectResponse>());
+		let Ok(resp) = packet::HandshakeReject::de(reader) else {
+			return Err(NaiaError::malformed::<packet::HandshakeReject>());
 		};
 		Ok(ReceiveEvent::Rejected(resp.reason))
 	}
 
 	// Step 1 of Handshake
-	fn write_challenge_request(&mut self) -> PacketWriter {
-		debug_assert!(self.state == ConnectionState::AwaitingChallengeResponse);
+	fn write_encrypt_request(&mut self, pub_key: [u8; packet::DH_KEY_SIZE]) -> PacketWriter {
+		debug_assert!(matches!(self.state, ConnectionState::AwaitingEncryptResponse{..}));
 
-		let mut writer: _ = self.base.packet_writer(PacketType::ClientChallengeRequest);
-		packet::ClientChallengeRequest {
-			timestamp_ns: self.pre_connection_timestamp,
+		let mut writer: _ = self.base.packet_writer(PacketType::EncryptRequest);
+		packet::EncryptRequest {
+			version: packet::VERSION,
+			client_public_key: pub_key,
 			client_timestamp_ns: self.base.timestamp_ns(),
+			padding: [0; 256],
 		}.ser(&mut writer);
 
 		writer
 	}
 
 	// Step 2 of Handshake
-	fn recv_challenge_response(
+	fn recv_encrypt_response(
 		&mut self, reader: &mut BitReader,
 	) -> NaiaResult<ReceiveEvent> {
-		if self.state != ConnectionState::AwaitingChallengeResponse {
+		if !matches!(self.state, ConnectionState::AwaitingEncryptResponse{..}) {
 			return Ok(ReceiveEvent::None);
 		}
 
-		let Ok(resp) = packet::ServerChallengeResponse::de(reader) else {
-			return Err(NaiaError::malformed::<packet::ServerChallengeResponse>());
+		let Ok(resp) = packet::EncryptResponse::de(reader) else {
+			return Err(NaiaError::malformed::<packet::EncryptResponse>());
 		};
-
-		if self.pre_connection_timestamp != resp.timestamp_ns {
-			return Ok(ReceiveEvent::None);
-		}
 
 		self.base.sample_rtt(resp.client_timestamp_ns);
 
-		self.pre_connection_digest = Some(resp.signature);
-		self.set_state(ConnectionState::AwaitingConnectResponse{
+		let next_state = ConnectionState::AwaitingConnectResponse{
 			server_timestamp_ns: resp.server_timestamp_ns,
-		});
+		};
+		let ConnectionState::AwaitingEncryptResponse{ priv_key, .. } = self.set_state(next_state) else {
+			unreachable!();
+		};
+
+		let server_pub_key = &resp.server_public_key.into();
+		let shared_key = priv_key.diffie_hellman(server_pub_key);
+		self.shared_key = Some(shared_key);
 
 		Ok(ReceiveEvent::None)
 	}
@@ -162,10 +164,8 @@ impl Connection {
 	) -> PacketWriter {
 		debug_assert!(matches!(self.state, ConnectionState::AwaitingConnectResponse{..}));
 
-		let mut writer: _ = self.base.packet_writer(PacketType::ClientConnectRequest);
-		packet::ClientConnectRequest {
-			timestamp_ns: self.pre_connection_timestamp,
-			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
+		let mut writer: _ = self.base.packet_writer(PacketType::ConnectRequest);
+		packet::ConnectRequest {
 			client_timestamp_ns: self.base.timestamp_ns(),
 			server_timestamp_ns,
 		}.ser(&mut writer);
@@ -190,8 +190,8 @@ impl Connection {
 			return Ok(ReceiveEvent::None);
 		};
 
-		let Ok(resp) = packet::ServerConnectResponse::de(reader) else {
-			return Err(NaiaError::malformed::<packet::ServerConnectResponse>());
+		let Ok(resp) = packet::ConnectResponse::de(reader) else {
+			return Err(NaiaError::malformed::<packet::ConnectResponse>());
 		};
 
 		self.base.sample_rtt(resp.client_timestamp_ns);
@@ -201,7 +201,7 @@ impl Connection {
 	}
 
 	pub fn disconnect(&mut self, io: &mut Io) -> NaiaResult {
-		if self.state != ConnectionState::Connected {
+		if !matches!(self.state, ConnectionState::Connected) {
 			return Ok(());
 		}
 
@@ -209,10 +209,7 @@ impl Connection {
 
 		for _ in 0..3 {
 			let mut writer: _ = self.base.packet_writer(PacketType::Disconnect);
-			packet::Disconnect {
-				timestamp_ns: self.pre_connection_timestamp,
-				signature: self.pre_connection_digest.as_ref().unwrap().clone(),
-			}.ser(&mut writer);
+			packet::Disconnect{}.ser(&mut writer);
 
 			self.base.send(io, writer)?;
 		}
@@ -278,7 +275,7 @@ impl Connection {
 	fn send_connected(
 		&mut self, now: &Instant, schema: &Schema, io: &mut Io
 	) -> NaiaResult {
-		debug_assert!(self.state == ConnectionState::Connected);
+		debug_assert!(matches!(self.state, ConnectionState::Connected));
 		self.base.send_data_packets(schema, now, io)?;
 		self.base.try_send_ping(io)?;
 		self.base.try_send_heartbeat(io)

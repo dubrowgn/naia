@@ -1,6 +1,7 @@
 
 use crate::SeqNum;
 use naia_serde::*;
+use x25519_dalek::PublicKey;
 
 pub struct PacketWriter {
 	header: PacketHeader,
@@ -41,18 +42,18 @@ pub type TimestampNs = u64;
 #[derive(Copy, Debug, Clone, Eq, PartialEq, SerdeInternal)]
 pub enum PacketType {
 // Handshake
-    // Used to stop a handshake-in-progress
-    ServerRejectResponse,
+    // (unencrypted) Used to stop a handshake-in-progress
+    HandshakeReject,
 
-    // An initial handshake message sent by the Client to the Server
-    ClientChallengeRequest,
-    // The Server's response to the Client's initial handshake message
-    ServerChallengeResponse,
-    // The final handshake message sent by the Client
-    ClientConnectRequest,
-    // The final handshake message sent by the Server, indicating that the
+    // Step 1: (unencrypted) An initial handshake message sent by the Client to the Server
+    EncryptRequest,
+    // Step 2: (unencrypted) The Server's response to the Client's initial handshake message
+    EncryptResponse,
+    // Step 3: The final handshake message sent by the Client
+    ConnectRequest,
+    // Step 4: The final handshake message sent by the Server, indicating that the
     // connection has been established
-    ServerConnectResponse,
+    ConnectResponse,
 
 // Connection maintenance
     // A Ping message, used to calculate RTT. Must be responded to with a Pong
@@ -69,6 +70,13 @@ pub enum PacketType {
     Data,
     // Used to request a graceful disconnect
     Disconnect,
+}
+
+impl PacketType {
+	pub fn is_encrypted(&self) -> bool {
+		use PacketType::*;
+		!matches!(self, HandshakeReject | EncryptRequest | EncryptResponse)
+	}
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -123,15 +131,79 @@ pub enum RejectReason {
 	AuthFailed,
 	Disconnect,
 	ServerFull,
+	Version,
 }
 
 pub mod packet {
 use super::*;
 
 #[derive(Clone, Debug, PartialEq, SerdeInternal)]
-pub struct ServerRejectResponse {
+pub struct HandshakeReject {
 	pub reason: RejectReason,
 }
+
+pub const VERSION: u8 = 0;
+pub const DH_KEY_SIZE: usize = size_of::<PublicKey>();
+
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
+pub struct EncryptRequest {
+	pub version: u8,
+	/// client's public key for the DH exchange
+	pub client_public_key: [u8; DH_KEY_SIZE],
+	/// client's transmission timestamp (monotonic nanoseconds since an arbitrary epoch)
+	pub client_timestamp_ns: TimestampNs,
+	/// Arbitrary padding to ensure EncryptRequest is larger than EncryptResponse to
+	/// mitigate amplification attacks.
+	pub padding: [u8; Self::PADDING_SIZE],
+}
+
+impl EncryptRequest {
+	pub const PADDING_SIZE: usize = 256;
+}
+
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
+pub struct EncryptResponse {
+	/// server's public key for the DH exchange
+	pub server_public_key: [u8; DH_KEY_SIZE],
+	/// client's transmission timestamp from ClientChallengeRequest (verbatim)
+	pub client_timestamp_ns: TimestampNs,
+	/// server's transmission timestamp (monotonic nanoseconds since an arbitrary epoch)
+	pub server_timestamp_ns: TimestampNs,
+}
+
+// To mitigate amplification attacks, EncryptResponse must be smaller than EncryptRequest.
+// We don't have access to the actual bit stream sizes at compile time, so use struct size
+// with 2x safety margin as a proxy.
+const _: () = assert!(2 * size_of::<EncryptResponse>() < size_of::<EncryptRequest>());
+
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
+pub struct ConnectRequest {
+	/// client's transmission timestamp (monotonic nanoseconds since an arbitrary epoch)
+	pub client_timestamp_ns: TimestampNs,
+	/// server's transmission timestamp from ClientChallengeRequest (verbatim)
+	pub server_timestamp_ns: TimestampNs,
+
+	// optional message; can't derive Serde
+}
+
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
+pub struct ConnectResponse {
+	/// client's transmission timestamp from ClientConnectRequest (verbatim)
+	pub client_timestamp_ns: TimestampNs,
+}
+
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
+pub struct Ping {
+	pub timestamp_ns: TimestampNs,
+}
+
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
+pub struct Pong {
+	pub timestamp_ns: TimestampNs,
+}
+
+#[derive(Clone, Debug, PartialEq, SerdeInternal)]
+pub struct Disconnect;
 
 #[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub struct Data {
@@ -148,56 +220,6 @@ pub struct Data {
 	//     message (can't derive Serde)
 	//   false bit (message continuation)
 	// false bit (channel continuation)
-}
-
-#[derive(Clone, Debug, PartialEq, SerdeInternal)]
-pub struct ClientChallengeRequest {
-	pub timestamp_ns: TimestampNs,
-	/// client's transmission timestamp (monotonic nanoseconds since an arbitrary epoch)
-	pub client_timestamp_ns: TimestampNs,
-}
-
-#[derive(Clone, Debug, PartialEq, SerdeInternal)]
-pub struct ServerChallengeResponse {
-	pub timestamp_ns: TimestampNs,
-	pub signature: Vec<u8>,
-	/// client's transmission timestamp from ClientChallengeRequest (verbatim)
-	pub client_timestamp_ns: TimestampNs,
-	/// server's transmission timestamp (monotonic nanoseconds since an arbitrary epoch)
-	pub server_timestamp_ns: TimestampNs,
-}
-
-#[derive(Clone, Debug, PartialEq, SerdeInternal)]
-pub struct ClientConnectRequest {
-	pub timestamp_ns: TimestampNs,
-	pub signature: Vec<u8>,
-	/// client's transmission timestamp (monotonic nanoseconds since an arbitrary epoch)
-	pub client_timestamp_ns: TimestampNs,
-	/// server's transmission timestamp from ClientChallengeRequest (verbatim)
-	pub server_timestamp_ns: TimestampNs,
-	// optional message; can't derive Serde
-}
-
-#[derive(Clone, Debug, PartialEq, SerdeInternal)]
-pub struct ServerConnectResponse {
-	/// client's transmission timestamp from ClientConnectRequest (verbatim)
-	pub client_timestamp_ns: TimestampNs,
-}
-
-#[derive(Clone, Debug, PartialEq, SerdeInternal)]
-pub struct Ping {
-	pub timestamp_ns: TimestampNs,
-}
-
-#[derive(Clone, Debug, PartialEq, SerdeInternal)]
-pub struct Pong {
-	pub timestamp_ns: TimestampNs,
-}
-
-#[derive(Clone, Debug, PartialEq, SerdeInternal)]
-pub struct Disconnect {
-	pub timestamp_ns: TimestampNs,
-	pub signature: Vec<u8>,
 }
 
 }
