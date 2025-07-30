@@ -1,4 +1,3 @@
-
 use crate::SeqNum;
 use naia_serde::*;
 use x25519_dalek::PublicKey;
@@ -10,16 +9,28 @@ pub struct PacketWriter {
 
 impl PacketWriter {
 	pub fn new(header: PacketHeader) -> Self {
+		// packet format (byte aligned): [packet_header][encrypt_tag][body]
 		let mut writer = BitWriter::new();
 		writer.write(&header);
+		if header.packet_type.is_encrypted() {
+			// reserve space for the encryption tag
+			writer.write(&[0u8; packet::ENCRYPT_TAG_SIZE]);
+		}
 
 		Self { header, writer }
 	}
 
 	pub fn packet_type(&self) -> PacketType { self.header.packet_type }
 	pub fn packet_seq(&self) -> PacketSeq { self.header.packet_seq }
+	pub fn tag_mut(&mut self) -> &mut [u8] {
+		let start = self.header.byte_length();
+		let end = start + packet::ENCRYPT_TAG_SIZE;
+		&mut self.writer.slice_mut()[start..end]
+	}
 	pub fn body_mut(&mut self) -> &mut [u8] {
-		&mut self.writer.slice_mut()[self.header.byte_length()..]
+		let start = self.header.byte_length() +
+			if self.packet_type().is_encrypted() { packet::ENCRYPT_TAG_SIZE } else { 0 };
+		&mut self.writer.slice_mut()[start..]
 	}
 	pub fn slice(&self) -> &[u8] { &self.writer.slice() }
 
@@ -77,6 +88,8 @@ impl PacketType {
 		use PacketType::*;
 		!matches!(self, HandshakeReject | EncryptRequest | EncryptResponse)
 	}
+
+	pub fn to_u8(self) -> u8 { self as u8 }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -137,17 +150,16 @@ pub enum RejectReason {
 pub mod packet {
 use super::*;
 
+pub const DH_KEY_SIZE: usize = size_of::<PublicKey>();
+pub const ENCRYPT_TAG_SIZE: usize = size_of::<chacha20poly1305::Tag>();
+
 #[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub struct HandshakeReject {
 	pub reason: RejectReason,
 }
 
-pub const VERSION: u8 = 0;
-pub const DH_KEY_SIZE: usize = size_of::<PublicKey>();
-
 #[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub struct EncryptRequest {
-	pub version: u8,
 	/// client's public key for the DH exchange
 	pub client_public_key: [u8; DH_KEY_SIZE],
 	/// client's transmission timestamp (monotonic nanoseconds since an arbitrary epoch)

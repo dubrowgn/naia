@@ -4,10 +4,19 @@ use std::{cmp::Ordering, fmt::Display, ops::{Add, AddAssign, Sub, SubAssign}};
 /// message-level sequence number
 pub type MessageIndex = SeqNum;
 
+#[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HostType {
-    Server,
-    Client,
+	Client,
+	Server,
+}
+
+impl HostType {
+	pub fn other(self) -> Self {
+		if self == HostType::Client { HostType::Server } else { HostType::Client }
+	}
+
+	pub fn to_u8(self) -> u8 { self as u8 }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]

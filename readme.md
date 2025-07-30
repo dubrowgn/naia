@@ -25,6 +25,7 @@ use specifically with deterministic lockstep applications.
 * Messages are actually recieved in order, which allows deterministic applications
 * Split send and receive operations
 * Added message and packet-level performance counters
+* Full chacha20poly1305 encryption with x25519 Diffie–Hellman key exchange
 
 ## Other improvements
 

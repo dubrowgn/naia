@@ -1,3 +1,4 @@
+use chacha20poly1305::{ aead::{AeadMutInPlace, KeyInit}, ChaCha20Poly1305, Nonce, Tag};
 use crate::{
 	ChannelKind, error::*, Io, MessageContainer, MessageKinds, RolloverCounter, Schema,
 	Timer,
@@ -11,6 +12,7 @@ use naia_serde::{BitReader, Serde};
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use super::{ack_manager::AckManager, connection_config::ConnectionConfig, packet::*};
+use x25519_dalek::{EphemeralSecret, PublicKey};
 
 const METRICS_WINDOW_SIZE: Duration = Duration::from_secs(7);
 
@@ -20,7 +22,9 @@ pub struct BaseConnection {
 	address: SocketAddr,
 	ack_manager: AckManager,
 	message_manager: MessageManager,
+	host_type: HostType,
 	packet_seq: RolloverCounter,
+	encrypt_key: Option<ChaCha20Poly1305>,
 	heartbeat_timer: Timer,
 	ping_timer: Timer,
 	timeout_timer: Timer,
@@ -40,7 +44,9 @@ impl BaseConnection {
 			address: *address,
 			ack_manager: AckManager::new(),
 			message_manager: MessageManager::new(host_type, channel_kinds),
+			host_type,
 			packet_seq: RolloverCounter::MAX,
+			encrypt_key: None,
 			heartbeat_timer: Timer::new(config.heartbeat_interval),
 			ping_timer: Timer::new(config.ping_interval),
 			timeout_timer: Timer::new(config.timeout),
@@ -53,6 +59,13 @@ impl BaseConnection {
 
 	pub fn timestamp_ns(&self) -> TimestampNs {
 		self.epoch.elapsed().as_nanos() as TimestampNs
+	}
+
+	pub fn set_shared_key(&mut self, priv_key: EphemeralSecret, pub_key: PublicKey) {
+		debug_assert!(self.encrypt_key.is_none());
+		let shared_key = priv_key.diffie_hellman(&pub_key);
+		let key: _ = ChaCha20Poly1305::new_from_slice(shared_key.as_bytes()).unwrap();
+		self.encrypt_key = Some(key);
 	}
 
     // Heartbeats
@@ -133,7 +146,42 @@ impl BaseConnection {
         self.message_manager.read_messages(schema, reader)
     }
 
-	pub fn send(&mut self, io: &mut Io, writer: PacketWriter) -> NaiaResult {
+	pub fn maybe_decrypt(&mut self, reader: &mut BitReader) -> NaiaResult<PacketHeader> {
+		let Ok(header) = reader.read::<PacketHeader>() else {
+			return Err(NaiaError::malformed::<PacketHeader>());
+		};
+
+		if header.packet_type.is_encrypted() {
+			let Some(shared_key) = self.encrypt_key.as_mut() else {
+				return Err(NaiaError::Decryption);
+			};
+
+			let packet_seq = self.packet_seq.infer(header.packet_seq);
+			let nonce: _ = build_nonce(
+				self.host_type.other(), header.packet_type, packet_seq,
+			);
+			let tag = reader.read::<[u8; packet::ENCRYPT_TAG_SIZE]>()?;
+
+			shared_key.decrypt_in_place_detached(
+				&nonce, &[], reader.remaining_mut(), Tag::from_slice(&tag),
+			).map_err(|_| NaiaError::Decryption)?;
+		}
+
+		Ok(header)
+	}
+
+	pub fn send(&mut self, io: &mut Io, mut writer: PacketWriter) -> NaiaResult {
+		if writer.packet_type().is_encrypted() {
+			let nonce: _ = build_nonce(
+				self.host_type, writer.packet_type(), self.packet_seq.value(),
+			);
+			let shared_key: _ = self.encrypt_key.as_mut().unwrap();
+			let tag: _ = shared_key.encrypt_in_place_detached(
+				&nonce, &[], writer.body_mut(),
+			).map_err(|_| NaiaError::Encryption)?;
+			writer.tag_mut().copy_from_slice(tag.as_slice());
+		}
+
 		io.send_packet(&self.address, writer.slice())?;
 		self.mark_sent();
 		Ok(())
@@ -196,4 +244,15 @@ impl BaseConnection {
 	pub fn msg_rx_miss_count(&self) -> u64 { self.message_manager.msg_rx_miss_count() }
 	pub fn msg_tx_count(&self) -> u64 { self.message_manager.msg_tx_count() }
 	pub fn msg_tx_queue_count(&self) -> u64 { self.message_manager.msg_tx_queue_count() }
+}
+
+fn build_nonce(
+	host_type: HostType, packet_type: PacketType, packet_seq: u64,
+) -> Nonce {
+	let mut nonce = [0u8; size_of::<Nonce>()];
+	nonce[0] = host_type.to_u8();
+	nonce[1] = packet_type.to_u8();
+	nonce[2..10].copy_from_slice(packet_seq.to_le_bytes().as_slice());
+
+	Nonce::clone_from_slice(nonce.as_slice())
 }

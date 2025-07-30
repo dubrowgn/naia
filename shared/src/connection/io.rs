@@ -4,9 +4,9 @@ use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
 use super::conditioner::PacketConditioner;
 
 fn receive(socket: &UdpSocket) -> Result<(SocketAddr, Box<[u8]>), io::Error> {
-	let mut buffer = Box::new([0; MTU_SIZE_BYTES]);
+	let mut buffer = [0u8; MTU_SIZE_BYTES];
 	match socket.recv_from(buffer.as_mut_slice()) {
-		Ok((_, src_addr)) => Ok((src_addr, buffer)),
+		Ok((size, src_addr)) => Ok((src_addr, buffer[..size].into())),
 		Err(e) => Err(e),
 	}
 }
@@ -16,9 +16,10 @@ fn receive_conditioned(
 ) -> Result<(SocketAddr, Box<[u8]>), io::Error> {
 	// Eagerly consume packets to ensure injected delay accuracy
 	loop {
-		let mut buffer = Box::new([0; MTU_SIZE_BYTES]);
+		let mut buffer = [0u8; MTU_SIZE_BYTES];
 		match socket.recv_from(buffer.as_mut_slice()) {
-			Ok((_, src_addr)) => conditioner.push(src_addr, buffer),
+			Ok((size, src_addr)) =>
+				conditioner.push(src_addr, buffer[..size].into()),
 			Err(e) if e.kind() == io::ErrorKind::WouldBlock => break,
 			Err(e) => return Err(e),
 		}

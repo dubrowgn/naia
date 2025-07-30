@@ -6,7 +6,7 @@ use naia_shared::{
 };
 use std::net::SocketAddr;
 use std::time::Instant;
-use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
+use x25519_dalek::{EphemeralSecret, PublicKey};
 
 pub enum ReceiveEvent {
 	Connecting(packet::ConnectRequest, Option<MessageContainer>),
@@ -18,7 +18,7 @@ pub enum ReceiveEvent {
 #[derive(PartialEq)]
 pub enum ConnectionState {
 	PendingEncrypt,
-	PendingConnect,
+	PendingConnect{ pub_key: PublicKey },
 	PendingAccept,
 	Connected,
 	Disconnected,
@@ -28,7 +28,6 @@ pub struct Connection {
     pub user_key: UserKey,
     base: BaseConnection,
 	state: ConnectionState,
-	shared_key: Option<SharedSecret>,
 }
 
 impl Connection {
@@ -42,7 +41,6 @@ impl Connection {
             user_key: *user_key,
             base: BaseConnection::new(address, HostType::Server, config, channel_kinds),
 			state: ConnectionState::PendingEncrypt,
-			shared_key: None,
         }
     }
 
@@ -89,16 +87,13 @@ impl Connection {
 	) -> NaiaResult<ReceiveEvent> {
 		match self.state {
 			ConnectionState::PendingEncrypt => (), // happy path
-			ConnectionState::PendingConnect => (), // resp might have dropped; resend
+			ConnectionState::PendingConnect{..} => (), // resp might have dropped; resend
 			// avoid backwards progression
 			ConnectionState::PendingAccept
 			| ConnectionState::Connected
 			// protocol violation
 			| ConnectionState::Disconnected => return Ok(ReceiveEvent::None),
 		}
-
-		// FIXME -- handle version mismatch
-		// FIXME -- handle potential for different client public keys
 
 		let Ok(req) = packet::EncryptRequest::de(reader) else {
 			return Err(NaiaError::malformed::<packet::EncryptRequest>());
@@ -108,20 +103,29 @@ impl Connection {
 			return Err(NaiaError::malformed::<packet::EncryptRequest>());
 		}
 
-		let writer = self.write_encrypt_response(&req);
-		self.base.send(io, writer)?;
+		if self.state == ConnectionState::PendingEncrypt {
+			let priv_key = EphemeralSecret::random();
+			let pub_key = PublicKey::from(&priv_key);
 
-		self.state = ConnectionState::PendingConnect;
+			self.base.set_shared_key(priv_key, req.client_public_key.into());
+			self.state = ConnectionState::PendingConnect{ pub_key };
+		}
+
+		self.send_encrypt_response(&req, io)?;
+
 		Ok(ReceiveEvent::None)
 	}
 
 	// Step 2 of Handshake
-	fn write_encrypt_response(&mut self, req: &packet::EncryptRequest) -> PacketWriter {
-		let priv_key = EphemeralSecret::random();
-		let pub_key = PublicKey::from(&priv_key);
-
-		let client_pub_key = &req.client_public_key.into();
-		self.shared_key = Some(priv_key.diffie_hellman(client_pub_key));
+	fn send_encrypt_response(
+		&mut self, req: &packet::EncryptRequest, io: &mut Io,
+	) -> NaiaResult {
+		debug_assert!(matches!(self.state, ConnectionState::PendingConnect{..}));
+		let ConnectionState::PendingConnect{ pub_key } = self.state else {
+			return Err(NaiaError::Message(
+				format!("Connection must be in PendingConnect to send encrypt response"),
+			));
+		};
 
 		let mut writer: _ = self.base.packet_writer(PacketType::EncryptResponse);
 		packet::EncryptResponse {
@@ -130,7 +134,7 @@ impl Connection {
 			server_timestamp_ns: self.base.timestamp_ns(),
 		}.ser(&mut writer);
 
-		writer
+		self.base.send(io, writer)
 	}
 
 	// Step 3 of Handshake
@@ -138,7 +142,7 @@ impl Connection {
 		&mut self, schema: &Schema, io: &mut Io, reader: &mut BitReader,
 	) -> NaiaResult<ReceiveEvent> {
 		match self.state {
-			ConnectionState::PendingConnect => (), // happy path
+			ConnectionState::PendingConnect{..} => (), // happy path
 			ConnectionState::Connected => (), // resp might have dropped; resend
 			// avoid duplicate events to user code
 			ConnectionState::PendingAccept
@@ -171,7 +175,7 @@ impl Connection {
 				self.base.send(io, writer)?;
 				Ok(ReceiveEvent::None)
 			},
-			ConnectionState::PendingConnect => {
+			ConnectionState::PendingConnect{..} => {
 				self.state = ConnectionState::PendingAccept;
 				Ok(ReceiveEvent::Connecting(req, connect_msg))
 			}
@@ -215,10 +219,7 @@ impl Connection {
 	) -> NaiaResult<ReceiveEvent> {
 		self.base.mark_heard();
 
-		let Ok(header) = PacketHeader::de(reader) else {
-			return Err(NaiaError::malformed::<PacketHeader>());
-		};
-
+		let header = self.base.maybe_decrypt(reader)?;
 		match header.packet_type {
 			PacketType::EncryptRequest => self.recv_encrypt_request(io, reader),
 			PacketType::ConnectRequest => self.recv_connect_request(schema, io, reader),

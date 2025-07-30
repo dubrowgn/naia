@@ -3,6 +3,8 @@ use std::{error, fmt, io};
 
 #[derive(Debug)]
 pub enum NaiaError {
+	Decryption,
+	Encryption,
 	Io(io::Error),
     Message(String),
 	Serde(SerdeErr),
@@ -20,6 +22,8 @@ pub type NaiaResult<T = ()> = Result<T, NaiaError>;
 impl fmt::Display for NaiaError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
+			NaiaError::Decryption => write!(f, "Failed to decrypt packet"),
+			NaiaError::Encryption => write!(f, "Failed to encrypt packet"),
 			NaiaError::Io(err) => io::Error::fmt(err, f),
             NaiaError::Message(msg) => write!(f, "Naia Error: {msg}"),
 			NaiaError::Serde(err) => SerdeErr::fmt(err, f),

@@ -1,3 +1,4 @@
+
 pub use naia_serde_derive::{
     Serde, SerdeInternal,
 };

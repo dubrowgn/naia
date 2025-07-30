@@ -23,7 +23,4 @@ test:
 pre-push: check test
 
 .PHONY: rebuild
-rebuild:
-	+cargo clean
-	+cargo build
-
+rebuild: clean build

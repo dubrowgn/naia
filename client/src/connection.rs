@@ -6,7 +6,7 @@ use naia_shared::{
 use std::mem;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
-use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
+use x25519_dalek::{EphemeralSecret, PublicKey};
 
 pub enum ReceiveEvent {
 	Connected,
@@ -26,7 +26,6 @@ pub struct Connection {
     base: BaseConnection,
 	state: ConnectionState,
 	handshake_timer: Timer,
-	shared_key: Option<SharedSecret>,
 	connect_message: Option<Box<dyn Message>>,
 }
 
@@ -44,7 +43,6 @@ impl Connection {
             base: BaseConnection::new(address, HostType::Client, config, channel_kinds),
 			state: ConnectionState::AwaitingEncryptResponse{ priv_key, pub_key },
 			handshake_timer: Timer::new_ringing(handshake_resend_interval),
-			shared_key: None,
 			connect_message: None,
         }
     }
@@ -94,10 +92,7 @@ impl Connection {
 	fn receive_packet_handshake(
 		&mut self, reader: &mut BitReader
 	) -> NaiaResult<ReceiveEvent> {
-		let Ok(header) = PacketHeader::de(reader) else {
-			return Err(NaiaError::malformed::<PacketHeader>());
-		};
-
+		let header = self.base.maybe_decrypt(reader)?;
 		match header.packet_type {
 			PacketType::EncryptResponse => self.recv_encrypt_response(reader),
 			PacketType::ConnectResponse => self.recv_connect_response(reader),
@@ -121,7 +116,6 @@ impl Connection {
 
 		let mut writer: _ = self.base.packet_writer(PacketType::EncryptRequest);
 		packet::EncryptRequest {
-			version: packet::VERSION,
 			client_public_key: pub_key,
 			client_timestamp_ns: self.base.timestamp_ns(),
 			padding: [0; 256],
@@ -151,9 +145,7 @@ impl Connection {
 			unreachable!();
 		};
 
-		let server_pub_key = &resp.server_public_key.into();
-		let shared_key = priv_key.diffie_hellman(server_pub_key);
-		self.shared_key = Some(shared_key);
+		self.base.set_shared_key(priv_key, resp.server_public_key.into());
 
 		Ok(ReceiveEvent::None)
 	}
@@ -234,10 +226,7 @@ impl Connection {
 	) -> NaiaResult<ReceiveEvent> {
 		self.base.mark_heard();
 
-		let Ok(header) = PacketHeader::de(reader) else {
-			return Err(NaiaError::malformed::<PacketHeader>());
-		};
-
+		let header = self.base.maybe_decrypt(reader)?;
 		match header.packet_type {
 			PacketType::Data => self.base.read_data_packet(schema, header.packet_seq, reader)?,
 			PacketType::Disconnect => return Ok(ReceiveEvent::Disconnect),
