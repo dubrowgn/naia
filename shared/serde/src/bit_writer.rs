@@ -108,15 +108,13 @@ impl BitWrite for BitWriter {
     }
 }
 
+#[cfg(test)]
 mod tests {
+	use crate::{bit_reader::BitReader, Serde};
+	use super::*;
 
     #[test]
     fn read_write_1_bit() {
-        use crate::{
-            bit_reader::BitReader,
-            bit_writer::{BitWrite, BitWriter},
-        };
-
         let mut writer = BitWriter::new();
 
         writer.write_bit(true);
@@ -130,11 +128,6 @@ mod tests {
 
     #[test]
     fn read_write_3_bits() {
-        use crate::{
-            bit_reader::BitReader,
-            bit_writer::{BitWrite, BitWriter},
-        };
-
         let mut writer = BitWriter::new();
 
         writer.write_bit(false);
@@ -152,11 +145,6 @@ mod tests {
 
     #[test]
     fn read_write_8_bits() {
-        use crate::{
-            bit_reader::BitReader,
-            bit_writer::{BitWrite, BitWriter},
-        };
-
         let mut writer = BitWriter::new();
 
         writer.write_bit(false);
@@ -186,11 +174,6 @@ mod tests {
 
     #[test]
     fn read_write_13_bits() {
-        use crate::{
-            bit_reader::BitReader,
-            bit_writer::{BitWrite, BitWriter},
-        };
-
         let mut writer = BitWriter::new();
 
         writer.write_bit(false);
@@ -234,11 +217,6 @@ mod tests {
 
     #[test]
     fn read_write_16_bits() {
-        use crate::{
-            bit_reader::BitReader,
-            bit_writer::{BitWrite, BitWriter},
-        };
-
         let mut writer = BitWriter::new();
 
         writer.write_bit(false);
@@ -288,11 +266,6 @@ mod tests {
 
     #[test]
     fn read_write_1_byte() {
-        use crate::{
-            bit_reader::BitReader,
-            bit_writer::{BitWrite, BitWriter},
-        };
-
         let mut writer = BitWriter::new();
 
         writer.write_byte(123);
@@ -306,11 +279,6 @@ mod tests {
 
     #[test]
     fn read_write_5_bytes() {
-        use crate::{
-            bit_reader::BitReader,
-            bit_writer::{BitWrite, BitWriter},
-        };
-
         let mut writer = BitWriter::new();
 
         writer.write_byte(48);
@@ -329,4 +297,48 @@ mod tests {
         assert_eq!(34, reader.read_byte().unwrap());
         assert_eq!(2, reader.read_byte().unwrap());
     }
+
+	#[test]
+	fn read_write_mixed() {
+		let val16 = 12345u16;
+		let val32 = 123456789u32;
+
+		let mut writer = BitWriter::new();
+		writer.write_bit(true);
+		val16.ser(&mut writer);
+		writer.write_bit(false);
+		val32.ser(&mut writer);
+		writer.write_bit(true);
+
+		let buffer = writer.to_bytes();
+
+		let mut reader = BitReader::new(buffer);
+		assert!(reader.read_bit().unwrap());
+		assert_eq!(u16::de(&mut reader).unwrap(), val16);
+		assert!(!reader.read_bit().unwrap());
+		assert_eq!(u32::de(&mut reader).unwrap(), val32);
+		assert!(reader.read_bit().unwrap());
+	}
+
+	#[test]
+	fn counter() {
+		let mut writer = BitWriter::new();
+
+		let counter = writer.counter();
+		assert_eq!(counter.bits_needed(), 0);
+		assert!(!counter.overflowed());
+
+		writer.write_bit(true);
+		37u32.ser(&mut writer);
+		writer.write_bit(false);
+
+		let mut counter = writer.counter();
+		assert_eq!(counter.bits_needed(), 0);
+		assert!(!counter.overflowed());
+		counter.write_bit(true);
+		37u32.ser(&mut counter);
+		counter.write_bit(false);
+		assert_eq!(counter.bits_needed(), 34);
+		assert!(!counter.overflowed());
+	}
 }
