@@ -1,5 +1,5 @@
 use crate::{
-	BitReader, CompressionConfig, Decoder, Encoder, error::*, LinkConditionerConfig,
+	BitReader, error::*, LinkConditionerConfig,
 	PacketConditioner, OutgoingPacket, MTU_SIZE_BYTES
 };
 use std::io;
@@ -36,8 +36,6 @@ pub struct Io {
 	bytes_tx: u64,
 	bytes_rx: u64,
 	conditioner: Option<PacketConditioner>,
-    outgoing_encoder: Option<Encoder>,
-    incoming_decoder: Option<Decoder>,
 	pkt_rx_count: u64,
 	pkt_tx_count: u64,
 	socket: UdpSocket,
@@ -46,20 +44,12 @@ pub struct Io {
 impl Io {
     fn new(
 		socket: UdpSocket,
-		compression_config: &Option<CompressionConfig>,
 		conditioner_config: &Option<LinkConditionerConfig>,
 	) -> Self {
-		let outgoing_encoder = compression_config.as_ref()
-			.map(|conf| Encoder::new(&conf.tx_mode));
-		let incoming_decoder = compression_config.as_ref()
-			.map(|conf| Decoder::new(&conf.rx_mode));
-
         Io {
 			bytes_tx: 0,
 			bytes_rx: 0,
 			conditioner: conditioner_config.clone().map(PacketConditioner::new),
-            outgoing_encoder,
-            incoming_decoder,
 			pkt_rx_count: 0,
 			pkt_tx_count: 0,
 			socket,
@@ -68,35 +58,28 @@ impl Io {
 
 	pub fn connect(
 		server_addr: SocketAddr,
-		compression_config: &Option<CompressionConfig>,
 		conditioner_config: &Option<LinkConditionerConfig>,
 	) -> NaiaResult<Self> {
 		let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
 		socket.set_nonblocking(true)?;
 		socket.connect(server_addr)?;
 
-		Ok(Self::new(socket, compression_config, conditioner_config))
+		Ok(Self::new(socket, conditioner_config))
     }
 
 	pub fn listen(
 		server_addr: SocketAddr,
-		compression_config: &Option<CompressionConfig>,
 		conditioner_config: &Option<LinkConditionerConfig>,
 	) -> NaiaResult<Self> {
 		let socket = UdpSocket::bind(server_addr)?;
 		socket.set_nonblocking(true)?;
 
-		Ok(Self::new(socket, compression_config, conditioner_config))
+		Ok(Self::new(socket, conditioner_config))
 	}
 
     pub fn send_packet(&mut self, addr: &SocketAddr, packet: OutgoingPacket) -> NaiaResult {
         // get payload
-        let mut payload = packet.slice();
-
-        // Compression
-        if let Some(encoder) = &mut self.outgoing_encoder {
-            payload = encoder.encode(payload);
-        }
+        let payload = packet.slice();
 
         // Bandwidth monitoring
 		self.bytes_tx = self.bytes_tx.wrapping_add(payload.len() as u64);
@@ -114,14 +97,9 @@ impl Io {
 		};
 
 		match result {
-            Ok((src_addr, mut payload)) => {
+            Ok((src_addr, payload)) => {
 				self.bytes_rx = self.bytes_rx.wrapping_add(payload.len() as u64);
 				self.pkt_rx_count = self.pkt_rx_count.wrapping_add(1);
-
-				// Decompression
-				if let Some(decoder) = &mut self.incoming_decoder {
-					payload = decoder.decode(&payload).into();
-				}
 
 				return Ok(Some((src_addr, BitReader::new(payload))));
 			},

@@ -54,7 +54,6 @@ impl Client {
 
 		let io = Io::connect(
 			addr,
-			&self.protocol.compression,
 			&self.protocol.conditioner_config,
 		)?;
 

@@ -55,7 +55,6 @@ impl Server {
 
 		let io = Io::listen(
 			addr,
-			&self.protocol.compression,
 			&self.protocol.conditioner_config,
 		)?;
 		self.io = Some(io);

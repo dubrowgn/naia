@@ -3,8 +3,6 @@
 
 #![deny(trivial_numeric_casts, unstable_features, unused_import_braces)]
 
-#[macro_use]
-extern crate cfg_if;
 extern crate core;
 
 pub use naia_derive::{
@@ -29,10 +27,7 @@ pub use error::NaiaError;
 pub use connection::{
     ack_manager::AckManager,
     base_connection::BaseConnection,
-    compression_config::{CompressionConfig, CompressionMode},
     connection_config::ConnectionConfig,
-    decoder::Decoder,
-    encoder::Encoder,
     io::Io,
     packet,
 };

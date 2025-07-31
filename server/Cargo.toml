@@ -16,9 +16,6 @@ edition = "2021"
 [badges]
 maintenance = { status = "actively-developed" }
 
-[features]
-zstd_support = ["naia-shared/zstd_support"]
-
 [dependencies]
 naia-shared = { version = "0.22", path = "../shared" }
 cfg-if = { version = "1.0" }

@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use crate::{
-    connection::compression_config::CompressionConfig,
     messages::{
         channels::{
             channel::{Channel, ChannelDirection, ChannelMode, ChannelSettings},
@@ -21,8 +20,6 @@ pub struct Protocol {
 	pub conditioner_config: Option<LinkConditionerConfig>,
     /// The duration between each tick
     pub tick_interval: Duration,
-    /// Configuration used to control compression parameters
-    pub compression: Option<CompressionConfig>,
     locked: bool,
 }
 
@@ -36,7 +33,6 @@ impl Default for Protocol {
             message_kinds,
             conditioner_config: None,
             tick_interval: Duration::from_millis(50),
-            compression: None,
             locked: false,
         }
     }
@@ -56,12 +52,6 @@ impl Protocol {
     pub fn tick_interval(&mut self, duration: Duration) -> &mut Self {
         self.check_lock();
         self.tick_interval = duration;
-        self
-    }
-
-    pub fn compression(&mut self, config: CompressionConfig) -> &mut Self {
-        self.check_lock();
-        self.compression = Some(config);
         self
     }
 

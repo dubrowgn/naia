@@ -16,13 +16,8 @@ edition = "2021"
 [badges]
 maintenance = { status = "actively-developed" }
 
-[features]
-zstd_support = [ "zstd" ]
-
 [dependencies]
 naia-derive = { version = "0.22", path = "derive" }
 naia-serde = { version = "0.22", path = "serde" }
 log = { version = "0.4" }
-cfg-if = { version = "1.0" }
 rand = { version = "0.8" }
-zstd = { version = "0.12.2", optional = true }
