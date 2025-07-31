@@ -3,20 +3,17 @@ use crate::{
     BitCounter, OutgoingPacket,
 };
 
-// BitWrite
 pub trait BitWrite {
     fn write_bit(&mut self, bit: bool);
     fn write_byte(&mut self, byte: u8);
 }
 
-// BitWriter
 pub struct BitWriter {
     scratch: u8,
     scratch_index: u8,
     buffer: [u8; MTU_SIZE_BYTES],
     buffer_index: usize,
-    current_bits: u32,
-    max_bits: u32,
+	capacity_bits: u32,
 }
 
 impl BitWriter {
@@ -27,19 +24,17 @@ impl BitWriter {
             scratch_index: 0,
             buffer: [0; MTU_SIZE_BYTES],
             buffer_index: 0,
-            current_bits: 0,
-            max_bits: MTU_SIZE_BITS,
+            capacity_bits: MTU_SIZE_BITS,
         }
     }
 
-    pub fn with_capacity(bit_capacity: u32) -> Self {
+    pub fn with_capacity(capacity_bits: u32) -> Self {
         Self {
             scratch: 0,
             scratch_index: 0,
             buffer: [0; MTU_SIZE_BYTES],
             buffer_index: 0,
-            current_bits: 0,
-            max_bits: bit_capacity,
+            capacity_bits,
         }
     }
 
@@ -49,7 +44,7 @@ impl BitWriter {
                 (self.scratch << (8 - self.scratch_index)).reverse_bits();
             self.buffer_index += 1;
         }
-        self.max_bits = 0;
+        self.capacity_bits = 0;
     }
 
     pub fn to_packet(mut self) -> OutgoingPacket {
@@ -62,34 +57,30 @@ impl BitWriter {
         Box::from(&self.buffer[0..self.buffer_index])
     }
 
-    pub fn counter(&self) -> BitCounter {
-        return BitCounter::new(self.current_bits, self.current_bits, self.max_bits);
-    }
+    pub fn counter(&self) -> BitCounter { BitCounter::new(self.capacity_bits) }
 
     pub fn reserve_bits(&mut self, bits: u32) {
-        self.max_bits -= bits;
+        self.capacity_bits -= bits;
     }
 
     pub fn release_bits(&mut self, bits: u32) {
-        self.max_bits += bits;
+        self.capacity_bits += bits;
     }
 
-    pub fn bits_free(&self) -> u32 {
-        self.max_bits - self.current_bits
-    }
+    pub fn bits_free(&self) -> u32 { self.capacity_bits }
 }
 
 impl BitWrite for BitWriter {
     fn write_bit(&mut self, bit: bool) {
-        if self.current_bits >= self.max_bits {
+        if self.capacity_bits == 0 {
             panic!("Write overflow!");
         }
+		self.capacity_bits -= 1;
+
         self.scratch <<= 1;
 		self.scratch |= bit as u8;
 
         self.scratch_index += 1;
-        self.current_bits += 1;
-
         if self.scratch_index >= 8 {
             self.buffer[self.buffer_index] = self.scratch.reverse_bits();
 
