@@ -1,5 +1,5 @@
 use crate::{MessageKinds, error::*, Protocol, packet::*};
-use naia_serde::{BitReader, BitWrite, BitWriter, ConstBitLength, Serde};
+use naia_serde::{BitReader, BitWrite, BitWriter, Serde};
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -222,7 +222,7 @@ impl MessageManager {
             // write ChannelContinue bit
             counter.write_bit(false);
             // write ChannelIndex
-            counter.write_bits(<ChannelKind as ConstBitLength>::const_bit_length());
+            channel_kind.ser(&protocol.channel_kinds, &mut counter);
             if counter.overflowed() {
                 break;
             }

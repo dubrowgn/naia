@@ -7,8 +7,6 @@ use crate::{
 pub trait BitWrite {
     fn write_bit(&mut self, bit: bool);
     fn write_byte(&mut self, byte: u8);
-    fn write_bits(&mut self, bits: u32);
-    fn is_counter(&self) -> bool;
 }
 
 // BitWriter
@@ -87,10 +85,7 @@ impl BitWrite for BitWriter {
             panic!("Write overflow!");
         }
         self.scratch <<= 1;
-
-        if bit {
-            self.scratch |= 1;
-        }
+		self.scratch |= bit as u8;
 
         self.scratch_index += 1;
         self.current_bits += 1;
@@ -110,14 +105,6 @@ impl BitWrite for BitWriter {
             self.write_bit(temp & 1 != 0);
             temp >>= 1;
         }
-    }
-
-    fn write_bits(&mut self, _: u32) {
-        panic!("This method should not be called for BitWriter!");
-    }
-
-    fn is_counter(&self) -> bool {
-        false
     }
 }
 

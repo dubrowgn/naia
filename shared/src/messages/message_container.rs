@@ -35,11 +35,7 @@ impl MessageContainer {
     }
 
     pub fn write(&self, message_kinds: &MessageKinds, writer: &mut dyn BitWrite) {
-        if writer.is_counter() {
-            writer.write_bits(self.bit_length());
-        } else {
-            self.inner.write(message_kinds, writer);
-        }
+        self.inner.write(message_kinds, writer);
     }
 
     pub fn is_fragment(&self) -> bool {
