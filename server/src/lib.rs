@@ -10,7 +10,7 @@
 
 pub mod shared {
     pub use naia_shared::{
-		BitReader, BitWrite, BitWriter, ConstBitLength, FileBitWriter, Serde, SerdeErr,
+		BitReader, BitWrite, BitWriter, ConstBitLength, Serde, SerdeErr,
 		SignedInteger, SignedVariableInteger, UnsignedInteger, UnsignedVariableInteger,
     };
 }
