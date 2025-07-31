@@ -9,53 +9,31 @@ pub trait BitWrite {
 }
 
 pub struct BitWriter {
-    scratch: u8,
-    scratch_index: u8,
+	bit_offset: u8,
     buffer: [u8; MTU_SIZE_BYTES],
     buffer_index: usize,
 	capacity_bits: u32,
 }
 
 impl BitWriter {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        Self {
-            scratch: 0,
-            scratch_index: 0,
-            buffer: [0; MTU_SIZE_BYTES],
-            buffer_index: 0,
-            capacity_bits: MTU_SIZE_BITS,
-        }
-    }
+    pub fn new() -> Self { Self::with_capacity(MTU_SIZE_BITS) }
 
     pub fn with_capacity(capacity_bits: u32) -> Self {
         Self {
-            scratch: 0,
-            scratch_index: 0,
+			bit_offset: 0,
             buffer: [0; MTU_SIZE_BYTES],
             buffer_index: 0,
             capacity_bits,
         }
     }
 
-    fn finalize(&mut self) {
-        if self.scratch_index > 0 {
-            self.buffer[self.buffer_index] =
-                (self.scratch << (8 - self.scratch_index)).reverse_bits();
-            self.buffer_index += 1;
-        }
-        self.capacity_bits = 0;
+	fn size(&self) -> usize { self.buffer_index + (self.bit_offset > 0) as usize }
+
+    pub fn to_packet(&self) -> OutgoingPacket {
+        OutgoingPacket::new(self.size(), self.buffer)
     }
 
-    pub fn to_packet(mut self) -> OutgoingPacket {
-        self.finalize();
-        OutgoingPacket::new(self.buffer_index, self.buffer)
-    }
-
-    pub fn to_bytes(mut self) -> Box<[u8]> {
-        self.finalize();
-        Box::from(&self.buffer[0..self.buffer_index])
-    }
+    pub fn to_bytes(&self) -> Box<[u8]> { Box::from(&self.buffer[0..self.size()]) }
 
     pub fn counter(&self) -> BitCounter { BitCounter::new(self.capacity_bits) }
 
@@ -72,29 +50,25 @@ impl BitWriter {
 
 impl BitWrite for BitWriter {
     fn write_bit(&mut self, bit: bool) {
-        if self.capacity_bits == 0 {
+        if self.capacity_bits == 0 || self.buffer_index == self.buffer.len() {
             panic!("Write overflow!");
         }
 		self.capacity_bits -= 1;
 
-        self.scratch <<= 1;
-		self.scratch |= bit as u8;
+		let mask = (bit as u8) << self.bit_offset;
+		self.buffer[self.buffer_index] |= mask;
 
-        self.scratch_index += 1;
-        if self.scratch_index >= 8 {
-            self.buffer[self.buffer_index] = self.scratch.reverse_bits();
-
+        self.bit_offset += 1;
+        if self.bit_offset == 8 {
             self.buffer_index += 1;
-            self.scratch_index -= 8;
-            self.scratch = 0;
+            self.bit_offset = 0;
         }
     }
 
-    fn write_byte(&mut self, byte: u8) {
-        let mut temp = byte;
+    fn write_byte(&mut self, mut byte: u8) {
         for _ in 0..8 {
-            self.write_bit(temp & 1 != 0);
-            temp >>= 1;
+            self.write_bit(byte & 0b1000_0000 != 0);
+            byte <<= 1;
         }
     }
 }
