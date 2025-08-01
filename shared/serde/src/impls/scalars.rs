@@ -281,44 +281,33 @@ impl ConstBitLength for isize {
     }
 }
 
-// tests
+#[cfg(test)]
+mod tests {
+	use crate::{bit_reader::BitReader, bit_writer::BitWriter, serde::Serde};
 
-macro_rules! test_serde_for {
-    ($impl_type:ident, $test_name:ident) => {
-        #[test]
-        fn $test_name() {
-            use crate::{bit_reader::BitReader, bit_writer::BitWriter, serde::Serde};
+	macro_rules! test_roundtrip {
+		($impl_type:ident, $test_name:ident, $value:literal) => {
+			#[test]
+			fn $test_name() {
+				let mut writer = BitWriter::new();
+				$value.ser(&mut writer);
 
-            // Write
-            let mut writer = BitWriter::new();
+				let mut reader = BitReader::new(writer.to_bytes());
+				assert_eq!($impl_type::de(&mut reader), Ok($value));
+			}
+		};
+	}
 
-            let in_1: $impl_type = 123 as $impl_type;
-
-            in_1.ser(&mut writer);
-
-            let buffer = writer.to_bytes();
-
-            //Read
-            let mut reader = BitReader::new(buffer);
-
-            let out_1 = Serde::de(&mut reader).unwrap();
-
-            assert_eq!(in_1, out_1);
-        }
-    };
-}
-
-mod number_tests {
-    test_serde_for!(u8, test_u8);
-    test_serde_for!(u16, test_u16);
-    test_serde_for!(u32, test_u32);
-    test_serde_for!(u64, test_u64);
-    test_serde_for!(usize, test_usize);
-    test_serde_for!(i8, test_i8);
-    test_serde_for!(i16, test_i16);
-    test_serde_for!(i32, test_i32);
-    test_serde_for!(i64, test_i64);
-    test_serde_for!(isize, test_isize);
-    test_serde_for!(f32, test_f32);
-    test_serde_for!(f64, test_f64);
+    test_roundtrip!(u8, u8_roundtrip, 123u8);
+    test_roundtrip!(u16, u16_roundtrip, 12345u16);
+    test_roundtrip!(u32, u32_roundtrip, 1234567890u32);
+    test_roundtrip!(u64, u64_roundtrip, 12345678901234567890u64);
+    test_roundtrip!(usize, usize_roundtrip, 12345678901234567890usize);
+    test_roundtrip!(i8, i8_roundtrip, -123i8);
+    test_roundtrip!(i16, i16_roundtrip, -12345i16);
+    test_roundtrip!(i32, i32_roundtrip, -1234567890i32);
+    test_roundtrip!(i64, i64_roundtrip, -1234567890123456789i64);
+    test_roundtrip!(isize, isize_roundtrip, -1234567890123456789isize);
+    test_roundtrip!(f32, f32_roundtrip, 123.456f32);
+    test_roundtrip!(f64, f64_roundtrip, 1234567890123456789.1234567890123456789f64);
 }

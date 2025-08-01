@@ -51,3 +51,25 @@ impl BitReader {
         Ok(byte)
     }
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn read_mixed() {
+		let bin = [0b1011_1000, 0b1001_1010];
+		let mut reader = BitReader::new(bin.into());
+		assert_eq!(reader.read_bit(), Ok(true));
+		assert_eq!(reader.read_bit(), Ok(false));
+		assert_eq!(reader.read_bit(), Ok(true));
+		assert_eq!(reader.read_byte(), Ok(0b1100_0100));
+		assert_eq!(reader.read_byte(), Err(SerdeErr));
+		assert_eq!(reader.read_bit(), Ok(true));
+		assert_eq!(reader.read_bit(), Ok(true));
+		assert_eq!(reader.read_bit(), Ok(false));
+		assert_eq!(reader.read_bit(), Ok(true));
+		assert_eq!(reader.read_bit(), Ok(false));
+		assert_eq!(reader.read_bit(), Err(SerdeErr));
+	}
+}

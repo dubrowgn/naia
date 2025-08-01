@@ -87,187 +87,42 @@ mod tests {
 	use super::*;
 
     #[test]
-    fn read_write_1_bit() {
-        let mut writer = BitWriter::new();
+    fn read_write_bits() {
+		let bits = [
+			false, true, false, true, true, false, false, false,
+			true, false, true, true, true, false, true, true,
+		];
 
-        writer.write_bit(true);
+		let mut writer = BitWriter::new();
+		for bit in bits {
+			writer.write_bit(bit);
+		}
 
-        let buffer = writer.to_bytes();
-
-        let mut reader = BitReader::new(buffer);
-
-        assert!(reader.read_bit().unwrap());
+		let mut reader = BitReader::new(writer.to_bytes());
+		for bit in bits {
+			assert_eq!(reader.read_bit(), Ok(bit));
+		}
     }
 
     #[test]
-    fn read_write_3_bits() {
+    fn read_write_bytes() {
+		let bytes = [48, 151, 62, 34, 2];
+
         let mut writer = BitWriter::new();
-
-        writer.write_bit(false);
-        writer.write_bit(true);
-        writer.write_bit(true);
-
-        let buffer = writer.to_bytes();
-
-        let mut reader = BitReader::new(buffer);
-
-        assert!(!reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-    }
-
-    #[test]
-    fn read_write_8_bits() {
-        let mut writer = BitWriter::new();
-
-        writer.write_bit(false);
-        writer.write_bit(true);
-        writer.write_bit(false);
-        writer.write_bit(true);
-
-        writer.write_bit(true);
-        writer.write_bit(false);
-        writer.write_bit(false);
-        writer.write_bit(false);
-
-        let buffer = writer.to_bytes();
-
-        let mut reader = BitReader::new(buffer);
-
-        assert!(!reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-
-        assert!(reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-    }
-
-    #[test]
-    fn read_write_13_bits() {
-        let mut writer = BitWriter::new();
-
-        writer.write_bit(false);
-        writer.write_bit(true);
-        writer.write_bit(false);
-        writer.write_bit(true);
-
-        writer.write_bit(true);
-        writer.write_bit(false);
-        writer.write_bit(false);
-        writer.write_bit(false);
-
-        writer.write_bit(true);
-        writer.write_bit(false);
-        writer.write_bit(true);
-        writer.write_bit(true);
-
-        writer.write_bit(true);
-
-        let buffer = writer.to_bytes();
-
-        let mut reader = BitReader::new(buffer);
-
-        assert!(!reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-
-        assert!(reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-
-        assert!(reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-
-        assert!(reader.read_bit().unwrap());
-    }
-
-    #[test]
-    fn read_write_16_bits() {
-        let mut writer = BitWriter::new();
-
-        writer.write_bit(false);
-        writer.write_bit(true);
-        writer.write_bit(false);
-        writer.write_bit(true);
-
-        writer.write_bit(true);
-        writer.write_bit(false);
-        writer.write_bit(false);
-        writer.write_bit(false);
-
-        writer.write_bit(true);
-        writer.write_bit(false);
-        writer.write_bit(true);
-        writer.write_bit(true);
-
-        writer.write_bit(true);
-        writer.write_bit(false);
-        writer.write_bit(true);
-        writer.write_bit(true);
-
-        let buffer = writer.to_bytes();
-
-        let mut reader = BitReader::new(buffer);
-
-        assert!(!reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-
-        assert!(reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-
-        assert!(reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-
-        assert!(reader.read_bit().unwrap());
-        assert!(!reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-        assert!(reader.read_bit().unwrap());
-    }
-
-    #[test]
-    fn read_write_1_byte() {
-        let mut writer = BitWriter::new();
-        writer.write_byte(123);
-
+		for byte in bytes {
+			writer.write_byte(byte);
+		}
 		let buffer = writer.to_bytes();
-		assert_eq!(buffer[0], 123);
+
+		// ensure bit order is preserved
+		for (i, byte) in bytes.iter().enumerate() {
+			assert_eq!(buffer[i], *byte);
+		}
 
 		let mut reader = BitReader::new(buffer);
-		assert_eq!(123, reader.read_byte().unwrap());
-    }
-
-    #[test]
-    fn read_write_5_bytes() {
-        let mut writer = BitWriter::new();
-
-        writer.write_byte(48);
-        writer.write_byte(151);
-        writer.write_byte(62);
-        writer.write_byte(34);
-        writer.write_byte(2);
-
-        let buffer = writer.to_bytes();
-
-        let mut reader = BitReader::new(buffer);
-
-        assert_eq!(48, reader.read_byte().unwrap());
-        assert_eq!(151, reader.read_byte().unwrap());
-        assert_eq!(62, reader.read_byte().unwrap());
-        assert_eq!(34, reader.read_byte().unwrap());
-        assert_eq!(2, reader.read_byte().unwrap());
+		for byte in bytes {
+			assert_eq!(reader.read_byte(), Ok(byte));
+		}
     }
 
 	#[test]
@@ -282,14 +137,12 @@ mod tests {
 		val32.ser(&mut writer);
 		writer.write_bit(true);
 
-		let buffer = writer.to_bytes();
-
-		let mut reader = BitReader::new(buffer);
-		assert!(reader.read_bit().unwrap());
-		assert_eq!(u16::de(&mut reader).unwrap(), val16);
-		assert!(!reader.read_bit().unwrap());
-		assert_eq!(u32::de(&mut reader).unwrap(), val32);
-		assert!(reader.read_bit().unwrap());
+		let mut reader = BitReader::new(writer.to_bytes());
+		assert_eq!(reader.read_bit(), Ok(true));
+		assert_eq!(u16::de(&mut reader), Ok(val16));
+		assert_eq!(reader.read_bit(), Ok(false));
+		assert_eq!(u32::de(&mut reader), Ok(val32));
+		assert_eq!(reader.read_bit(), Ok(true));
 	}
 
 	#[test]
