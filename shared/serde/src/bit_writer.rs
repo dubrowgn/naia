@@ -55,7 +55,7 @@ impl BitWrite for BitWriter {
         }
 		self.capacity_bits -= 1;
 
-		let mask = (bit as u8) << self.bit_offset;
+		let mask = (bit as u8) << (7 - self.bit_offset);
 		self.buffer[self.buffer_index] |= mask;
 
         self.bit_offset += 1;
@@ -65,11 +65,19 @@ impl BitWrite for BitWriter {
         }
     }
 
-    fn write_byte(&mut self, mut byte: u8) {
-        for _ in 0..8 {
-            self.write_bit(byte & 0b1000_0000 != 0);
-            byte <<= 1;
-        }
+	fn write_byte(&mut self, byte: u8) {
+		let bits_left = 8 * (self.buffer.len() - self.buffer_index) - self.bit_offset as usize;
+		if bits_left < 8 || self.capacity_bits < 8 {
+			panic!("Write overflow!");
+		}
+		self.capacity_bits -= 8;
+
+		self.buffer[self.buffer_index] |= byte >> self.bit_offset;
+		self.buffer_index += 1;
+
+		if self.bit_offset != 0 {
+			self.buffer[self.buffer_index] |= byte << (8 - self.bit_offset);
+		}
     }
 }
 
@@ -232,14 +240,13 @@ mod tests {
     #[test]
     fn read_write_1_byte() {
         let mut writer = BitWriter::new();
-
         writer.write_byte(123);
 
-        let buffer = writer.to_bytes();
+		let buffer = writer.to_bytes();
+		assert_eq!(buffer[0], 123);
 
-        let mut reader = BitReader::new(buffer);
-
-        assert_eq!(123, reader.read_byte().unwrap());
+		let mut reader = BitReader::new(buffer);
+		assert_eq!(123, reader.read_byte().unwrap());
     }
 
     #[test]
