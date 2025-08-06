@@ -25,10 +25,7 @@ pub struct Client {
 
 impl Client {
     /// Create a new Client
-    pub fn new<P: Into<Protocol>>(client_config: ClientConfig, protocol: P) -> Self {
-        let mut protocol: Protocol = protocol.into();
-        protocol.lock();
-
+    pub fn new(client_config: ClientConfig, protocol: Protocol) -> Self {
         Client {
             // Config
             client_config: client_config.clone(),
@@ -52,16 +49,12 @@ impl Client {
 			return Err(io::ErrorKind::AlreadyExists.into());
         }
 
-		let io = Io::connect(
-			addr,
-			&self.protocol.conditioner_config,
-		)?;
-
+		let io = Io::connect(addr, self.protocol.conditioner_config())?;
 		let mut conn = Connection::new(
 			&addr,
 			&self.client_config.connection,
 			self.client_config.handshake_resend_interval,
-			&self.protocol.channel_kinds,
+			self.protocol.channel_kinds(),
 		);
 		conn.set_connect_message(Box::new(msg));
 
@@ -103,7 +96,7 @@ impl Client {
 
     /// Returns conditioner config
 	pub fn conditioner_config(&self) -> &Option<LinkConditionerConfig> {
-		&self.protocol.conditioner_config
+		self.protocol.conditioner_config()
 	}
 
     // Receive Data from Server! Very important!
@@ -186,7 +179,7 @@ impl Client {
     fn send_message_inner(&mut self, channel_kind: &ChannelKind, message_box: Box<dyn Message>) {
 		debug_assert!(!self.is_disconnected());
 
-        let channel_settings = self.protocol.channel_kinds.channel(channel_kind);
+        let channel_settings = self.protocol.channel_kinds().channel(channel_kind);
         if !channel_settings.can_send_to_server() {
             panic!("Cannot send message to Server on this Channel");
         }

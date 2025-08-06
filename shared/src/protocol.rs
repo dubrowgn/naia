@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::{
     messages::{
         channels::{
@@ -15,12 +13,9 @@ use crate::{
 
 // Protocol
 pub struct Protocol {
-    pub channel_kinds: ChannelKinds,
-    pub message_kinds: MessageKinds,
-	pub conditioner_config: Option<LinkConditionerConfig>,
-    /// The duration between each tick
-    pub tick_interval: Duration,
-    locked: bool,
+    channel_kinds: ChannelKinds,
+    message_kinds: MessageKinds,
+	conditioner_config: Option<LinkConditionerConfig>,
 }
 
 impl Default for Protocol {
@@ -32,58 +27,44 @@ impl Default for Protocol {
             channel_kinds: ChannelKinds::new(),
             message_kinds,
             conditioner_config: None,
-            tick_interval: Duration::from_millis(50),
-            locked: false,
         }
     }
 }
 
 impl Protocol {
-    pub fn builder() -> Self {
-        Self::default()
-    }
+    pub fn builder() -> ProtocolBuilder { ProtocolBuilder::new() }
 
-    pub fn link_condition(&mut self, config: LinkConditionerConfig) -> &mut Self {
-        self.check_lock();
-        self.conditioner_config = Some(config);
-        self
-    }
+	pub fn channel_kinds(&self) -> &ChannelKinds { &self.channel_kinds }
+	pub fn message_kinds(&self) -> &MessageKinds { &self.message_kinds }
+	pub fn conditioner_config(&self) -> &Option<LinkConditionerConfig> { &self.conditioner_config }
+}
 
-    pub fn tick_interval(&mut self, duration: Duration) -> &mut Self {
-        self.check_lock();
-        self.tick_interval = duration;
+pub struct ProtocolBuilder {
+	proto: Protocol,
+}
+
+impl ProtocolBuilder {
+	pub fn new() -> Self {
+		Self { proto: Protocol::default() }
+	}
+
+    pub fn link_condition(mut self, config: LinkConditionerConfig) -> Self {
+		self.proto.conditioner_config = Some(config);
         self
     }
 
     pub fn add_channel<C: Channel>(
-        &mut self,
-        direction: ChannelDirection,
-        mode: ChannelMode,
-    ) -> &mut Self {
-        self.check_lock();
-        self.channel_kinds
-            .add_channel::<C>(ChannelSettings::new(mode, direction));
+		mut self, direction: ChannelDirection, mode: ChannelMode,
+    ) -> Self {
+		let settings = ChannelSettings::new(mode, direction);
+		self.proto.channel_kinds.add_channel::<C>(settings);
         self
     }
 
-    pub fn add_message<M: Message>(&mut self) -> &mut Self {
-        self.check_lock();
-        self.message_kinds.add_message::<M>();
+    pub fn add_message<M: Message>(mut self) -> Self {
+		self.proto.message_kinds.add_message::<M>();
         self
     }
 
-    pub fn lock(&mut self) {
-        self.check_lock();
-        self.locked = true;
-    }
-
-    pub fn check_lock(&self) {
-        if self.locked {
-            panic!("Protocol already locked!");
-        }
-    }
-
-    pub fn build(&mut self) -> Self {
-        std::mem::take(self)
-    }
+	pub fn build(self) -> Protocol { self.proto }
 }

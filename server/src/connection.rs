@@ -164,7 +164,7 @@ impl Connection {
 		let connect_msg = match bool::de(reader) {
 			Err(_) => return Err(NaiaError::malformed::<packet::ClientConnectRequest>()),
 			Ok(true) => {
-				let Ok(msg) = protocol.message_kinds.read(reader) else {
+				let Ok(msg) = protocol.message_kinds().read(reader) else {
 					return Err(NaiaError::malformed::<packet::ClientConnectRequest>());
 				};
 				Some(msg)
@@ -290,7 +290,7 @@ impl Connection {
 	pub fn queue_message(
 		&mut self, protocol: &Protocol, channel: &ChannelKind, msg: MessageContainer,
 	) {
-		self.base.queue_message(&protocol.message_kinds, channel, msg);
+		self.base.queue_message(protocol.message_kinds(), channel, msg);
 	}
 
 	pub fn send(

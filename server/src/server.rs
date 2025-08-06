@@ -27,10 +27,7 @@ pub struct Server {
 
 impl Server {
     /// Create a new Server
-    pub fn new<P: Into<Protocol>>(server_config: ServerConfig, protocol: P) -> Self {
-        let mut protocol: Protocol = protocol.into();
-        protocol.lock();
-
+    pub fn new(server_config: ServerConfig, protocol: Protocol) -> Self {
         Server {
             server_config: server_config.clone(),
             protocol,
@@ -55,7 +52,7 @@ impl Server {
 
 		let io = Io::listen(
 			addr,
-			&self.protocol.conditioner_config,
+			self.protocol.conditioner_config(),
 		)?;
 		self.io = Some(io);
 		Ok(())
@@ -92,7 +89,7 @@ impl Server {
 
 	/// Returns conditioner config
 	pub fn conditioner_config(&self) -> &Option<LinkConditionerConfig> {
-		&self.protocol.conditioner_config
+		self.protocol.conditioner_config()
 	}
 
     /// Must be called regularly, maintains connection to and receives messages
@@ -122,7 +119,7 @@ impl Server {
 							entry.insert(Connection::new(
 								&address,
 								&self.server_config.connection,
-								&self.protocol.channel_kinds,
+								self.protocol.channel_kinds(),
 								&user_key,
 							))
 						}
@@ -236,7 +233,7 @@ impl Server {
         channel_kind: &ChannelKind,
         message_box: Box<dyn Message>,
     ) {
-        let channel_settings = self.protocol.channel_kinds.channel(channel_kind);
+        let channel_settings = self.protocol.channel_kinds().channel(channel_kind);
 		debug_assert!(channel_settings.can_send_to_client(), "Cannot send message to Client on this Channel");
         if !channel_settings.can_send_to_client() {
 			return;

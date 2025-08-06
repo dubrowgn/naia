@@ -173,7 +173,7 @@ impl Connection {
 		if let Some(connect_message) = &self.connect_message {
 			// write that we have a message
 			true.ser(&mut writer);
-			connect_message.write(&protocol.message_kinds, &mut writer);
+			connect_message.write(protocol.message_kinds(), &mut writer);
 		} else {
 			// write that we do not have a message
 			false.ser(&mut writer);
@@ -261,7 +261,7 @@ impl Connection {
 	pub fn queue_message(
 		&mut self, protocol: &Protocol, channel: &ChannelKind, msg: MessageContainer,
 	) {
-		self.base.queue_message(&protocol.message_kinds, channel, msg);
+		self.base.queue_message(protocol.message_kinds(), channel, msg);
 	}
 
 	pub fn send(

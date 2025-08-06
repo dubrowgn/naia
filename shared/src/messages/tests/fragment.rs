@@ -5,7 +5,8 @@ use crate::{
         receivers::fragment_receiver::FragmentReceiver,
         senders::message_fragmenter::MessageFragmenter,
     },
-    MessageContainer, MessageKinds, Protocol,
+    messages::fragment::FragmentedMessage,
+    MessageContainer, MessageKinds,
 };
 
 #[derive(MessageInternal)]
@@ -27,8 +28,9 @@ fn setup() -> (
     FragmentReceiver,
 ) {
     // Protocol
-    let mut protocol = Protocol::builder();
-    protocol.add_message::<StringMessage>();
+	let mut message_kinds = MessageKinds::new();
+	message_kinds.add_message::<FragmentedMessage>();
+	message_kinds.add_message::<StringMessage>();
 
     // Fragmenter
     let fragmenter = MessageFragmenter::new();
@@ -36,7 +38,7 @@ fn setup() -> (
     // Fragment Receiver
     let receiver = FragmentReceiver::new();
 
-    (protocol.message_kinds, fragmenter, receiver)
+    (message_kinds, fragmenter, receiver)
 }
 
 #[test]
