@@ -27,6 +27,7 @@ pub use error::NaiaError;
 pub use connection::{
     ack_manager::AckManager,
     base_connection::BaseConnection,
+	conditioner::ConditionerConfig,
     connection_config::ConnectionConfig,
     io::Io,
     packet,

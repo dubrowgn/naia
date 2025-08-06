@@ -15,6 +15,7 @@ fn connect() {
 		heartbeat_interval: Duration::ZERO,
 		ping_interval: Duration::ZERO,
 		timeout: Duration::from_secs(1),
+		conditioner: None,
 	};
 	let client_config = ClientConfig {
 		connection: connection_config.clone(),

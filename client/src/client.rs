@@ -1,6 +1,6 @@
 use log::warn;
 use naia_shared::{
-	Channel, ChannelKind, error::*, Io, LinkConditionerConfig, Message,
+	Channel, ChannelKind, error::*, Io, ConditionerConfig, Message,
 	MessageContainer, Schema,
 };
 use std::{collections::VecDeque, io, net::SocketAddr, time::Instant};
@@ -14,7 +14,7 @@ use super::{
 /// in-scope entities/components that are synced with the server
 pub struct Client {
     // Config
-    client_config: ClientConfig,
+    config: ClientConfig,
     schema: Schema,
     // Connection
 	io_conn: Option<(Io, Connection)>,
@@ -25,10 +25,10 @@ pub struct Client {
 
 impl Client {
     /// Create a new Client
-    pub fn new(client_config: ClientConfig, schema: Schema) -> Self {
+    pub fn new(config: ClientConfig, schema: Schema) -> Self {
         Client {
             // Config
-            client_config: client_config.clone(),
+            config,
             schema,
             // Connection
 			io_conn: None,
@@ -49,11 +49,11 @@ impl Client {
 			return Err(io::ErrorKind::AlreadyExists.into());
         }
 
-		let io = Io::connect(addr, self.schema.conditioner_config())?;
+		let io = Io::connect(addr, self.conditioner_config())?;
 		let mut conn = Connection::new(
 			&addr,
-			&self.client_config.connection,
-			self.client_config.handshake_resend_interval,
+			&self.config.connection,
+			self.config.handshake_resend_interval,
 			self.schema.channel_kinds(),
 		);
 		conn.set_connect_message(Box::new(msg));
@@ -95,8 +95,8 @@ impl Client {
 	}
 
     /// Returns conditioner config
-	pub fn conditioner_config(&self) -> &Option<LinkConditionerConfig> {
-		self.schema.conditioner_config()
+	pub fn conditioner_config(&self) -> &Option<ConditionerConfig> {
+		&self.config.connection.conditioner
 	}
 
     // Receive Data from Server! Very important!

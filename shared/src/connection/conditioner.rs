@@ -4,8 +4,8 @@ use rand::Rng;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
-#[derive(Clone)]
-pub struct LinkConditionerConfig {
+#[derive(Clone, Debug)]
+pub struct ConditionerConfig {
 	/// Base delay added to all received packets, in milliseconds
 	pub half_rtt_ms: f32,
 	/// Spread of the delay added to all received packets, in milliseconds.
@@ -17,7 +17,7 @@ pub struct LinkConditionerConfig {
 	pub duplication_frac: f32,
 }
 
-impl LinkConditionerConfig {
+impl ConditionerConfig {
 	pub const PERFECT: Self = Self::new(0.0, 0.0, 0.0, 0.0);
 	pub const GOOD: Self = Self::new(40.0, 6.0, 0.002, 0.002);
 	pub const AVERAGE: Self = Self::new(170.0, 45.0, 0.02, 0.02);
@@ -37,20 +37,20 @@ impl LinkConditionerConfig {
 	pub const fn new(
 		half_rtt_ms: f32, jitter_ms: f32, loss_frac: f32, duplication_frac: f32
 	) -> Self {
-		LinkConditionerConfig { half_rtt_ms, jitter_ms, loss_frac, duplication_frac }
+		ConditionerConfig { half_rtt_ms, jitter_ms, loss_frac, duplication_frac }
 	}
 }
 
 /// Conditions packets by injecting latency and packet loss
 #[derive(Clone)]
 pub struct PacketConditioner {
-	config: LinkConditionerConfig,
+	config: ConditionerConfig,
 	time_queue: TimeQueue<(SocketAddr, Box<[u8]>)>,
 }
 
 impl PacketConditioner {
 	/// Creates a new PacketConditioner
-	pub fn new(config: LinkConditionerConfig) -> Self {
+	pub fn new(config: ConditionerConfig) -> Self {
 		Self { config, time_queue: TimeQueue::new() }
 	}
 

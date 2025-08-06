@@ -2,7 +2,7 @@ use naia_shared::ConnectionConfig;
 use std::{default::Default, time::Duration};
 
 /// Contains Config properties which will be used by a Client
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ClientConfig {
     /// Used to configure the connection with the Server
     pub connection: ConnectionConfig,

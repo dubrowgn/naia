@@ -1,13 +1,15 @@
 .PHONY: default
 default: build
 
+FLAGS=--all-features --workspace --tests
+
 .PHONY: build
 build:
-	+cargo build
+	+cargo build $(FLAGS)
 
 .PHONY: check
 check:
-	+RUSTFLAGS="-D warnings" cargo check --all-features --workspace --tests
+	+RUSTFLAGS="-D warnings" cargo check $(FLAGS)
 
 .PHONY: clean
 clean:
@@ -15,7 +17,7 @@ clean:
 
 .PHONY: test
 test:
-	+RUST_BACKTRACE=1 cargo test --all-features --workspace
+	+RUST_BACKTRACE=1 cargo test $(FLAGS) 
 
 .PHONY: pre-push
 pre-push: check test

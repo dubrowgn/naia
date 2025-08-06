@@ -8,13 +8,11 @@ use crate::{
         message::Message,
         message_kinds::MessageKinds,
     },
-	LinkConditionerConfig,
 };
 
 pub struct Schema {
     channel_kinds: ChannelKinds,
     message_kinds: MessageKinds,
-	conditioner_config: Option<LinkConditionerConfig>,
 }
 
 impl Default for Schema {
@@ -25,7 +23,6 @@ impl Default for Schema {
         Self {
             channel_kinds: ChannelKinds::new(),
             message_kinds,
-            conditioner_config: None,
         }
     }
 }
@@ -34,7 +31,6 @@ impl Schema {
 	pub fn builder() -> SchemaBuilder { SchemaBuilder::new() }
 	pub fn channel_kinds(&self) -> &ChannelKinds { &self.channel_kinds }
 	pub fn message_kinds(&self) -> &MessageKinds { &self.message_kinds }
-	pub fn conditioner_config(&self) -> &Option<LinkConditionerConfig> { &self.conditioner_config }
 }
 
 pub struct SchemaBuilder {
@@ -45,11 +41,6 @@ impl SchemaBuilder {
 	pub fn new() -> Self {
 		Self { schema: Schema::default() }
 	}
-
-    pub fn link_condition(mut self, config: LinkConditionerConfig) -> Self {
-		self.schema.conditioner_config = Some(config);
-        self
-    }
 
     pub fn add_channel<C: Channel>(
 		mut self, direction: ChannelDirection, mode: ChannelMode,

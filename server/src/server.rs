@@ -1,7 +1,7 @@
 use crate::{ConnectContext, server_config::ServerConfig, ServerEvent};
 use crate::user::UserKey;
 use naia_shared::{
-	Channel, ChannelKind, error::*, IdPool, Io, LinkConditionerConfig,
+	Channel, ChannelKind, error::*, IdPool, Io, ConditionerConfig,
 	Message, MessageContainer, RejectReason, Schema,
 };
 use log::warn;
@@ -13,7 +13,7 @@ use super::connection::*;
 /// messages to/from connected clients
 pub struct Server {
     // Config
-    server_config: ServerConfig,
+    config: ServerConfig,
     schema: Schema,
 	// Connection
     io: Option<Io>,
@@ -27,9 +27,9 @@ pub struct Server {
 
 impl Server {
     /// Create a new Server
-    pub fn new(server_config: ServerConfig, schema: Schema) -> Self {
+    pub fn new(config: ServerConfig, schema: Schema) -> Self {
         Server {
-            server_config: server_config.clone(),
+            config,
             schema,
 			io: None,
 			addr_conns: HashMap::new(),
@@ -50,10 +50,7 @@ impl Server {
 			return Err(io::ErrorKind::AlreadyExists.into());
 		}
 
-		let io = Io::listen(
-			addr,
-			self.schema.conditioner_config(),
-		)?;
+		let io = Io::listen(addr, self.conditioner_config())?;
 		self.io = Some(io);
 		Ok(())
     }
@@ -88,8 +85,8 @@ impl Server {
     }
 
 	/// Returns conditioner config
-	pub fn conditioner_config(&self) -> &Option<LinkConditionerConfig> {
-		self.schema.conditioner_config()
+	pub fn conditioner_config(&self) -> &Option<ConditionerConfig> {
+		&self.config.connection.conditioner
 	}
 
     /// Must be called regularly, maintains connection to and receives messages
@@ -118,7 +115,7 @@ impl Server {
 							self.user_addrs.insert(user_key, address);
 							entry.insert(Connection::new(
 								&address,
-								&self.server_config.connection,
+								&self.config.connection,
 								self.schema.channel_kinds(),
 								&user_key,
 							))

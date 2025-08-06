@@ -1,3 +1,4 @@
+use crate::ConditionerConfig;
 use std::{default::Default, time::Duration};
 
 #[derive(Clone, Debug)]
@@ -12,13 +13,18 @@ pub struct ConnectionConfig {
     /// round-trip-time (RTT) and jitter, which affect the eagerness of packet
     /// re-transmissions.
     pub ping_interval: Duration,
+	/// Packet conditioner configuration. Use `None` to disable conditioning.
+	pub conditioner: Option<ConditionerConfig>,
 }
 
 impl ConnectionConfig {
     pub fn new(
-		timeout: Duration, heartbeat_interval: Duration, ping_interval: Duration,
+		timeout: Duration,
+		heartbeat_interval: Duration,
+		ping_interval: Duration,
+		conditioner: Option<ConditionerConfig>,
 	) -> Self {
-		Self { timeout, heartbeat_interval, ping_interval }
+		Self { timeout, heartbeat_interval, ping_interval, conditioner }
     }
 }
 
@@ -28,6 +34,7 @@ impl Default for ConnectionConfig {
 			timeout: Duration::from_secs(30),
             heartbeat_interval: Duration::from_secs(4),
 			ping_interval: Duration::from_secs(1),
+			conditioner: None,
         }
     }
 }

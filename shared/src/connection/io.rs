@@ -1,9 +1,9 @@
 use crate::{
-	BitReader, error::*, LinkConditionerConfig,
-	PacketConditioner, OutgoingPacket, MTU_SIZE_BYTES
+	BitReader, error::*, ConditionerConfig, OutgoingPacket, MTU_SIZE_BYTES
 };
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
+use super::conditioner::PacketConditioner;
 
 fn receive(socket: &UdpSocket) -> Result<(SocketAddr, Box<[u8]>), io::Error> {
 	let mut buffer = Box::new([0; MTU_SIZE_BYTES]);
@@ -44,7 +44,7 @@ pub struct Io {
 impl Io {
     fn new(
 		socket: UdpSocket,
-		conditioner_config: &Option<LinkConditionerConfig>,
+		conditioner_config: &Option<ConditionerConfig>,
 	) -> Self {
         Io {
 			bytes_tx: 0,
@@ -58,7 +58,7 @@ impl Io {
 
 	pub fn connect(
 		server_addr: SocketAddr,
-		conditioner_config: &Option<LinkConditionerConfig>,
+		conditioner_config: &Option<ConditionerConfig>,
 	) -> NaiaResult<Self> {
 		let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
 		socket.set_nonblocking(true)?;
@@ -69,7 +69,7 @@ impl Io {
 
 	pub fn listen(
 		server_addr: SocketAddr,
-		conditioner_config: &Option<LinkConditionerConfig>,
+		conditioner_config: &Option<ConditionerConfig>,
 	) -> NaiaResult<Self> {
 		let socket = UdpSocket::bind(server_addr)?;
 		socket.set_nonblocking(true)?;
