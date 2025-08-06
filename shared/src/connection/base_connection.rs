@@ -1,5 +1,5 @@
 use crate::{
-	ChannelKind, error::*, Io, MessageContainer, MessageKinds, Protocol, RolloverCounter,
+	ChannelKind, error::*, Io, MessageContainer, MessageKinds, RolloverCounter, Schema,
 	Timer,
 };
 use crate::messages::{
@@ -95,33 +95,33 @@ impl BaseConnection {
 
 	/// Fill and send as many data packets as necessary to send all pending messages
 	pub fn send_data_packets(
-		&mut self, protocol: &Protocol, now: &Instant, io: &mut Io,
+		&mut self, schema: &Schema, now: &Instant, io: &mut Io,
 	) -> NaiaResult {
 		let resend_ms = self.rtt_ms() + 1.5 * self.jitter_ms();
 		self.message_manager.collect_messages(now, &resend_ms);
 
 		while self.has_outgoing_messages() {
-			let writer = self.write_data_packet(protocol);
+			let writer = self.write_data_packet(schema);
 			self.send(io, writer)?;
 		}
 
 		Ok(())
 	}
 
-	fn write_data_packet(&mut self, protocol: &Protocol) -> BitWriter {
+	fn write_data_packet(&mut self, schema: &Schema) -> BitWriter {
 		let header = self.packet_header(PacketType::Data);
 
 		let mut writer = BitWriter::new();
 		header.ser(&mut writer);
 		self.ack_manager.next_outgoing_data_header(header.packet_seq).ser(&mut writer);
-		self.message_manager.write_messages(&protocol, &mut writer, header.packet_seq);
+		self.message_manager.write_messages(&schema, &mut writer, header.packet_seq);
 
 		writer
 	}
 
     pub fn read_data_packet(
         &mut self,
-        protocol: &Protocol,
+		schema: &Schema,
 		packet_seq: PacketSeq,
         reader: &mut BitReader,
     ) -> NaiaResult {
@@ -130,7 +130,7 @@ impl BaseConnection {
 		};
 
         self.ack_manager.process_incoming_header(packet_seq, &data_header, &mut self.message_manager);
-        self.message_manager.read_messages(protocol, reader)
+        self.message_manager.read_messages(schema, reader)
     }
 
 	pub fn send(&mut self, io: &mut Io, writer: BitWriter) -> NaiaResult {

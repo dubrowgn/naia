@@ -2,7 +2,7 @@ use crate::user::UserKey;
 use log::trace;
 use naia_shared::{
 	BaseConnection, BitReader, BitWriter, ChannelKind, ChannelKinds, ConnectionConfig,
-	error::*, HostType, Io, MessageContainer, Protocol, Serde, packet::*,
+	error::*, HostType, Io, MessageContainer, Schema, Serde, packet::*,
 };
 use ring::{hmac, rand};
 use std::net::SocketAddr;
@@ -137,7 +137,7 @@ impl Connection {
 
 	// Step 3 of Handshake
 	fn recv_connect_request(
-		&mut self, protocol: &Protocol, io: &mut Io, reader: &mut BitReader,
+		&mut self, schema: &Schema, io: &mut Io, reader: &mut BitReader,
 	) -> NaiaResult<ReceiveEvent> {
 		match self.state {
 			ConnectionState::PendingConnect => (), // happy path
@@ -164,7 +164,7 @@ impl Connection {
 		let connect_msg = match bool::de(reader) {
 			Err(_) => return Err(NaiaError::malformed::<packet::ClientConnectRequest>()),
 			Ok(true) => {
-				let Ok(msg) = protocol.message_kinds().read(reader) else {
+				let Ok(msg) = schema.message_kinds().read(reader) else {
 					return Err(NaiaError::malformed::<packet::ClientConnectRequest>());
 				};
 				Some(msg)
@@ -247,7 +247,7 @@ impl Connection {
     // Incoming Data
 
 	pub fn receive_packet(
-		&mut self, reader: &mut BitReader, io: &mut Io, protocol: &Protocol,
+		&mut self, reader: &mut BitReader, io: &mut Io, schema: &Schema,
 	) -> NaiaResult<ReceiveEvent> {
 		self.base.mark_heard();
 
@@ -259,9 +259,9 @@ impl Connection {
 			PacketType::ClientChallengeRequest =>
 				self.recv_challenge_request(io, reader),
 			PacketType::ClientConnectRequest =>
-				self.recv_connect_request(protocol, io, reader),
+				self.recv_connect_request(schema, io, reader),
 			PacketType::Data => {
-				self.base.read_data_packet(protocol, header.packet_seq, reader)?;
+				self.base.read_data_packet(schema, header.packet_seq, reader)?;
 				Ok(ReceiveEvent::Data)
 			}
 			PacketType::Disconnect => self.recv_disconnect(reader),
@@ -288,19 +288,19 @@ impl Connection {
     // Outgoing data
 
 	pub fn queue_message(
-		&mut self, protocol: &Protocol, channel: &ChannelKind, msg: MessageContainer,
+		&mut self, schema: &Schema, channel: &ChannelKind, msg: MessageContainer,
 	) {
-		self.base.queue_message(protocol.message_kinds(), channel, msg);
+		self.base.queue_message(schema.message_kinds(), channel, msg);
 	}
 
 	pub fn send(
-		&mut self, now: &Instant, protocol: &Protocol, io: &mut Io
+		&mut self, now: &Instant, schema: &Schema, io: &mut Io
 	) -> NaiaResult {
 		if !self.is_connected() {
 			return Ok(());
 		}
 
-		self.base.send_data_packets(protocol, now, io)?;
+		self.base.send_data_packets(schema, now, io)?;
 		self.base.try_send_ping(io)?;
 		self.base.try_send_heartbeat(io)
 	}

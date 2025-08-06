@@ -1,4 +1,4 @@
-use crate::{MessageKinds, error::*, Protocol, packet::*};
+use crate::{MessageKinds, error::*, packet::*, Schema};
 use naia_serde::{BitReader, BitWrite, BitWriter, Serde};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -202,7 +202,7 @@ impl MessageManager {
 
     pub fn write_messages(
         &mut self,
-        protocol: &Protocol,
+		schema: &Schema,
         writer: &mut BitWriter,
         packet_seq: PacketSeq,
     ) {
@@ -222,7 +222,7 @@ impl MessageManager {
             // write ChannelContinue bit
             counter.write_bit(false);
             // write ChannelIndex
-            channel_kind.ser(protocol.channel_kinds(), &mut counter);
+            channel_kind.ser(schema.channel_kinds(), &mut counter);
             if counter.overflowed() {
                 break;
             }
@@ -232,10 +232,10 @@ impl MessageManager {
             // write ChannelContinue bit
             true.ser(writer);
             // write ChannelIndex
-            channel_kind.ser(protocol.channel_kinds(), writer);
+            channel_kind.ser(schema.channel_kinds(), writer);
             // write Messages
             if let Some(message_indices) =
-                channel.write_messages(protocol.message_kinds(), writer, &mut has_written)
+                channel.write_messages(schema.message_kinds(), writer, &mut has_written)
             {
                 self.packet_to_message_map
                     .entry(packet_seq)
@@ -257,7 +257,7 @@ impl MessageManager {
     // Incoming Messages
 
     pub fn read_messages(
-        &mut self, protocol: &Protocol, reader: &mut BitReader,
+		&mut self, schema: &Schema, reader: &mut BitReader,
     ) -> NaiaResult {
         loop {
             let Ok(message_continue) = bool::de(reader) else {
@@ -269,13 +269,13 @@ impl MessageManager {
             }
 
             // read channel id
-            let Ok(channel_kind) = ChannelKind::de(protocol.channel_kinds(), reader) else {
+            let Ok(channel_kind) = ChannelKind::de(schema.channel_kinds(), reader) else {
 				return Err(NaiaError::malformed::<packet::Data>());
 			};
 
             // continue read inside channel
             let channel = self.channel_receivers.get_mut(&channel_kind).unwrap();
-            channel.read_messages(protocol.message_kinds(), reader)?;
+            channel.read_messages(schema.message_kinds(), reader)?;
         }
 
         Ok(())

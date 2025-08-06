@@ -1,7 +1,7 @@
 use log::trace;
 use naia_shared::{
 	BaseConnection, BitReader, BitWriter, ChannelKind, ChannelKinds, ConnectionConfig,
-	error::*, HostType, Io, Message, MessageContainer, packet::*, Protocol, Serde, Timer,
+	error::*, HostType, Io, Message, MessageContainer, packet::*, Schema, Serde, Timer,
 };
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
@@ -69,7 +69,7 @@ impl Connection {
 		self.state == ConnectionState::Connected
 	}
 
-	fn send_handshake(&mut self, protocol: &Protocol, io: &mut Io) -> NaiaResult {
+	fn send_handshake(&mut self, schema: &Schema, io: &mut Io) -> NaiaResult {
 		debug_assert!(self.state != ConnectionState::Connected);
 
 		if !self.handshake_timer.try_reset() {
@@ -83,7 +83,7 @@ impl Connection {
 			}
 			ConnectionState::AwaitingConnectResponse{ server_timestamp_ns } => {
 				let server_timestamp_ns = *server_timestamp_ns;
-				let writer = self.write_connect_request(protocol, server_timestamp_ns);
+				let writer = self.write_connect_request(schema, server_timestamp_ns);
 				self.base.send(io, writer)?;
 			}
 			ConnectionState::Connected => unreachable!(),
@@ -158,7 +158,7 @@ impl Connection {
 	}
 
 	// Step 3 of Handshake
-	fn write_connect_request(&mut self, protocol: &Protocol, server_timestamp_ns: TimestampNs) -> BitWriter {
+	fn write_connect_request(&mut self, schema: &Schema, server_timestamp_ns: TimestampNs) -> BitWriter {
 		debug_assert!(matches!(self.state, ConnectionState::AwaitingConnectResponse{..}));
 
 		let mut writer = BitWriter::new();
@@ -173,7 +173,7 @@ impl Connection {
 		if let Some(connect_message) = &self.connect_message {
 			// write that we have a message
 			true.ser(&mut writer);
-			connect_message.write(protocol.message_kinds(), &mut writer);
+			connect_message.write(schema.message_kinds(), &mut writer);
 		} else {
 			// write that we do not have a message
 			false.ser(&mut writer);
@@ -222,17 +222,17 @@ impl Connection {
     // Incoming data
 
 	pub fn receive_packet(
-		&mut self, reader: &mut BitReader, io: &mut Io, protocol: &Protocol,
+		&mut self, reader: &mut BitReader, io: &mut Io, schema: &Schema,
 	) -> NaiaResult<ReceiveEvent> {
 		if self.is_connected() {
-			self.receive_packet_connected(reader, io, protocol)
+			self.receive_packet_connected(reader, io, schema)
 		} else {
 			self.receive_packet_handshake(reader)
 		}
 	}
 
 	fn receive_packet_connected(
-		&mut self, reader: &mut BitReader, io: &mut Io, protocol: &Protocol,
+		&mut self, reader: &mut BitReader, io: &mut Io, schema: &Schema,
 	) -> NaiaResult<ReceiveEvent> {
 		self.base.mark_heard();
 
@@ -241,7 +241,7 @@ impl Connection {
 		};
 
 		match header.packet_type {
-			PacketType::Data => self.base.read_data_packet(protocol, header.packet_seq, reader)?,
+			PacketType::Data => self.base.read_data_packet(schema, header.packet_seq, reader)?,
 			PacketType::Disconnect => return Ok(ReceiveEvent::Disconnect),
 			PacketType::Heartbeat => (),
 			PacketType::Ping => self.base.ping_pong(reader, io)?,
@@ -259,26 +259,26 @@ impl Connection {
     // Outgoing data
 
 	pub fn queue_message(
-		&mut self, protocol: &Protocol, channel: &ChannelKind, msg: MessageContainer,
+		&mut self, schema: &Schema, channel: &ChannelKind, msg: MessageContainer,
 	) {
-		self.base.queue_message(protocol.message_kinds(), channel, msg);
+		self.base.queue_message(schema.message_kinds(), channel, msg);
 	}
 
 	pub fn send(
-		&mut self, now: &Instant, protocol: &Protocol, io: &mut Io
+		&mut self, now: &Instant, schema: &Schema, io: &mut Io
 	) -> NaiaResult {
 		match self.state {
-			ConnectionState::Connected => self.send_connected(now, protocol, io),
+			ConnectionState::Connected => self.send_connected(now, schema, io),
 			ConnectionState::Disconnected => Ok(()),
-			_ => self.send_handshake(protocol, io),
+			_ => self.send_handshake(schema, io),
 		}
 	}
 
 	fn send_connected(
-		&mut self, now: &Instant, protocol: &Protocol, io: &mut Io
+		&mut self, now: &Instant, schema: &Schema, io: &mut Io
 	) -> NaiaResult {
 		debug_assert!(self.state == ConnectionState::Connected);
-		self.base.send_data_packets(protocol, now, io)?;
+		self.base.send_data_packets(schema, now, io)?;
 		self.base.try_send_ping(io)?;
 		self.base.try_send_heartbeat(io)
 	}

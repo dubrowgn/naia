@@ -1,7 +1,7 @@
 use log::warn;
 use naia_shared::{
 	Channel, ChannelKind, error::*, Io, LinkConditionerConfig, Message,
-	MessageContainer, Protocol,
+	MessageContainer, Schema,
 };
 use std::{collections::VecDeque, io, net::SocketAddr, time::Instant};
 use super::{
@@ -15,7 +15,7 @@ use super::{
 pub struct Client {
     // Config
     client_config: ClientConfig,
-    protocol: Protocol,
+    schema: Schema,
     // Connection
 	io_conn: Option<(Io, Connection)>,
     waitlist_messages: VecDeque<(ChannelKind, Box<dyn Message>)>,
@@ -25,11 +25,11 @@ pub struct Client {
 
 impl Client {
     /// Create a new Client
-    pub fn new(client_config: ClientConfig, protocol: Protocol) -> Self {
+    pub fn new(client_config: ClientConfig, schema: Schema) -> Self {
         Client {
             // Config
             client_config: client_config.clone(),
-            protocol,
+            schema,
             // Connection
 			io_conn: None,
             waitlist_messages: VecDeque::new(),
@@ -49,12 +49,12 @@ impl Client {
 			return Err(io::ErrorKind::AlreadyExists.into());
         }
 
-		let io = Io::connect(addr, self.protocol.conditioner_config())?;
+		let io = Io::connect(addr, self.schema.conditioner_config())?;
 		let mut conn = Connection::new(
 			&addr,
 			&self.client_config.connection,
 			self.client_config.handshake_resend_interval,
-			self.protocol.channel_kinds(),
+			self.schema.channel_kinds(),
 		);
 		conn.set_connect_message(Box::new(msg));
 
@@ -96,7 +96,7 @@ impl Client {
 
     /// Returns conditioner config
 	pub fn conditioner_config(&self) -> &Option<LinkConditionerConfig> {
-		self.protocol.conditioner_config()
+		self.schema.conditioner_config()
 	}
 
     // Receive Data from Server! Very important!
@@ -115,7 +115,7 @@ impl Client {
 			let (io, conn) = self.io_conn.as_mut().unwrap();
 			match io.recv_reader() {
 				Ok(Some((_, mut reader))) => {
-					match conn.receive_packet(&mut reader, io, &self.protocol) {
+					match conn.receive_packet(&mut reader, io, &self.schema) {
 						Ok(ReceiveEvent::Connected) => {
 							let addr = *conn.address();
 							self.on_connect();
@@ -162,7 +162,7 @@ impl Client {
 			return;
 		};
 
-		if let Err(e) = conn.send(&Instant::now(), &self.protocol, io) {
+		if let Err(e) = conn.send(&Instant::now(), &self.schema, io) {
 			self.incoming_events.push(ClientEvent::Error(e));
 		}
 	}
@@ -179,14 +179,14 @@ impl Client {
     fn send_message_inner(&mut self, channel_kind: &ChannelKind, message_box: Box<dyn Message>) {
 		debug_assert!(!self.is_disconnected());
 
-        let channel_settings = self.protocol.channel_kinds().channel(channel_kind);
+        let channel_settings = self.schema.channel_kinds().channel(channel_kind);
         if !channel_settings.can_send_to_server() {
             panic!("Cannot send message to Server on this Channel");
         }
 
         if let Some((_, conn)) = &mut self.io_conn {
             let msg = MessageContainer::from_write(message_box);
-            conn.queue_message(&self.protocol, channel_kind, msg);
+            conn.queue_message(&self.schema, channel_kind, msg);
         } else {
             self.waitlist_messages
                 .push_back((channel_kind.clone(), message_box));

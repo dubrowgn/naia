@@ -19,7 +19,7 @@ mod constants;
 pub mod error;
 mod messages;
 pub mod metrics;
-mod protocol;
+mod schema;
 mod timer;
 mod types;
 
@@ -49,6 +49,6 @@ pub use messages::{
 };
 pub use packet::RejectReason;
 
-pub use protocol::Protocol;
+pub use schema::Schema;
 pub use timer::Timer;
 pub use types::*;

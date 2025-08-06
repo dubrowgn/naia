@@ -22,9 +22,9 @@ fn connect() {
 	};
 	let server_config = ServerConfig { connection: connection_config };
 
-	let protocol = || Protocol::builder().add_message::<Auth>().build();
-	let mut client = Client::new(client_config, protocol());
-	let mut server = Server::new(server_config, protocol());
+	let schema = || Schema::builder().add_message::<Auth>().build();
+	let mut client = Client::new(client_config, schema());
+	let mut server = Server::new(server_config, schema());
 	let token = "1234567".to_string();
 
 	{

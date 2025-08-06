@@ -2,7 +2,7 @@ use crate::{ConnectContext, server_config::ServerConfig, ServerEvent};
 use crate::user::UserKey;
 use naia_shared::{
 	Channel, ChannelKind, error::*, IdPool, Io, LinkConditionerConfig,
-	Message, MessageContainer, Protocol, RejectReason,
+	Message, MessageContainer, RejectReason, Schema,
 };
 use log::warn;
 use std::collections::hash_map::Entry;
@@ -14,7 +14,7 @@ use super::connection::*;
 pub struct Server {
     // Config
     server_config: ServerConfig,
-    protocol: Protocol,
+    schema: Schema,
 	// Connection
     io: Option<Io>,
 	addr_conns: HashMap<SocketAddr, Connection>,
@@ -27,10 +27,10 @@ pub struct Server {
 
 impl Server {
     /// Create a new Server
-    pub fn new(server_config: ServerConfig, protocol: Protocol) -> Self {
+    pub fn new(server_config: ServerConfig, schema: Schema) -> Self {
         Server {
             server_config: server_config.clone(),
-            protocol,
+            schema,
 			io: None,
 			addr_conns: HashMap::new(),
             user_addrs: HashMap::new(),
@@ -52,7 +52,7 @@ impl Server {
 
 		let io = Io::listen(
 			addr,
-			self.protocol.conditioner_config(),
+			self.schema.conditioner_config(),
 		)?;
 		self.io = Some(io);
 		Ok(())
@@ -89,7 +89,7 @@ impl Server {
 
 	/// Returns conditioner config
 	pub fn conditioner_config(&self) -> &Option<LinkConditionerConfig> {
-		self.protocol.conditioner_config()
+		self.schema.conditioner_config()
 	}
 
     /// Must be called regularly, maintains connection to and receives messages
@@ -119,13 +119,13 @@ impl Server {
 							entry.insert(Connection::new(
 								&address,
 								&self.server_config.connection,
-								self.protocol.channel_kinds(),
+								self.schema.channel_kinds(),
 								&user_key,
 							))
 						}
 					};
 
-					match conn.receive_packet(&mut reader, io, &self.protocol) {
+					match conn.receive_packet(&mut reader, io, &self.schema) {
 						Ok(ReceiveEvent::Connecting(req, msg)) => {
 							self.incoming_events.push(ServerEvent::Connect {
 								user_key: conn.user_key,
@@ -233,7 +233,7 @@ impl Server {
         channel_kind: &ChannelKind,
         message_box: Box<dyn Message>,
     ) {
-        let channel_settings = self.protocol.channel_kinds().channel(channel_kind);
+        let channel_settings = self.schema.channel_kinds().channel(channel_kind);
 		debug_assert!(channel_settings.can_send_to_client(), "Cannot send message to Client on this Channel");
         if !channel_settings.can_send_to_client() {
 			return;
@@ -242,7 +242,7 @@ impl Server {
         if let Some(addr) = self.user_addrs.get(user_key) {
             if let Some(connection) = self.addr_conns.get_mut(addr) {
                 let msg = MessageContainer::from_write(message_box);
-                connection.queue_message(&self.protocol, channel_kind, msg);
+                connection.queue_message(&self.schema, channel_kind, msg);
             }
         }
     }
@@ -287,7 +287,7 @@ impl Server {
 		for addr in user_addresses {
 			let conn = self.addr_conns.get_mut(&addr).unwrap();
 
-			if let Err(e) = conn.send(&now, &self.protocol, io) {
+			if let Err(e) = conn.send(&now, &self.schema, io) {
 				self.incoming_events.push(ServerEvent::Error(e));
 			}
         }

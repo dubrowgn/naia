@@ -11,14 +11,13 @@ use crate::{
 	LinkConditionerConfig,
 };
 
-// Protocol
-pub struct Protocol {
+pub struct Schema {
     channel_kinds: ChannelKinds,
     message_kinds: MessageKinds,
 	conditioner_config: Option<LinkConditionerConfig>,
 }
 
-impl Default for Protocol {
+impl Default for Schema {
     fn default() -> Self {
         let mut message_kinds = MessageKinds::new();
         message_kinds.add_message::<FragmentedMessage>();
@@ -31,25 +30,24 @@ impl Default for Protocol {
     }
 }
 
-impl Protocol {
-    pub fn builder() -> ProtocolBuilder { ProtocolBuilder::new() }
-
+impl Schema {
+	pub fn builder() -> SchemaBuilder { SchemaBuilder::new() }
 	pub fn channel_kinds(&self) -> &ChannelKinds { &self.channel_kinds }
 	pub fn message_kinds(&self) -> &MessageKinds { &self.message_kinds }
 	pub fn conditioner_config(&self) -> &Option<LinkConditionerConfig> { &self.conditioner_config }
 }
 
-pub struct ProtocolBuilder {
-	proto: Protocol,
+pub struct SchemaBuilder {
+	schema: Schema,
 }
 
-impl ProtocolBuilder {
+impl SchemaBuilder {
 	pub fn new() -> Self {
-		Self { proto: Protocol::default() }
+		Self { schema: Schema::default() }
 	}
 
     pub fn link_condition(mut self, config: LinkConditionerConfig) -> Self {
-		self.proto.conditioner_config = Some(config);
+		self.schema.conditioner_config = Some(config);
         self
     }
 
@@ -57,14 +55,14 @@ impl ProtocolBuilder {
 		mut self, direction: ChannelDirection, mode: ChannelMode,
     ) -> Self {
 		let settings = ChannelSettings::new(mode, direction);
-		self.proto.channel_kinds.add_channel::<C>(settings);
+		self.schema.channel_kinds.add_channel::<C>(settings);
         self
     }
 
     pub fn add_message<M: Message>(mut self) -> Self {
-		self.proto.message_kinds.add_message::<M>();
+		self.schema.message_kinds.add_message::<M>();
         self
     }
 
-	pub fn build(self) -> Protocol { self.proto }
+	pub fn build(self) -> Schema { self.schema }
 }
