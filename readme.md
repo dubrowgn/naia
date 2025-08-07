@@ -5,7 +5,7 @@ use specifically with deterministic lockstep applications.
 
 ## Major Removals
 
-* Code base reduced from ~39k lines of rust to ~8k (as of 2025-08-01)
+* Code base reduced from ~39k lines of rust to ~7.8k (as of 2025-08-07)
 * Removed bevy, hecs, and miniquad from naia core (no more naia changes necessary
   after new bevy/hecs/miniquad releases)
 * Removed entity replication; Entity replication is a huge chunk of the naia
