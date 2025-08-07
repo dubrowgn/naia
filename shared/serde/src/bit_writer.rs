@@ -29,8 +29,6 @@ impl BitWriter {
 
 	fn size(&self) -> usize { self.buffer_index + (self.bit_offset > 0) as usize }
 
-    pub fn to_bytes(&self) -> Box<[u8]> { Box::from(&self.buffer[0..self.size()]) }
-
 	pub fn slice(&self) -> &[u8] { &self.buffer[0..self.size()] }
 	pub fn slice_mut(&mut self) -> &mut [u8] {
 		let size = self.size();
@@ -100,7 +98,7 @@ mod tests {
 			writer.write_bit(bit);
 		}
 
-		let mut reader = BitReader::new(writer.to_bytes());
+		let mut reader = BitReader::from_slice(writer.slice());
 		for bit in bits {
 			assert_eq!(reader.read_bit(), Ok(bit));
 		}
@@ -114,14 +112,14 @@ mod tests {
 		for byte in bytes {
 			writer.write_byte(byte);
 		}
-		let buffer = writer.to_bytes();
+		let buffer = writer.slice();
 
 		// ensure bit order is preserved
 		for (i, byte) in bytes.iter().enumerate() {
 			assert_eq!(buffer[i], *byte);
 		}
 
-		let mut reader = BitReader::new(buffer);
+		let mut reader = BitReader::from_slice(buffer);
 		for byte in bytes {
 			assert_eq!(reader.read_byte(), Ok(byte));
 		}
@@ -139,7 +137,7 @@ mod tests {
 		val32.ser(&mut writer);
 		writer.write_bit(true);
 
-		let mut reader = BitReader::new(writer.to_bytes());
+		let mut reader = BitReader::from_slice(writer.slice());
 		assert_eq!(reader.read_bit(), Ok(true));
 		assert_eq!(u16::de(&mut reader), Ok(val16));
 		assert_eq!(reader.read_bit(), Ok(false));

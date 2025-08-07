@@ -17,11 +17,8 @@ fn read_write_unit_struct() {
 
     in_1.ser(&mut writer);
 
-    let bytes = writer.to_bytes();
-
     // Read
-
-    let mut reader = BitReader::new(bytes);
+    let mut reader = BitReader::from_slice(writer.slice());
 
     let out_1 = Serde::de(&mut reader).unwrap();
 

@@ -15,6 +15,8 @@ impl BitReader {
         }
     }
 
+	pub fn from_slice(slice: &[u8]) -> Self { Self::new(slice.into()) }
+
     pub fn bytes_len(&self) -> usize { self.buffer.len() }
 
     pub fn read_bit(&mut self) -> Result<bool, SerdeErr> {

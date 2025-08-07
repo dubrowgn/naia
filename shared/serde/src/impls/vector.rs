@@ -83,10 +83,8 @@ mod tests {
         in_1.ser(&mut writer);
         in_2.ser(&mut writer);
 
-        let buffer = writer.to_bytes();
-
         // Read
-        let mut reader = BitReader::new(buffer);
+        let mut reader = BitReader::from_slice(writer.slice());
 
         let out_1: Vec<i32> = Serde::de(&mut reader).unwrap();
         let out_2: Vec<bool> = Serde::de(&mut reader).unwrap();
@@ -119,10 +117,8 @@ mod tests {
         in_1.ser(&mut writer);
         in_2.ser(&mut writer);
 
-        let buffer = writer.to_bytes();
-
         // Read
-        let mut reader = BitReader::new(buffer);
+        let mut reader = BitReader::from_slice(writer.slice());
 
         let out_1: VecDeque<i32> = Serde::de(&mut reader).unwrap();
         let out_2: VecDeque<bool> = Serde::de(&mut reader).unwrap();

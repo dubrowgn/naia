@@ -53,7 +53,7 @@ impl FragmentWriter {
             &mut self.current_writer,
             BitWriter::with_capacity(FRAGMENTATION_LIMIT_BITS),
         );
-        let bytes = current.to_bytes();
+        let bytes = current.slice().into();
         let fragmented_message =
             FragmentedMessage::new(self.fragment_id, self.current_fragment_index, bytes);
         self.current_fragment_index.increment();

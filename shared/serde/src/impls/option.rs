@@ -55,10 +55,8 @@ mod tests {
         in_1.ser(&mut writer);
         in_2.ser(&mut writer);
 
-        let buffer = writer.to_bytes();
-
         //Read
-        let mut reader = BitReader::new(buffer);
+        let mut reader = BitReader::from_slice(writer.slice());
 
         let out_1 = Option::<u8>::de(&mut reader).unwrap();
         let out_2 = Option::<f32>::de(&mut reader).unwrap();

@@ -40,10 +40,8 @@ mod unit_tests {
 
         in_unit.ser(&mut writer);
 
-        let buffer = writer.to_bytes();
-
         //Read
-        let mut reader = BitReader::new(buffer);
+        let mut reader = BitReader::from_slice(writer.slice());
 
         let out_unit = Serde::de(&mut reader).unwrap();
 
@@ -90,10 +88,8 @@ mod bool_tests {
         in_1.ser(&mut writer);
         in_2.ser(&mut writer);
 
-        let buffer = writer.to_bytes();
-
         //Read
-        let mut reader = BitReader::new(buffer);
+        let mut reader = BitReader::from_slice(writer.slice());
 
         let out_1 = Serde::de(&mut reader).unwrap();
         let out_2 = Serde::de(&mut reader).unwrap();
@@ -163,10 +159,8 @@ mod char_tests {
         in_1.ser(&mut writer);
         in_2.ser(&mut writer);
 
-        let buffer = writer.to_bytes();
-
         //Read
-        let mut reader = BitReader::new(buffer);
+        let mut reader = BitReader::from_slice(writer.slice());
 
         let out_1 = Serde::de(&mut reader).unwrap();
         let out_2 = Serde::de(&mut reader).unwrap();
@@ -292,7 +286,7 @@ mod tests {
 				let mut writer = BitWriter::new();
 				$value.ser(&mut writer);
 
-				let mut reader = BitReader::new(writer.to_bytes());
+				let mut reader = BitReader::from_slice(writer.slice());
 				assert_eq!($impl_type::de(&mut reader), Ok($value));
 			}
 		};
