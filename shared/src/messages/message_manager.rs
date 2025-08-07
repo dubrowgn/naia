@@ -207,7 +207,7 @@ impl MessageManager {
         packet_seq: PacketSeq,
     ) {
 		// final channel continuation bit
-		writer.reserve_bits(1);
+		writer.reserve_bit();
 
 		let mut has_written = false;
         for (channel_kind, channel) in &mut self.channel_senders {
@@ -228,7 +228,7 @@ impl MessageManager {
             }
 
             // reserve MessageContinue bit
-            writer.reserve_bits(1);
+            writer.reserve_bit();
             // write ChannelContinue bit
             true.ser(writer);
             // write ChannelIndex
@@ -245,13 +245,11 @@ impl MessageManager {
             }
 
             // write MessageContinue finish bit, release
-            writer.release_bits(1);
-            false.ser(writer);
+            writer.write_reserved_bit(false);
         }
 
         // write ChannelContinue finish bit, release
-        writer.release_bits(1);
-        false.ser(writer);
+        writer.write_reserved_bit(false);
     }
 
     // Incoming Messages

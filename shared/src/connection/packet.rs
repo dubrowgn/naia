@@ -2,6 +2,35 @@
 use crate::SeqNum;
 use naia_serde::*;
 
+pub struct PacketWriter {
+	header: PacketHeader,
+	writer: BitWriter,
+}
+
+impl PacketWriter {
+	pub fn new(header: PacketHeader) -> Self {
+		let mut writer = BitWriter::new();
+		writer.write(&header);
+
+		Self { header, writer }
+	}
+
+	pub fn packet_type(&self) -> PacketType { self.header.packet_type }
+	pub fn packet_seq(&self) -> PacketSeq { self.header.packet_seq }
+	pub fn body_mut(&mut self) -> &mut [u8] {
+		&mut self.writer.slice_mut()[self.header.byte_length()..]
+	}
+	pub fn slice(&self) -> &[u8] { &self.writer.slice() }
+
+	pub fn inner_mut(&mut self) -> &mut BitWriter { &mut self.writer }
+	pub fn write<T: Serde>(&mut self, value: &T) { self.writer.write(value) }
+}
+
+impl BitWrite for PacketWriter {
+	fn write_bit(&mut self, bit: bool) { self.writer.write_bit(bit) }
+	fn write_byte(&mut self, byte: u8) { self.writer.write_byte(byte) }
+}
+
 /// packet-level sequence number
 pub type PacketSeq = SeqNum;
 
@@ -42,13 +71,52 @@ pub enum PacketType {
     Disconnect,
 }
 
-#[derive(Clone, Debug, PartialEq, SerdeInternal)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PacketHeader {
 	/// Packet type
 	pub packet_type: PacketType,
 	/// Packet sequence number, incremented for each packet sent
 	pub packet_seq: PacketSeq,
 }
+
+impl PacketHeader {
+	fn field_bits(&self) -> usize {
+		(self.packet_type.bit_length() + self.packet_seq.bit_length()) as usize
+	}
+	fn padded_bits(&self) -> usize { 8 * self.padded_bytes() }
+	fn padded_bytes(&self) -> usize { (self.field_bits() + 7) / 8 }
+	fn pad_bits(&self) -> usize { self.padded_bits() - self.field_bits() }
+
+	pub fn byte_length(&self) -> usize { self.padded_bytes() }
+}
+
+impl Serde for PacketHeader {
+	fn de(reader: &mut BitReader) -> SerdeResult<Self> {
+		let header = Self {
+			packet_type: reader.read()?,
+			packet_seq: reader.read()?,
+		};
+		// un-pad to byte boundary
+		for _ in 0..header.pad_bits() {
+			if reader.read_bit()? {
+				return Err(SerdeErr);
+			}
+		}
+		Ok(header)
+	}
+
+	fn ser(&self, writer: &mut dyn BitWrite) {
+		self.packet_type.ser(writer);
+		self.packet_seq.ser(writer);
+		// pad to byte boundary
+		for _ in 0..self.pad_bits() {
+			writer.write_bit(false);
+		}
+	}
+
+	fn bit_length(&self) -> u32 { self.padded_bits() as u32 }
+}
+
 
 #[derive(Clone, Debug, PartialEq, SerdeInternal)]
 pub enum RejectReason {

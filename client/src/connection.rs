@@ -1,7 +1,7 @@
 use log::trace;
 use naia_shared::{
-	BaseConnection, BitReader, BitWriter, ChannelKind, ChannelKinds, ConnectionConfig,
-	error::*, HostType, Io, Message, MessageContainer, packet::*, Schema, Serde, Timer,
+	BaseConnection, BitReader, ChannelKind, ChannelKinds, ConnectionConfig, error::*,
+	HostType, Io, Message, MessageContainer, packet::*, Schema, Serde, Timer,
 };
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
@@ -118,11 +118,10 @@ impl Connection {
 	}
 
 	// Step 1 of Handshake
-	fn write_challenge_request(&mut self) -> BitWriter {
+	fn write_challenge_request(&mut self) -> PacketWriter {
 		debug_assert!(self.state == ConnectionState::AwaitingChallengeResponse);
 
-		let mut writer = BitWriter::new();
-		self.base.packet_header(PacketType::ClientChallengeRequest).ser(&mut writer);
+		let mut writer: _ = self.base.packet_writer(PacketType::ClientChallengeRequest);
 		packet::ClientChallengeRequest {
 			timestamp_ns: self.pre_connection_timestamp,
 			client_timestamp_ns: self.base.timestamp_ns(),
@@ -158,11 +157,12 @@ impl Connection {
 	}
 
 	// Step 3 of Handshake
-	fn write_connect_request(&mut self, schema: &Schema, server_timestamp_ns: TimestampNs) -> BitWriter {
+	fn write_connect_request(
+		&mut self, schema: &Schema, server_timestamp_ns: TimestampNs,
+	) -> PacketWriter {
 		debug_assert!(matches!(self.state, ConnectionState::AwaitingConnectResponse{..}));
 
-		let mut writer = BitWriter::new();
-		self.base.packet_header(PacketType::ClientConnectRequest).ser(&mut writer);
+		let mut writer: _ = self.base.packet_writer(PacketType::ClientConnectRequest);
 		packet::ClientConnectRequest {
 			timestamp_ns: self.pre_connection_timestamp,
 			signature: self.pre_connection_digest.as_ref().unwrap().clone(),
@@ -183,7 +183,9 @@ impl Connection {
 	}
 
 	// Step 4 of Handshake
-	fn recv_connect_response(&mut self, reader: &mut BitReader) -> NaiaResult<ReceiveEvent> {
+	fn recv_connect_response(
+		&mut self, reader: &mut BitReader,
+	) -> NaiaResult<ReceiveEvent> {
 		let ConnectionState::AwaitingConnectResponse { .. } = self.state else {
 			return Ok(ReceiveEvent::None);
 		};
@@ -206,8 +208,7 @@ impl Connection {
 		self.set_state(ConnectionState::Disconnected);
 
 		for _ in 0..3 {
-			let mut writer = BitWriter::new();
-			self.base.packet_header(PacketType::Disconnect).ser(&mut writer);
+			let mut writer: _ = self.base.packet_writer(PacketType::Disconnect);
 			packet::Disconnect {
 				timestamp_ns: self.pre_connection_timestamp,
 				signature: self.pre_connection_digest.as_ref().unwrap().clone(),

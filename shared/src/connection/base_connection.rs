@@ -7,7 +7,7 @@ use crate::messages::{
 };
 use crate::metrics::*;
 use crate::types::HostType;
-use naia_serde::{BitReader, BitWriter, Serde};
+use naia_serde::{BitReader, Serde};
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use super::{ack_manager::AckManager, connection_config::ConnectionConfig, packet::*};
@@ -72,8 +72,9 @@ impl BaseConnection {
 
     // Acks & Headers
 
-	pub fn packet_header(&mut self, packet_type: PacketType) -> PacketHeader {
-		PacketHeader { packet_type, packet_seq: self.packet_seq.incr() }
+	pub fn packet_writer(&mut self, packet_type: PacketType) -> PacketWriter {
+		let header: _ = PacketHeader { packet_type, packet_seq: self.packet_seq.incr() };
+		PacketWriter::new(header)
 	}
 
 	pub fn has_outgoing_messages(&self) -> bool {
@@ -108,13 +109,12 @@ impl BaseConnection {
 		Ok(())
 	}
 
-	fn write_data_packet(&mut self, schema: &Schema) -> BitWriter {
-		let header = self.packet_header(PacketType::Data);
+	fn write_data_packet(&mut self, schema: &Schema) -> PacketWriter {
+		let mut writer = self.packet_writer(PacketType::Data);
 
-		let mut writer = BitWriter::new();
-		header.ser(&mut writer);
-		self.ack_manager.next_outgoing_data_header(header.packet_seq).ser(&mut writer);
-		self.message_manager.write_messages(&schema, &mut writer, header.packet_seq);
+		let seq = writer.packet_seq();
+		self.ack_manager.next_outgoing_data_header(seq).ser(&mut writer);
+		self.message_manager.write_messages(&schema, writer.inner_mut(), seq);
 
 		writer
 	}
@@ -133,8 +133,8 @@ impl BaseConnection {
         self.message_manager.read_messages(schema, reader)
     }
 
-	pub fn send(&mut self, io: &mut Io, writer: BitWriter) -> NaiaResult {
-		io.send_packet(&self.address, writer.to_packet())?;
+	pub fn send(&mut self, io: &mut Io, writer: PacketWriter) -> NaiaResult {
+		io.send_packet(&self.address, writer.slice())?;
 		self.mark_sent();
 		Ok(())
 	}
@@ -157,8 +157,7 @@ impl BaseConnection {
 	pub fn ping_pong(&mut self, reader: &mut BitReader, io: &mut Io) -> NaiaResult {
 		let ping = packet::Ping::de(reader)?;
 
-		let mut writer = BitWriter::new();
-		self.packet_header(PacketType::Pong).ser(&mut writer);
+		let mut writer = self.packet_writer(PacketType::Pong);
 		packet::Pong { timestamp_ns: ping.timestamp_ns }.ser(&mut writer);
 		self.send(io, writer)
 	}
@@ -168,8 +167,7 @@ impl BaseConnection {
 			return Ok(());
 		}
 
-		let mut writer = BitWriter::new();
-		self.packet_header(PacketType::Heartbeat).ser(&mut writer);
+		let writer = self.packet_writer(PacketType::Heartbeat);
 		self.send(io, writer)
 	}
 
@@ -179,8 +177,7 @@ impl BaseConnection {
 			return Ok(());
 		}
 
-		let mut writer = BitWriter::new();
-		self.packet_header(PacketType::Ping).ser(&mut writer);
+		let mut writer = self.packet_writer(PacketType::Ping);
 		packet::Ping { timestamp_ns: self.timestamp_ns() }.ser(&mut writer);
 		self.send(io, writer)
 	}

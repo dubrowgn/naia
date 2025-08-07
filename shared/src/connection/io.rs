@@ -1,6 +1,4 @@
-use crate::{
-	BitReader, error::*, ConditionerConfig, OutgoingPacket, MTU_SIZE_BYTES
-};
+use crate::{BitReader, error::*, ConditionerConfig, MTU_SIZE_BYTES};
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
 use super::conditioner::PacketConditioner;
@@ -77,10 +75,7 @@ impl Io {
 		Ok(Self::new(socket, conditioner_config))
 	}
 
-    pub fn send_packet(&mut self, addr: &SocketAddr, packet: OutgoingPacket) -> NaiaResult {
-        // get payload
-        let payload = packet.slice();
-
+    pub fn send_packet(&mut self, addr: &SocketAddr, payload: &[u8]) -> NaiaResult {
         // Bandwidth monitoring
 		self.bytes_tx = self.bytes_tx.wrapping_add(payload.len() as u64);
 		self.pkt_tx_count = self.pkt_tx_count.wrapping_add(1);

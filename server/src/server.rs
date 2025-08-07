@@ -108,7 +108,7 @@ impl Server {
 							let Some(user_key) = self.user_id_pool.get() else {
 								// too many connected users; reject request -- best effort
 								let writer = write_reject_response(RejectReason::ServerFull);
-								let _ = io.send_packet(&address, writer.to_packet());
+								let _ = io.send_packet(&address, writer.slice());
 
 								continue;
 							};

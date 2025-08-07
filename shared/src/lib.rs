@@ -9,9 +9,10 @@ pub use naia_derive::{
     Channel, Message,
 };
 pub use naia_serde::{
-	BitReader, BitWrite, BitWriter, ConstBitLength, OutgoingPacket, Serde,
-	SerdeErr, SerdeIntegerConversion, SerdeInternal, SignedInteger, SignedVariableInteger,
-	UnsignedInteger, UnsignedVariableInteger, MTU_SIZE_BITS, MTU_SIZE_BYTES,
+	BitCounter, BitReader, BitWrite, BitWriter, ConstBitLength, OutgoingPacket, Serde,
+	SerdeErr, SerdeResult, SerdeIntegerConversion, SerdeInternal, SignedInteger,
+	SignedVariableInteger, UnsignedInteger, UnsignedVariableInteger, MTU_SIZE_BITS,
+	MTU_SIZE_BYTES,
 };
 
 mod connection;
@@ -30,7 +31,7 @@ pub use connection::{
 	conditioner::ConditionerConfig,
     connection_config::ConnectionConfig,
     io::Io,
-    packet,
+    packet::{ self, * },
 };
 pub use messages::{
     channels::{

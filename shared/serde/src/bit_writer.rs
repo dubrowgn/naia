@@ -1,6 +1,6 @@
 use crate::{
     constants::{MTU_SIZE_BITS, MTU_SIZE_BYTES},
-    BitCounter, OutgoingPacket,
+    BitCounter, OutgoingPacket, Serde,
 };
 
 pub trait BitWrite {
@@ -35,17 +35,23 @@ impl BitWriter {
 
     pub fn to_bytes(&self) -> Box<[u8]> { Box::from(&self.buffer[0..self.size()]) }
 
+	pub fn slice(&self) -> &[u8] { &self.buffer[0..self.size()] }
+	pub fn slice_mut(&mut self) -> &mut [u8] {
+		let size = self.size();
+		&mut self.buffer[0..size]
+	}
+
     pub fn counter(&self) -> BitCounter { BitCounter::new(self.capacity_bits) }
 
-    pub fn reserve_bits(&mut self, bits: u32) {
-        self.capacity_bits -= bits;
-    }
-
-    pub fn release_bits(&mut self, bits: u32) {
-        self.capacity_bits += bits;
-    }
+	pub fn reserve_bit(&mut self) { self.capacity_bits -= 1 }
+	pub fn write_reserved_bit(&mut self, bit: bool) {
+		self.capacity_bits += 1;
+		self.write_bit(bit);
+	}
 
     pub fn bits_free(&self) -> u32 { self.capacity_bits }
+
+	pub fn write<T: Serde>(&mut self, value: &T) { value.ser(self) }
 }
 
 impl BitWrite for BitWriter {

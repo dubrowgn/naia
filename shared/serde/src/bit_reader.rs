@@ -1,4 +1,4 @@
-use crate::SerdeErr;
+use crate::{Serde, SerdeErr, SerdeResult};
 
 pub struct BitReader {
 	bit_offset: u8,
@@ -50,6 +50,8 @@ impl BitReader {
 
         Ok(byte)
     }
+
+	pub fn read<T: Serde>(&mut self) -> SerdeResult<T> { T::de(self) }
 }
 
 #[cfg(test)]

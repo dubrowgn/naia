@@ -1,7 +1,7 @@
 use crate::user::UserKey;
 use log::trace;
 use naia_shared::{
-	BaseConnection, BitReader, BitWriter, ChannelKind, ChannelKinds, ConnectionConfig,
+	BaseConnection, BitReader, ChannelKind, ChannelKinds, ConnectionConfig,
 	error::*, HostType, Io, MessageContainer, Schema, Serde, packet::*,
 };
 use ring::{hmac, rand};
@@ -120,11 +120,10 @@ impl Connection {
 	// Step 2 of Handshake
 	fn write_challenge_response(
 		&mut self, req: &packet::ClientChallengeRequest
-	) -> BitWriter {
+	) -> PacketWriter {
 		let tag = hmac::sign(&self.connection_hash_key, &req.timestamp_ns.to_le_bytes());
 
-		let mut writer = BitWriter::new();
-		self.base.packet_header(PacketType::ServerChallengeResponse).ser(&mut writer);
+		let mut writer: _ = self.base.packet_writer(PacketType::ServerChallengeResponse);
 		packet::ServerChallengeResponse {
 			timestamp_ns: req.timestamp_ns,
 			signature: tag.as_ref().into(),
@@ -192,25 +191,24 @@ impl Connection {
 	}
 
 	// Step 4 of Handshake
-	fn write_connect_response(&mut self, req: &packet::ClientConnectRequest) -> BitWriter {
-		let mut writer = BitWriter::new();
-		self.base.packet_header(PacketType::ServerConnectResponse).ser(&mut writer);
+	fn write_connect_response(
+		&mut self, req: &packet::ClientConnectRequest,
+	) -> PacketWriter {
+		let mut writer: _ = self.base.packet_writer(PacketType::ServerConnectResponse);
 		packet::ServerConnectResponse {
 			client_timestamp_ns: req.client_timestamp_ns,
 		}.ser(&mut writer);
 		writer
 	}
 
-	fn write_disconnect(&mut self) -> BitWriter {
-		let mut writer = BitWriter::new();
-		self.base.packet_header(PacketType::Disconnect).ser(&mut writer);
+	fn write_disconnect(&mut self) -> PacketWriter {
+		let mut writer: _ = self.base.packet_writer(PacketType::Disconnect);
 		packet::Disconnect { timestamp_ns: 0, signature: vec![] }.ser(&mut writer);
 		writer
 	}
 
-	fn write_reject_response(&mut self, reason: RejectReason) -> BitWriter {
-		let mut writer = BitWriter::new();
-		self.base.packet_header(PacketType::ServerRejectResponse).ser(&mut writer);
+	fn write_reject_response(&mut self, reason: RejectReason) -> PacketWriter {
+		let mut writer: _ = self.base.packet_writer(PacketType::ServerRejectResponse);
 		packet::ServerRejectResponse { reason }.ser(&mut writer);
 		writer
 	}
@@ -319,12 +317,11 @@ impl Connection {
 	pub fn msg_tx_queue_count(&self) -> u64 { self.base.msg_tx_queue_count() }
 }
 
-pub fn write_reject_response(reason: RejectReason) -> BitWriter {
-	let mut writer = BitWriter::new();
-	PacketHeader {
+pub fn write_reject_response(reason: RejectReason) -> PacketWriter {
+	let mut writer: _ = PacketWriter::new(PacketHeader {
 		packet_type: PacketType::ServerRejectResponse,
 		packet_seq: 0.into(),
-	}.ser(&mut writer);
+	});
 	packet::ServerRejectResponse { reason }.ser(&mut writer);
 	writer
 }
