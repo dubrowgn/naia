@@ -9,7 +9,6 @@ mod constants;
 mod error;
 mod impls;
 mod integer;
-mod outgoing_packet;
 mod serde;
 
 pub use bit_counter::BitCounter;
@@ -21,7 +20,6 @@ pub use integer::{
     SerdeIntegerConversion, SignedInteger, SignedVariableInteger, UnsignedInteger,
     UnsignedVariableInteger,
 };
-pub use outgoing_packet::OutgoingPacket;
 pub use serde::{
     ConstBitLength, Serde, Serde as SerdeInternal,
 };

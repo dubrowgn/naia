@@ -9,7 +9,7 @@ pub use naia_derive::{
     Channel, Message,
 };
 pub use naia_serde::{
-	BitCounter, BitReader, BitWrite, BitWriter, ConstBitLength, OutgoingPacket, Serde,
+	BitCounter, BitReader, BitWrite, BitWriter, ConstBitLength, Serde,
 	SerdeErr, SerdeResult, SerdeIntegerConversion, SerdeInternal, SignedInteger,
 	SignedVariableInteger, UnsignedInteger, UnsignedVariableInteger, MTU_SIZE_BITS,
 	MTU_SIZE_BYTES,

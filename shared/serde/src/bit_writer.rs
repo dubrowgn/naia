@@ -1,6 +1,6 @@
 use crate::{
     constants::{MTU_SIZE_BITS, MTU_SIZE_BYTES},
-    BitCounter, OutgoingPacket, Serde,
+    BitCounter, Serde,
 };
 
 pub trait BitWrite {
@@ -28,10 +28,6 @@ impl BitWriter {
     }
 
 	fn size(&self) -> usize { self.buffer_index + (self.bit_offset > 0) as usize }
-
-    pub fn to_packet(&self) -> OutgoingPacket {
-        OutgoingPacket::new(self.size(), self.buffer)
-    }
 
     pub fn to_bytes(&self) -> Box<[u8]> { Box::from(&self.buffer[0..self.size()]) }
 
