@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use super::{ack_manager::AckManager, connection_config::ConnectionConfig, packet::*};
 use x25519_dalek::{EphemeralSecret, PublicKey};
 
-const METRICS_WINDOW_SIZE: Duration = Duration::from_secs(7);
+const METRICS_WINDOW_SIZE: Duration = Duration::from_secs(17);
 
 /// Represents a connection to a remote host, and provides functionality to
 /// manage the connection and the communications to it

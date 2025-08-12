@@ -33,6 +33,7 @@ impl ConditionerConfig {
 	pub const TRANS_ATLANTIC: Self = Self::new(40.0, 10.0, 0.001, 0.001);
 	pub const TRANS_PACIFIC: Self = Self::new(65.0, 10.0, 0.001, 0.001);
 	pub const WIFI_GOOD: Self = Self::new(3.1, 3.756, 0.005, 0.005);
+	pub const ETHERNET_GOOD: Self = Self::new(0.267, 0.212, 0.0, 0.0);
 
 	pub const fn new(
 		half_rtt_ms: f32, jitter_ms: f32, loss_frac: f32, duplication_frac: f32
