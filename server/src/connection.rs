@@ -52,8 +52,7 @@ impl Connection {
 		&mut self, req: &packet::ConnectRequest, io: &mut Io,
 	) -> NaiaResult {
 		self.state = ConnectionState::Connected;
-		let writer = self.write_connect_response(req);
-		self.base.send(io, writer)
+		self.send_connect_response(req, io)
 	}
 
 	pub fn reject_connection(&mut self, io: &mut Io, reason: RejectReason) -> NaiaResult {
@@ -171,8 +170,7 @@ impl Connection {
 
 		match self.state {
 			ConnectionState::Connected => {
-				let writer = self.write_connect_response(&req);
-				self.base.send(io, writer)?;
+				self.send_connect_response(&req, io)?;
 				Ok(ReceiveEvent::None)
 			},
 			ConnectionState::PendingConnect{..} => {
@@ -184,12 +182,14 @@ impl Connection {
 	}
 
 	// Step 4 of Handshake
-	fn write_connect_response(&mut self, req: &packet::ConnectRequest) -> PacketWriter {
+	fn send_connect_response(
+		&mut self, req: &packet::ConnectRequest, io: &mut Io,
+	) -> NaiaResult {
 		let mut writer: _ = self.base.packet_writer(PacketType::ConnectResponse);
 		packet::ConnectResponse {
 			client_timestamp_ns: req.client_timestamp_ns,
 		}.ser(&mut writer);
-		writer
+		self.base.send(io, writer)
 	}
 
 	fn write_disconnect(&mut self) -> PacketWriter {

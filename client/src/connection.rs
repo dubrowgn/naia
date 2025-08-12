@@ -74,13 +74,11 @@ impl Connection {
 		match &mut self.state {
 			ConnectionState::AwaitingEncryptResponse{ pub_key , .. } => {
 				let pub_key = pub_key.to_bytes();
-				let writer = self.write_encrypt_request(pub_key);
-				self.base.send(io, writer)?;
+				self.send_encrypt_request(pub_key, io)?;
 			}
 			ConnectionState::AwaitingConnectResponse{ server_timestamp_ns } => {
 				let server_timestamp_ns = *server_timestamp_ns;
-				let writer = self.write_connect_request(schema, server_timestamp_ns);
-				self.base.send(io, writer)?;
+				self.send_connect_request(schema, server_timestamp_ns, io)?;
 			}
 			ConnectionState::Connected => unreachable!(),
 			ConnectionState::Disconnected => unreachable!(),
@@ -111,7 +109,9 @@ impl Connection {
 	}
 
 	// Step 1 of Handshake
-	fn write_encrypt_request(&mut self, pub_key: [u8; packet::DH_KEY_SIZE]) -> PacketWriter {
+	fn send_encrypt_request(
+		&mut self, pub_key: [u8; packet::DH_KEY_SIZE], io: &mut Io,
+	) -> NaiaResult {
 		debug_assert!(matches!(self.state, ConnectionState::AwaitingEncryptResponse{..}));
 
 		let mut writer: _ = self.base.packet_writer(PacketType::EncryptRequest);
@@ -121,7 +121,7 @@ impl Connection {
 			padding: [0; 256],
 		}.ser(&mut writer);
 
-		writer
+		self.base.send(io, writer)
 	}
 
 	// Step 2 of Handshake
@@ -151,9 +151,9 @@ impl Connection {
 	}
 
 	// Step 3 of Handshake
-	fn write_connect_request(
-		&mut self, schema: &Schema, server_timestamp_ns: TimestampNs,
-	) -> PacketWriter {
+	fn send_connect_request(
+		&mut self, schema: &Schema, server_timestamp_ns: TimestampNs, io: &mut Io,
+	) -> NaiaResult {
 		debug_assert!(matches!(self.state, ConnectionState::AwaitingConnectResponse{..}));
 
 		let mut writer: _ = self.base.packet_writer(PacketType::ConnectRequest);
@@ -171,7 +171,7 @@ impl Connection {
 			false.ser(&mut writer);
 		}
 
-		writer
+		self.base.send(io, writer)
 	}
 
 	// Step 4 of Handshake
