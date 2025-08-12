@@ -47,6 +47,8 @@ use specifically with deterministic lockstep applications.
 
 ## To do
 
-* Fix server drops data packets race condition on connect
-* Add encryption (and remove ring)
+* Fix server drops out-of-order data packets on connect
 * Fix or remove fragmentation logic
+* Fix "public key poisoning" DOS (anyone can spoof an IP address and provide a public key)
+* Combine Pings and Pongs into one PingPong w/ delay?
+* Add pre-emptive multi-transmit to compensate for packet loss
