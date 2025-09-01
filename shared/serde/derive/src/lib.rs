@@ -25,12 +25,14 @@ fn derive_serde_common(
 
     let gen = match &input.data {
         Data::Enum(enum_) => derive_serde_enum(enum_, &input_name, serde_crate_name),
-        Data::Struct(struct_) => match struct_.fields {
-            Fields::Unit | Fields::Unnamed(_) => {
-                derive_serde_tuple_struct(struct_, &input_name, serde_crate_name)
-            }
-            Fields::Named(_) => derive_serde_struct(struct_, &input_name, serde_crate_name),
-        },
+        Data::Struct(struct_) => {
+			let transform: _ = match struct_.fields {
+				Fields::Unit => derive_serde_unit_struct,
+				Fields::Unnamed(_) => derive_serde_tuple_struct,
+				Fields::Named(_) => derive_serde_struct,
+			};
+			transform(struct_, &input_name, serde_crate_name)
+		},
         _ => unimplemented!("Only structs and enums are supported"),
     };
 
