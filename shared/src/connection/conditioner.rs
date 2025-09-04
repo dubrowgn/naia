@@ -57,11 +57,11 @@ impl PacketConditioner {
 
 	pub fn push(&mut self, addr: SocketAddr, data: Box<[u8]>) {
 		let mut packets = 1;
-		if rand::thread_rng().gen_range(0.0..=1.0) < self.config.loss_frac {
+		if rand::rng().random_range(0.0..=1.0) < self.config.loss_frac {
 			packets -= 1;
 			trace!("Conditioner dropped packet");
 		}
-		if rand::thread_rng().gen_range(0.0..=1.0) < self.config.duplication_frac {
+		if rand::rng().random_range(0.0..=1.0) < self.config.duplication_frac {
 			packets += 1;
 			trace!("Conditioner duplicated packet");
 		}
@@ -70,7 +70,7 @@ impl PacketConditioner {
 		let max = f32::min(self.config.half_rtt_ms + self.config.jitter_ms, f32::MAX);
 
 		for _ in 0..packets {
-			let half_rtt_ms = rand::thread_rng().gen_range(min..=max);
+			let half_rtt_ms = rand::rng().random_range(min..=max);
 			let timestamp = Instant::now() + Duration::from_secs_f32(half_rtt_ms / 1000.0);
 			self.time_queue.add_item(timestamp, (addr, data.clone()));
 		}
