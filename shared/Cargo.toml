@@ -1,6 +1,6 @@
 [package]
 name = "naia-shared"
-version = "0.22.0"
+version = "1.0.0"
 authors = ["connorcarpenter <connorcarpenter@gmail.com>"]
 workspace = ".."
 description = "Common functionality shared between naia-server & naia-client crates"
@@ -18,8 +18,8 @@ maintenance = { status = "actively-developed" }
 
 [dependencies]
 chacha20poly1305 = "0.10"
-naia-derive = { version = "0.22", path = "derive" }
-naia-serde = { version = "0.22", path = "serde" }
+naia-derive = { path = "derive" }
+naia-serde = { path = "serde" }
 log = { version = "0.4" }
 rand = { version = "0.8" }
 x25519-dalek = { version = "2.0.x", features = ["getrandom"] }
