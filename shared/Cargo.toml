@@ -17,9 +17,9 @@ edition = "2024"
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-chacha20poly1305 = "0.10"
+chacha20poly1305 = { workspace = true }
 naia-derive = { path = "derive" }
 naia-serde = { path = "serde" }
-log = { version = "0.4" }
+log = { workspace = true }
 rand = { version = "0.9.x" }
-x25519-dalek = { version = "2.0.x", features = ["getrandom"] }
+x25519-dalek = { workspace = true }

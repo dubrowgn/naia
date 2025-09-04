@@ -18,7 +18,7 @@ maintenance = { status = "actively-developed" }
 
 [dependencies]
 naia-shared = { path = "../shared" }
-chacha20poly1305 = "0.10.x"
-cfg-if = { version = "1.0" }
-log = { version = "0.4" }
-x25519-dalek = { version = "2.0.x", features = ["getrandom"] }
+chacha20poly1305 = { workspace = true }
+cfg-if = { workspace = true }
+log = { workspace = true }
+x25519-dalek = { workspace = true }

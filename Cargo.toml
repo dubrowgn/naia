@@ -18,6 +18,15 @@ default-members = [
     "shared/serde/derive",
 ]
 
+[workspace.dependencies]
+cfg-if = "1.0.x"
+chacha20poly1305 = "0.10.x"
+log = "0.4.x"
+proc-macro2 = "1.0.x"
+quote = "1.0.x"
+syn = "2.0.29"
+x25519-dalek = { version = "2.0.x", features = ["getrandom"] }
+
 [profile.release]
 opt-level = 's'
 lto = true
