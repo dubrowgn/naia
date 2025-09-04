@@ -11,7 +11,7 @@ readme = "../README.md"
 keywords = ["udp", "networking", "gamedev"]
 categories = ["network-programming", "game-development", "web-programming"]
 license = "MIT"
-edition = "2021"
+edition = "2024"
 
 [badges]
 maintenance = { status = "actively-developed" }

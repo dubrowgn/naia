@@ -23,7 +23,7 @@ fn derive_serde_common(
     let input = parse_macro_input!(input as DeriveInput);
     let input_name = input.ident;
 
-    let gen = match &input.data {
+	proc_macro::TokenStream::from(match &input.data {
         Data::Enum(enum_) => derive_serde_enum(enum_, &input_name, serde_crate_name),
         Data::Struct(struct_) => {
 			let transform: _ = match struct_.fields {
@@ -34,7 +34,5 @@ fn derive_serde_common(
 			transform(struct_, &input_name, serde_crate_name)
 		},
         _ => unimplemented!("Only structs and enums are supported"),
-    };
-
-    proc_macro::TokenStream::from(gen)
+    })
 }

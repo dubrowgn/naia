@@ -18,12 +18,7 @@ pub fn channel_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // Names
     let struct_name = input.ident;
 
-    let gen = quote! {
-
-        impl Channel for #struct_name {
-
-        }
-    };
-
-    proc_macro::TokenStream::from(gen)
+    proc_macro::TokenStream::from(quote! {
+		impl Channel for #struct_name { }
+    })
 }

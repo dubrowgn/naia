@@ -33,7 +33,7 @@ pub fn message_impl(
     let read_method = get_read_method(&struct_name, &fields, &struct_type);
     let is_fragment_method = get_is_fragment_method(is_fragment);
 
-    let gen = quote! {
+    proc_macro::TokenStream::from(quote! {
         mod #module_name {
 
             pub use std::{any::Any, collections::HashSet};
@@ -69,9 +69,7 @@ pub fn message_impl(
                 #clone_method
             }
         }
-    };
-
-    proc_macro::TokenStream::from(gen)
+    })
 }
 
 fn get_is_fragment_method(is_fragment: bool) -> TokenStream {
