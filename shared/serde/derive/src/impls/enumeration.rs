@@ -25,13 +25,12 @@ pub fn derive_serde_enum(
     );
     let module_name = format_ident!("define_{}", lowercase_enum_name);
 
-    let import_types =
-        quote! { Serde, BitWrite, UnsignedInteger, BitReader, SerdeErr, ConstBitLength, };
-    let imports = quote! { use #serde_crate_name::{#import_types}; };
-
     quote! {
         mod #module_name {
-            #imports
+			use #serde_crate_name::{
+				BitReader, BitWrite, ConstBitLength, Serde,
+				SerdeErr, SerdeResult, UnsignedInteger,
+			};
             use super::#enum_name;
 
             impl Serde for #enum_name {
@@ -175,7 +174,7 @@ fn get_de_method(enum_: &DataEnum, bits_needed: u8) -> TokenStream {
         }
     }
     quote! {
-        fn de(reader: &mut BitReader) -> std::result::Result<Self, SerdeErr> {
+        fn de(reader: &mut BitReader) -> SerdeResult<Self> {
             let index: UnsignedInteger<#bits_needed> = Serde::de(reader)?;
             let index_u16: u16 = index.get() as u16;
             Ok(match index_u16 {

@@ -14,7 +14,7 @@ pub fn derive_serde_unit_struct(
 
 	quote! {
 		mod #module {
-			use #serde_crate_name::{BitWrite, Serde, BitReader, SerdeResult};
+			use #serde_crate_name::{BitReader, BitWrite, Serde, SerdeResult};
 			use super::#struct_name;
 
 			impl Serde for #struct_name {

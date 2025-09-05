@@ -34,18 +34,15 @@ pub fn derive_serde_struct(
     );
     let module_name = format_ident!("define_{}", lowercase_struct_name);
 
-    let import_types = quote! { Serde, BitWrite, ConstBitLength, BitReader, SerdeErr };
-    let imports = quote! { use #serde_crate_name::{#import_types}; };
-
     quote! {
         mod #module_name {
-            #imports
+			use #serde_crate_name::{BitReader, BitWrite, Serde, SerdeResult};
             use super::#struct_name;
             impl Serde for #struct_name {
                  fn ser(&self, writer: &mut dyn BitWrite) {
                     #ser_body
                  }
-                 fn de(reader: &mut BitReader) -> Result<Self, SerdeErr> {
+                 fn de(reader: &mut BitReader) -> SerdeResult<Self> {
                     Ok(Self {
                         #de_body
                     })

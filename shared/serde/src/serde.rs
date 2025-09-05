@@ -1,4 +1,4 @@
-use super::{bit_reader::BitReader, bit_writer::BitWrite, error::SerdeErr};
+use super::{bit_reader::BitReader, bit_writer::BitWrite, error::SerdeResult};
 
 /// A trait for objects that can be serialized to a bitstream.
 pub trait Serde: Sized + Clone + PartialEq {
@@ -6,7 +6,7 @@ pub trait Serde: Sized + Clone + PartialEq {
     fn ser(&self, writer: &mut dyn BitWrite);
 
     /// Parse Self from a BitReader
-    fn de(reader: &mut BitReader) -> Result<Self, SerdeErr>;
+    fn de(reader: &mut BitReader) -> SerdeResult<Self>;
 
     /// Return length of value in bits
     fn bit_length(&self) -> u32;
